@@ -20,7 +20,8 @@ const KEY_ITEMS_BY_TIER: string[][] = [
 /** A colony day is ten minutes of factory time; it only marks the passing of time */
 const DAY_SECONDS = 600;
 
-const round1 = (n: number) => fmtNum(Math.round(n * 10) / 10);
+/** Power numbers: one decimal while small, then k/M/G like stock counts */
+const round1 = (n: number) => (Math.abs(n) >= 1e4 ? fmt(n) : fmtNum(Math.round(n * 10) / 10));
 
 export function Brand({ compact }: { compact?: boolean }) {
   const s = getState();
@@ -87,7 +88,7 @@ export function TopBar() {
           {swarm > 0 && (
             <button class="stat link-stat" title="每片戴森板提供的免費電力" onClick={() => openLookup(SWARM_ITEM)}>
               <ItemIcon id={SWARM_ITEM} />
-              {fmtNum(swarm)} 片 · +{fmtNum(swarm * SWARM_EU)} 電力
+              {fmt(swarm)} 片 · +{fmt(swarm * SWARM_EU)} 電力
             </button>
           )}
           <span class={`stat ${used >= total ? 'tone-text-warn' : ''}`} title="地面區域槽位">▦ 槽位 {used}/{total}</span>

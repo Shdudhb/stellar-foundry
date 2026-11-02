@@ -254,9 +254,9 @@ function LineCard({ line, status }: { line: Line; status?: LineStatus }) {
         <button onClick={() => build(line.id, 5)} title="建造五台">＋5</button>
         <button onClick={() => toggleLine(line.id)}>{line.enabled ? '暫停' : '繼續'}</button>
         <span class="spacer" />
-        <span class="muted small">每台：<Cost cost={m.cost} /></span>
         <button class="danger" onClick={() => removeLine(line.id)} title="拆除全部並移除這條生產線">移除</button>
       </footer>
+      <p class="line-cost muted small">每台：<Cost cost={m.cost} /></p>
       {upgrade && <UpgradeRow line={line} to={upgrade} />}
     </article>
   );
@@ -270,8 +270,10 @@ export function ProductionPanel() {
       <PageHeader kicker="FACTORY / PRODUCTION" title="生產線">
         採集原料、建立生產線，讓機器自己運轉。卡住的線會亮黃燈或紅燈，告訴你缺什麼。
       </PageHeader>
-      <ManualCard />
-      <NewLineCard />
+      <div class="prod-top">
+        <ManualCard />
+        <NewLineCard />
+      </div>
       {s.lines.length === 0 ? (
         <p class="empty">還沒有生產線。先手動採集石頭，然後建立一條「石爐」生產線。</p>
       ) : (
