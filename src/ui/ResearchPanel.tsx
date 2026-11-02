@@ -1,10 +1,11 @@
 import { itemName } from '../data/items';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
-import { MILESTONES, TECH_LIST, TECHS } from '../data/tech';
+import { MILESTONES, TECH_LIST, TECHS, TIER_NAMES } from '../data/tech';
 import { canAfford, currentTier, techAvailable, techCost } from '../sim/rules';
 import { getRates, getState, research } from '../state/store';
-import { Cost, fmt, fmtRate } from './common';
+import { Cost, PageHeader, fmt, fmtRate } from './common';
+import { ItemIcon, MachineIcon, UiIcon } from './pixel';
 
 function unlockSummary(id: string): string {
   const t = TECHS[id];
@@ -16,7 +17,17 @@ function unlockSummary(id: string): string {
   return parts.join('、');
 }
 
-const TIER_NAMES: Record<number, string> = { 1: '蒸汽時代', 2: 'LV 電力時代', 3: 'MV 石化時代', 4: 'HV 冶金時代', 5: 'EV 軌道時代', 6: 'IV 聚變時代', 7: '星際時代' };
+/** The picture on a tech card: what it unlocks */
+function TechArt({ id }: { id: string }) {
+  const t = TECHS[id];
+  if (t.unlockMachines?.length) return <MachineIcon id={t.unlockMachines[0]} size={32} />;
+  if (t.unlockRecipes?.length) {
+    const out = Object.keys(RECIPES[t.unlockRecipes[0]].outputs)[0];
+    return <ItemIcon id={out} size={32} />;
+  }
+  if (t.unlockMilestone) return <UiIcon id="milestones" size={32} />;
+  return <UiIcon id={t.slotBonus || t.orbitSlotBonus ? 'production' : 'storage'} size={32} />;
+}
 
 const DATA_ITEMS = [
   { id: 'data', minTier: 0 },
@@ -37,23 +48,31 @@ export function ResearchPanel() {
 
   return (
     <div class="panel">
-      <section class="card">
-        <h3>研究</h3>
-        <p class="row">
-          {DATA_ITEMS.filter((d) => tier >= d.minTier).map((d) => (
-            <span key={d.id}>
-              {itemName(d.id)} <strong>{fmt(s.items[d.id] ?? 0)}</strong>{' '}
-              <span class="muted">{fmtRate(rates[d.id] ?? 0)}</span>
+      <PageHeader kicker="SCIENCE / RESEARCH" title="研究">
+        研究站把科研包分析成研究數據，用數據解鎖新機器、配方和巨構。已完成 {s.techs.length}/{TECH_LIST.length}。
+      </PageHeader>
+      <div class="data-row">
+        {DATA_ITEMS.filter((d) => tier >= d.minTier).map((d) => (
+          <span key={d.id} class="data-chip" title={itemName(d.id)}>
+            <ItemIcon id={d.id} size={28} />
+            <span>
+              <strong>{fmt(s.items[d.id] ?? 0)}</strong>
+              <span class="muted small"> {fmtRate(rates[d.id] ?? 0)}</span>
+              <br />
+              <span class="muted small">{itemName(d.id)}</span>
             </span>
-          ))}
-        </p>
-        <p class="muted small">研究站把科研包分析成研究數據。研究完成 {s.techs.length}/{TECH_LIST.length}。</p>
-      </section>
+          </span>
+        ))}
+      </div>
       {tiers.map((tr) => {
         const techs = TECH_LIST.filter((t) => t.tier === tr).sort((a, b) => order(a.id) - order(b.id));
         return (
-          <section key={tr}>
-            <h3 class="tier-head">T{tr} {TIER_NAMES[tr] ?? ''}</h3>
+          // A finished tier folds away so the open research stays at the top
+          <details key={tr} class="tier" open={!techs.every((t) => s.techs.includes(t.id))}>
+            <summary class="tier-head">
+              <span class="tier-pill">T{tr}</span>{TIER_NAMES[tr] ?? ''}
+              <span class="muted small">{techs.filter((t) => s.techs.includes(t.id)).length}/{techs.length}</span>
+            </summary>
             <div class="tech-grid">
               {techs.map((t) => {
                 const done = s.techs.includes(t.id);
@@ -63,8 +82,13 @@ export function ResearchPanel() {
                 const unlocks = unlockSummary(t.id);
                 return (
                   <article key={t.id} class={`card tech ${done ? 'done' : avail ? 'avail' : 'locked'}`}>
-                    <h4>{t.name}</h4>
-                    <p class="small">{t.description}</p>
+                    <div class="tech-top">
+                      <span class="tech-art"><TechArt id={t.id} /></span>
+                      <div>
+                        <h4>{t.name}</h4>
+                        <p class="small">{t.description}</p>
+                      </div>
+                    </div>
                     {unlocks && <p class="muted small">{unlocks}</p>}
                     {needMilestone && (
                       <p class="small tone-text-warn">需要先建成巨構「{MILESTONES[t.requiresMilestone!].name}」</p>
@@ -88,7 +112,7 @@ export function ResearchPanel() {
                 );
               })}
             </div>
-          </section>
+          </details>
         );
       })}
     </div>

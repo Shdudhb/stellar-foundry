@@ -32,6 +32,16 @@ describe('save', () => {
     expect(s.nextLineId).toBe(6);
   });
 
+  it('drops lines whose machine or recipe no longer exists', () => {
+    const s = newGame();
+    s.lines = [
+      { id: 1, machine: 'basic_drill', recipe: 'mine_stone', count: 1, enabled: true },
+      { id: 2, machine: 'basic_drill', recipe: 'no_such_recipe', count: 1, enabled: true },
+      { id: 3, machine: 'no_such_machine', recipe: 'mine_stone', count: 1, enabled: true },
+    ];
+    expect(parseSave(JSON.stringify(s))!.lines.map((l) => l.id)).toEqual([1]);
+  });
+
   it('rejects garbage', () => {
     expect(parseSave('not json')).toBeNull();
     expect(importString('%%%')).toBeNull();

@@ -8,21 +8,41 @@ import type { Line, LineStatus } from '../sim/types';
 import {
   addLine, build, demolish, gather, getLast, getState, removeLine, setRecipe, toggleLine, upgradeLine,
 } from '../state/store';
-import { Bar, Cost, ItemLink, fmt, fmtNum, fmtRate, reasonText, reasonTone } from './common';
+import { Bar, Cost, ItemLink, PageHeader, Side, fmt, fmtNum, fmtRate, reasonText, reasonTone } from './common';
+import { ItemIcon, MachineIcon } from './pixel';
+
+function GatherTile({ id }: { id: string }) {
+  const s = getState();
+  const [pops, setPops] = useState(0);
+  const full = (s.items[id] ?? 0) >= capOf(s, id);
+  return (
+    <button
+      class="gather-tile"
+      onClick={() => {
+        gather(id);
+        if (!full) setPops((n) => n + 1);
+      }}
+    >
+      <ItemIcon id={id} size={40} />
+      <span class="gather-info">
+        <span class="gather-name">{itemName(id)}</span>
+        <span class={`gather-count ${full ? 'tone-text-warn' : ''}`}>{fmt(s.items[id] ?? 0)}/{fmt(capOf(s, id))}</span>
+      </span>
+      {pops > 0 && <span key={pops} class="gather-pop">+1</span>}
+    </button>
+  );
+}
 
 function ManualCard() {
-  const s = getState();
   const manual = ITEM_ORDER.filter((id) => ITEMS[id].manual);
   return (
     <section class="card">
-      <h3>手動採集</h3>
+      <div class="section-head">
+        <h2>手動採集</h2>
+        <span class="muted">點一下撿一個，早期的原料從這裡來</span>
+      </div>
       <div class="gather-row">
-        {manual.map((id) => (
-          <button key={id} class="gather-btn" onClick={() => gather(id)}>
-            <span>{itemName(id)}</span>
-            <span class="muted">{fmt(s.items[id] ?? 0)}/{fmt(capOf(s, id))}</span>
-          </button>
-        ))}
+        {manual.map((id) => <GatherTile key={id} id={id} />)}
       </div>
     </section>
   );
@@ -39,7 +59,10 @@ function NewLineCard() {
 
   return (
     <section class="card">
-      <h3>新增生產線</h3>
+      <div class="section-head">
+        <h2>新增生產線</h2>
+        <span class="muted">選機器和配方，建立後再加蓋機器</span>
+      </div>
       <div class="new-line">
         <label>
           機器
@@ -60,9 +83,21 @@ function NewLineCard() {
         <button class="primary" disabled={!recipeId} onClick={() => addLine(machine, recipeId)}>建立</button>
       </div>
       {m && (
-        <p class="muted small">
-          {m.description} 建造一台：<Cost cost={m.cost} />
-        </p>
+        <div class="new-preview">
+          <MachineIcon id={m.id} size={48} />
+          <div>
+            <p class="small">{m.description}</p>
+            {recipeId && (
+              <p class="small recipe-eq">
+                <Side items={RECIPES[recipeId].inputs} />
+                <span class="flow-arrow">→</span>
+                <Side items={RECIPES[recipeId].outputs} />
+                <span class="muted">· {RECIPES[recipeId].time} 秒</span>
+              </p>
+            )}
+            <p class="small muted">建造一台：<Cost cost={m.cost} /></p>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -72,7 +107,7 @@ const WORN_SPEED_LOSS = 1 - WORN_SPEED;
 
 function Flow({ items, perSec, sign }: { items: Record<string, number>; perSec: number; sign: '−' | '+' }) {
   const entries = Object.entries(items).filter(([id]) => !isPower(id));
-  if (entries.length === 0) return <span class="muted">—</span>;
+  if (entries.length === 0) return <span class="muted">無</span>;
   return (
     <span class="flow">
       {entries.map(([id, n]) => (
@@ -145,12 +180,16 @@ function LineCard({ line, status }: { line: Line; status?: LineStatus }) {
   const upgrade = upgradeTarget(s, line);
 
   return (
-    <article class={`card line tone-border-${tone}`}>
+    <article class={`card line tone-border-${tone} ${line.enabled ? '' : 'paused'}`}>
       <header class="line-head">
-        <div>
+        <span class={`line-icon ${eff > 0.01 ? 'running' : ''}`}>
+          <MachineIcon id={m.id} size={44} title />
+          <span class="line-count-badge">×{line.count}</span>
+        </span>
+        <div class="line-title">
           <span class="line-name">{m.name}</span>
-          <span class="line-count">× {line.count}</span>
-          <span class="badge">T{m.tier}</span>
+          <span class="line-badges">
+          <span class="badge tier">T{m.tier}</span>
           {oc.speed > 1 && (
             <span class="badge oc" title="機器階層高於配方：速度與耗能增加">{m.perfectOC ? '完美超頻' : '超頻'} ×{oc.speed}</span>
           )}
@@ -158,31 +197,41 @@ function LineCard({ line, status }: { line: Line; status?: LineStatus }) {
           {m.upkeep && s.maintenance && <span class="badge" title="每台每分鐘全速運轉消耗的維護套件">維護 {m.upkeep}/分</span>}
           {m.orbital && <span class="badge orbit" title="佔軌道槽位，靠軌道運力運轉">軌道</span>}
           {m.ignition && line.count > 0 && (line.heat ?? 0) >= 1 && <span class="badge lit">已點火</span>}
+          </span>
+          <select value={line.recipe} aria-label="配方" onChange={(e) => setRecipe(line.id, (e.target as HTMLSelectElement).value)}>
+            {recipeOptions.map((rr) => (
+              <option key={rr.id} value={rr.id}>{rr.name}</option>
+            ))}
+          </select>
         </div>
-        <select value={line.recipe} onChange={(e) => setRecipe(line.id, (e.target as HTMLSelectElement).value)}>
-          {recipeOptions.map((rr) => (
-            <option key={rr.id} value={rr.id}>{rr.name}</option>
-          ))}
-        </select>
       </header>
 
-      <div class="line-flows">
-        <div><span class="muted">消耗</span> <Flow items={r.inputs} perSec={perSec} sign="−" /></div>
-        {!generator && <div><span class="muted">產出</span> <Flow items={r.outputs} perSec={perSec} sign="+" /></div>}
-        {Object.entries(status?.power ?? {}).map(([p, v]) => (
-          <div key={p}>
-            <span class="muted">{itemName(p)}</span> {fmtRate(v)}
-          </div>
-        ))}
-        {status?.upkeep && (
-          <div>
-            <span class="muted">維護</span> <ItemLink id={MAINTENANCE_ITEM} /> {fmtRate(-status.upkeep.need * status.upkeep.supplied)}
-            {status.upkeep.supplied < 0.999 && (
-              <span class="tone-text-bad small"> 不足（需要 {fmtRate(-status.upkeep.need)}）</span>
-            )}
-          </div>
+      <div class="flow-row">
+        <Flow items={r.inputs} perSec={perSec} sign="−" />
+        {!generator && (
+          <>
+            <span class="flow-arrow">→</span>
+            <Flow items={r.outputs} perSec={perSec} sign="+" />
+          </>
         )}
       </div>
+      {(Object.keys(status?.power ?? {}).length > 0 || status?.upkeep) && (
+        <div class="flow-extra">
+          {Object.entries(status?.power ?? {}).map(([p, v]) => (
+            <span key={p} class={v > 0 ? 'tone-text-ok' : 'muted'}>
+              <ItemIcon id={p} /> {itemName(p)} {fmtRate(v)}
+            </span>
+          ))}
+          {status?.upkeep && (
+            <span>
+              <ItemLink id={MAINTENANCE_ITEM} /> {fmtRate(-status.upkeep.need * status.upkeep.supplied)}
+              {status.upkeep.supplied < 0.999 && (
+                <span class="tone-text-bad small"> 不足（需要 {fmtRate(-status.upkeep.need)}）</span>
+              )}
+            </span>
+          )}
+        </div>
+      )}
       {m.upkeep && s.maintenance && (line.wear ?? 0) > 0.005 && <WearRow wear={line.wear!} short={(status?.upkeep?.supplied ?? 1) < 0.999} />}
       {m.ignition && line.count > 0 && (line.heat ?? 0) < 1 && (
         <IgnitionRow
@@ -218,16 +267,25 @@ export function ProductionPanel() {
   const last = getLast();
   return (
     <div class="panel">
+      <PageHeader kicker="FACTORY / PRODUCTION" title="生產線">
+        採集原料、建立生產線，讓機器自己運轉。卡住的線會亮黃燈或紅燈，告訴你缺什麼。
+      </PageHeader>
       <ManualCard />
       <NewLineCard />
       {s.lines.length === 0 ? (
         <p class="empty">還沒有生產線。先手動採集石頭，然後建立一條「石爐」生產線。</p>
       ) : (
+        <>
+        <div class="section-head">
+          <h2>生產線</h2>
+          <span class="muted">{s.lines.length} 條 · {s.lines.reduce((n, l) => n + l.count, 0)} 台機器</span>
+        </div>
         <div class="lines">
           {s.lines.map((l) => (
             <LineCard key={l.id} line={l} status={last.lines[l.id]} />
           ))}
         </div>
+        </>
       )}
     </div>
   );

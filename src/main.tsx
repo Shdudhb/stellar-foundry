@@ -1,7 +1,12 @@
 import { render } from 'preact';
 import { start } from './state/store';
 import { App } from './ui/App';
+import { ArtSheet } from './ui/ArtSheet';
 import './styles.css';
 
-start();
-render(<App />, document.getElementById('app')!);
+if (location.hash === '#art') {
+  render(<ArtSheet />, document.getElementById('app')!);
+} else {
+  start();
+  render(<App />, document.getElementById('app')!);
+}

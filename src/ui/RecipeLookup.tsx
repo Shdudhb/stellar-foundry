@@ -4,22 +4,9 @@ import { RECIPE_LIST, type RecipeDef } from '../data/recipes';
 import { MILESTONES } from '../data/tech';
 import { isMachineUnlocked, isRecipeUnlocked, machinesFor, overclock } from '../sim/rules';
 import { getState, openLookup } from '../state/store';
-import { ItemLink, Modal, fmtNum } from './common';
-
-function Side({ items }: { items: Record<string, number> }) {
-  const entries = Object.entries(items);
-  if (entries.length === 0) return <span class="muted">（無）</span>;
-  return (
-    <>
-      {entries.map(([id, n], i) => (
-        <span key={id}>
-          {i > 0 && ' + '}
-          {n} <ItemLink id={id} />
-        </span>
-      ))}
-    </>
-  );
-}
+import { Modal, Side, fmtNum } from './common';
+import { ItemIcon } from './pixel';
+import { StoreControls } from './StoragePanel';
 
 function RecipeRow({ r }: { r: RecipeDef }) {
   const s = getState();
@@ -31,8 +18,8 @@ function RecipeRow({ r }: { r: RecipeDef }) {
         <span class="muted small"> · {r.time}s · 最低 T{r.tier}</span>
         {locked && <span class="badge">未解鎖</span>}
       </div>
-      <div class="small">
-        <Side items={r.inputs} /> → <Side items={r.outputs} />
+      <div class="small recipe-eq">
+        <Side items={r.inputs} /> <span class="flow-arrow">→</span> <Side items={r.outputs} />
       </div>
       <div class="muted small">
         機器：
@@ -61,7 +48,8 @@ export function RecipeLookup({ item }: { item: string }) {
   ];
 
   return (
-    <Modal title={itemName(item)} onClose={() => openLookup(null)}>
+    <Modal title={itemName(item)} icon={<ItemIcon id={item} size={24} />} onClose={() => openLookup(null)}>
+      <StoreControls id={item} />
       {def?.kind === 'byproduct' && <p class="tone-text-warn small">副產物：倉庫滿了會讓產生它的生產線停工。</p>}
       {def?.decay && (
         <p class="tone-text-warn small">會衰變：存著的量每秒少 {Math.round(def.decay * 100)}%，產出後要盡快用掉。</p>

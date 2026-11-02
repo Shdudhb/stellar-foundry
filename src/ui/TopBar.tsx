@@ -1,7 +1,9 @@
 import { POWER_ORDER, SWARM_EU, SWARM_ITEM, itemName } from '../data/items';
+import { TIER_NAMES } from '../data/tech';
 import { currentTier, slotsTotal, slotsUsed } from '../sim/rules';
 import { getLast, getRates, getState, openLookup, openSignal } from '../state/store';
 import { fmt, fmtDuration, fmtNum, fmtRate } from './common';
+import { ItemIcon } from './pixel';
 
 // What matters at each tier; the storage tab has everything else
 const KEY_ITEMS_BY_TIER: string[][] = [
@@ -15,7 +17,27 @@ const KEY_ITEMS_BY_TIER: string[][] = [
   ['dyson_panel', 'neutronium', 'superconductor', 'exotic_matter', 'stable_exotic', 'white_pack', 'data_yellow', 'data_white'],
 ];
 
+/** A colony day is ten minutes of factory time; it only marks the passing of time */
+const DAY_SECONDS = 600;
+
 const round1 = (n: number) => fmtNum(Math.round(n * 10) / 10);
+
+export function Brand({ compact }: { compact?: boolean }) {
+  const s = getState();
+  const tier = currentTier(s);
+  return (
+    <div class={`brand ${compact ? 'compact' : ''}`}>
+      <span class="brand-logo" aria-hidden="true">
+        <ItemIcon id="exotic_matter" size={compact ? 24 : 32} />
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">星燼工業</span>
+        <span class="brand-sub">STELLAR FOUNDRY</span>
+      </span>
+      <span class="tier-pill" title={TIER_NAMES[tier]}>T{tier}</span>
+    </div>
+  );
+}
 
 export function TopBar() {
   const s = getState();
@@ -28,54 +50,66 @@ export function TopBar() {
   const swarm = Math.floor(s.items[SWARM_ITEM] ?? 0);
   const tier = currentTier(s);
   const keyItems = KEY_ITEMS_BY_TIER[Math.min(tier, KEY_ITEMS_BY_TIER.length - 1)];
+  const day = Math.floor(s.playTime / DAY_SECONDS) + 1;
 
   return (
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">◆</span>
-        <span class="brand-name">星燼工業</span>
-        <span class="brand-tier">T{tier}</span>
-        {s.legacy.warps > 0 && <span class="brand-tier muted" title="已躍遷的星系數">星系 {s.legacy.warps + 1}</span>}
+      <div class="mobile-brand">
+        <Brand compact />
       </div>
-      {s.signal !== null && (
-        <button class="signal-btn" onClick={() => openSignal(true)}>
-          ◈ 遺物訊號 <span class="small">{Math.max(0, Math.ceil(s.signal - s.playTime))}s</span>
-        </button>
-      )}
-      {s.boostUntil > s.playTime && (
-        <span class="boost-chip" title="遺物的時間加速：整座工廠 ×2">時間加速 ×2 · {Math.ceil(s.boostUntil - s.playTime)}s</span>
-      )}
-      <div class="chips">
+      <section class="colony">
+        <div class="colony-head">
+          <span class="colony-title">✦ 殖民第 {day} 天 · {TIER_NAMES[tier]}</span>
+          {s.legacy.warps > 0 && <span class="colony-tag" title="已躍遷的星系數">星系 {s.legacy.warps + 1}</span>}
+          <span class="spacer" />
+          {s.boostUntil > s.playTime && (
+            <span class="boost-chip" title="遺物的時間加速：整座工廠 ×2">⏩ 時間加速 ×2 · {Math.ceil(s.boostUntil - s.playTime)}s</span>
+          )}
+          {s.signal !== null && (
+            <button class="signal-btn" onClick={() => openSignal(true)}>
+              ◈ 遺物訊號 <span class="small">{Math.max(0, Math.ceil(s.signal - s.playTime))}s</span>
+            </button>
+          )}
+        </div>
+        <div class="colony-stats">
+          {POWER_ORDER.map((p) => {
+            const st = last.power[p];
+            if (!st || (st.capacity === 0 && st.demand === 0)) return null;
+            const tone = st.demand === 0 ? 'muted' : st.satisfaction >= 0.999 ? 'ok' : 'warn';
+            return (
+              <span key={p} class={`stat tone-text-${tone}`} title={`${itemName(p)}：需求 / 可供給`}>
+                <ItemIcon id={p} />
+                {itemName(p)} {round1(st.demand)}/{round1(st.capacity)}
+                {st.demand > 0 && ` · ${Math.round(st.satisfaction * 100)}%`}
+              </span>
+            );
+          })}
+          {swarm > 0 && (
+            <button class="stat link-stat" title="每片戴森板提供的免費電力" onClick={() => openLookup(SWARM_ITEM)}>
+              <ItemIcon id={SWARM_ITEM} />
+              {fmtNum(swarm)} 片 · +{fmtNum(swarm * SWARM_EU)} 電力
+            </button>
+          )}
+          <span class={`stat ${used >= total ? 'tone-text-warn' : ''}`} title="地面區域槽位">▦ 槽位 {used}/{total}</span>
+          {orbitTotal > 0 && (
+            <span class={`stat ${orbitUsed >= orbitTotal ? 'tone-text-warn' : ''}`} title="軌道站槽位">◎ 軌道 {orbitUsed}/{orbitTotal}</span>
+          )}
+          <span class="stat muted" title="遊玩時間">⏱ {fmtDuration(s.playTime)}</span>
+        </div>
+      </section>
+      <div class="chips" role="list" aria-label="關鍵物資">
         {keyItems.map((id) => (
-          <button key={id} class="chip" onClick={() => openLookup(id)}>
-            <span class="chip-label">{itemName(id)}</span>
-            <span class="chip-value">{fmt(s.items[id] ?? 0)}</span>
-            <span class={`chip-rate ${(rates[id] ?? 0) < -0.005 ? 'neg' : ''}`}>{fmtRate(rates[id] ?? 0)}</span>
+          <button key={id} class="chip" role="listitem" onClick={() => openLookup(id)} title={itemName(id)}>
+            <ItemIcon id={id} size={24} />
+            <span class="sr-only">{itemName(id)}</span>
+            <span class="chip-body">
+              <span class="chip-value">{fmt(s.items[id] ?? 0)}</span>
+              <span class={`chip-rate ${(rates[id] ?? 0) < -0.005 ? 'neg' : (rates[id] ?? 0) > 0.005 ? 'pos' : ''}`}>
+                {fmtRate(rates[id] ?? 0)}
+              </span>
+            </span>
           </button>
         ))}
-      </div>
-      <div class="stats">
-        {POWER_ORDER.map((p) => {
-          const st = last.power[p];
-          if (!st || (st.capacity === 0 && st.demand === 0)) return null;
-          const tone = st.demand === 0 ? 'muted' : st.satisfaction >= 0.999 ? 'ok' : 'warn';
-          return (
-            <span key={p} class={`stat tone-text-${tone}`} title={`${itemName(p)}：需求 / 可供給`}>
-              {itemName(p)} {round1(st.demand)}/{round1(st.capacity)}
-              {st.demand > 0 && ` · ${Math.round(st.satisfaction * 100)}%`}
-            </span>
-          );
-        })}
-        {swarm > 0 && (
-          <button class="stat link-stat" title="每片戴森板提供的免費電力" onClick={() => openLookup(SWARM_ITEM)}>
-            {itemName(SWARM_ITEM)} {fmtNum(swarm)} 片 · +{fmtNum(swarm * SWARM_EU)} 電力
-          </button>
-        )}
-        <span class={`stat ${used >= total ? 'tone-text-warn' : ''}`}>槽位 {used}/{total}</span>
-        {orbitTotal > 0 && (
-          <span class={`stat ${orbitUsed >= orbitTotal ? 'tone-text-warn' : ''}`}>軌道 {orbitUsed}/{orbitTotal}</span>
-        )}
-        <span class="stat muted">{fmtDuration(s.playTime)}</span>
       </div>
     </header>
   );

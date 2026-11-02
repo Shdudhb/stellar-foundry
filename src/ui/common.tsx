@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { ITEMS, itemName } from '../data/items';
 import type { LineStatus, Reason } from '../sim/types';
 import { getState, openLookup, subscribe } from '../state/store';
+import { ItemIcon } from './pixel';
 
 /** Re-render on every store notification */
 export function useGame() {
@@ -40,7 +41,8 @@ export function fmtDuration(sec: number): string {
 export function ItemLink({ id }: { id: string }) {
   return (
     <button class="item-link" onClick={() => openLookup(id)} title="查看配方">
-      {itemName(id)}
+      <ItemIcon id={id} />
+      <span>{itemName(id)}</span>
     </button>
   );
 }
@@ -59,13 +61,29 @@ export function Cost({ cost }: { cost: Record<string, number> }) {
   );
 }
 
+/** One side of a recipe: "2 鐵礦 + 1 煤" with icons */
+export function Side({ items }: { items: Record<string, number> }) {
+  const entries = Object.entries(items);
+  if (entries.length === 0) return <span class="muted">（無）</span>;
+  return (
+    <>
+      {entries.map(([id, n], i) => (
+        <span key={id} class={ITEMS[id]?.kind === 'byproduct' ? 'byproduct' : ''}>
+          {i > 0 && <span class="muted"> + </span>}
+          {n} <ItemLink id={id} />
+        </span>
+      ))}
+    </>
+  );
+}
+
 /** Items the player is about to receive. Plain names: it sits inside buttons. */
 export function Reward({ items }: { items: Record<string, number> }) {
   return (
     <span class="cost">
       {Object.entries(items).map(([id, n]) => (
         <span key={id} class="have">
-          {itemName(id)} +{fmt(n)}
+          <ItemIcon id={id} /> {itemName(id)} +{fmt(n)}
         </span>
       ))}
     </span>
@@ -106,7 +124,23 @@ export function Bar({ value, tone = 'ok' }: { value: number; tone?: string }) {
   );
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: preact.ComponentChildren }) {
+/** Big tab heading: a spaced-out kicker over the title, then a line on what the tab is for */
+export function PageHeader({ kicker, title, children }: { kicker: string; title: string; children?: preact.ComponentChildren }) {
+  return (
+    <header class="page-head">
+      <p class="kicker">{kicker}</p>
+      <h1>{title}</h1>
+      {children && <p class="page-desc">{children}</p>}
+    </header>
+  );
+}
+
+export function Modal({ title, icon, onClose, children }: {
+  title: string;
+  icon?: preact.ComponentChildren;
+  onClose: () => void;
+  children: preact.ComponentChildren;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -116,7 +150,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     <div class="modal-backdrop" onClick={onClose}>
       <div class="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <header class="modal-head">
-          <h2>{title}</h2>
+          <h2>{icon}{title}</h2>
           <button class="icon-btn" onClick={onClose} aria-label="關閉">✕</button>
         </header>
         <div class="modal-body">{children}</div>

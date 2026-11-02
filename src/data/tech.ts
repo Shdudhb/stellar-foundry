@@ -412,6 +412,9 @@ const list: TechDef[] = [
 export const TECHS: Record<string, TechDef> = Object.fromEntries(list.map((t) => [t.id, t]));
 export const TECH_LIST = list;
 
+/** What each tier is called in the UI */
+export const TIER_NAMES = ['墜毀營地', '蒸汽時代', 'LV 電力時代', 'MV 石化時代', 'HV 冶金時代', 'EV 軌道時代', 'IV 聚變時代', '星際時代'];
+
 export interface MilestoneDef {
   id: string;
   name: string;

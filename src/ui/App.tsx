@@ -9,7 +9,8 @@ import {
   answerSignal, closeMilestoneModal, closeOfflineReport, exportSave, getLast, getState, getUi, importSave, openSignal, resetGame,
   signalData, toggleMaintenance,
 } from '../state/store';
-import { ItemLink, Modal, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
+import { ItemLink, Modal, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
+import { Embers } from './Embers';
 import { LegacyPanel } from './LegacyPanel';
 import { MilestonePanel } from './MilestonePanel';
 import { Objective } from './Objective';
@@ -17,7 +18,8 @@ import { ProductionPanel } from './ProductionPanel';
 import { RecipeLookup } from './RecipeLookup';
 import { ResearchPanel } from './ResearchPanel';
 import { StoragePanel } from './StoragePanel';
-import { TopBar } from './TopBar';
+import { Brand, TopBar } from './TopBar';
+import { ItemIcon, UiIcon } from './pixel';
 
 const TABS = [
   { id: 'production', label: '生產線', view: ProductionPanel },
@@ -46,6 +48,7 @@ function SettingsPanel() {
   const [importError, setImportError] = useState(false);
   return (
     <div class="panel">
+      <PageHeader kicker="SYSTEM / SETTINGS" title="設定">存檔、遊戲規則，以及重新開始。</PageHeader>
       <section class="card">
         <h3>存檔</h3>
         <p class="muted small">每 10 秒自動存到瀏覽器。關掉分頁後，最多會補算 {offlineCap(getState()) / 3600} 小時的離線產出。</p>
@@ -131,14 +134,16 @@ function SignalModal() {
   const s = getState();
   const data = signalData(s);
   return (
-    <Modal title="遺物訊號" onClose={() => openSignal(false)}>
+    <Modal title="遺物訊號" icon={<ItemIcon id="exotic_matter" size={24} />} onClose={() => openSignal(false)}>
       <p>無人機在地表下找到一件會發光的異星遺物。訊號正在減弱，還剩 {Math.max(0, Math.ceil((s.signal ?? 0) - s.playTime))} 秒。</p>
       <div class="choice-row">
         <button class="choice" onClick={() => answerSignal('data')}>
+          <ItemIcon id={Object.keys(data)[0]} size={32} />
           <strong>解析遺物</strong>
           <span class="small">立刻得到 <Reward items={data} /></span>
         </button>
         <button class="choice" onClick={() => answerSignal('boost')}>
+          <ItemIcon id="eu" size={32} />
           <strong>啟動遺物</strong>
           <span class="small">整座工廠時間加速 ×2，持續 {BOOST_TIME} 秒</span>
         </button>
@@ -208,16 +213,31 @@ export function App() {
 
   return (
     <div class="app">
-      <TopBar />
-      <div class="body">
-        <nav class="nav">
+      <Embers />
+      <aside class="sidebar">
+        <div class="side-brand">
+          <Brand />
+        </div>
+        <nav class="nav" aria-label="分頁">
           {TABS.filter((t) => t.id !== 'legacy' || legacyVisible).map((t) => (
-            <button key={t.id} class={`nav-btn ${shown === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
-              {t.label}
-              {badges[t.id] && <span class={`nav-badge ${badges[t.id]!.tone}`} title={badges[t.id]!.title}>{badges[t.id]!.text}</span>}
+            <button
+              key={t.id}
+              class={`nav-btn ${shown === t.id ? 'active' : ''}`}
+              aria-current={shown === t.id ? 'page' : undefined}
+              onClick={() => setTab(t.id)}
+            >
+              <span class="nav-icon">
+                <UiIcon id={t.id} size={24} />
+                {badges[t.id] && <span class={`nav-badge ${badges[t.id]!.tone}`} title={badges[t.id]!.title}>{badges[t.id]!.text}</span>}
+              </span>
+              <span class="nav-label">{t.label}</span>
             </button>
           ))}
         </nav>
+        <p class="side-foot muted small">遊玩 {fmtDuration(s.playTime)}</p>
+      </aside>
+      <div class="content">
+        <TopBar />
         <main class="main">
           <Objective state={s} />
           <View />

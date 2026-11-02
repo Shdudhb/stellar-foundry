@@ -10,7 +10,7 @@ export function Objective({ state }: { state: GameState }) {
     return (
       <div class="objective claim">
         <span class="objective-step">✓ 目標完成</span>
-        <span>{OBJECTIVES[pending[0]].text}{pending.length > 1 && ` 等 ${pending.length} 項`}</span>
+        <span class="objective-text">{OBJECTIVES[pending[0]].text}{pending.length > 1 && ` 等 ${pending.length} 項`}</span>
         <button class="primary" onClick={claimObjectives}>
           領取 <Reward items={reward} />
         </button>
@@ -18,11 +18,11 @@ export function Objective({ state }: { state: GameState }) {
     );
   }
   const idx = currentObjective(state);
-  if (idx < 0) return <div class="objective done">星門已開啟，恭喜通關！</div>;
+  if (idx < 0) return <div class="objective done"><span class="objective-step">通關</span><span class="objective-text">星門已開啟，恭喜通關！可以到「星系」分頁躍遷。</span></div>;
   return (
     <div class="objective">
       <span class="objective-step">目標 {idx + 1}/{OBJECTIVES.length}</span>
-      <span>{OBJECTIVES[idx].text}</span>
+      <span class="objective-text">{OBJECTIVES[idx].text}</span>
       <span class="muted small objective-reward">獎勵：<Reward items={objectiveReward(state, 1)} /></span>
     </div>
   );

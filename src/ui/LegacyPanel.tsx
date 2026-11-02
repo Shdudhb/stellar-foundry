@@ -2,7 +2,8 @@ import { SWARM_ITEM } from '../data/items';
 import { LEGACY_LIST, legacyCost, warpPoints } from '../data/legacy';
 import { simSpeed } from '../sim/rules';
 import { buyLegacy, getState, warp } from '../state/store';
-import { fmtNum } from './common';
+import { PageHeader, fmtNum } from './common';
+import { UiIcon } from './pixel';
 
 export function LegacyPanel() {
   const s = getState();
@@ -14,14 +15,19 @@ export function LegacyPanel() {
 
   return (
     <div class="panel">
-      <section class="card">
-        <h3>星際遺產</h3>
-        <p class="row">
-          <span>遺產點 <strong>{points}</strong></span>
-          <span class="muted">已躍遷 {warps} 次</span>
-          <span class="muted">工廠時間流速 ×{fmtNum(Math.round(simSpeed({ ...s, boostUntil: 0 }) * 100) / 100)}</span>
-        </p>
-        <p class="muted small">遺產永久保留：躍遷之後、重新開始之後都還在。升級會立刻生效。</p>
+      <PageHeader kicker="GALAXY / LEGACY" title="星系">
+        遺產永久保留：躍遷之後、重新開始之後都還在。升級會立刻生效。
+      </PageHeader>
+      <section class="card legacy-hero">
+        <UiIcon id="legacy" size={64} />
+        <div>
+          <p class="kicker">LEGACY POINTS</p>
+          <p class="legacy-points">{points}</p>
+        </div>
+        <div class="muted small">
+          已躍遷 {warps} 次<br />
+          工廠時間流速 ×{fmtNum(Math.round(simSpeed({ ...s, boostUntil: 0 }) * 100) / 100)}
+        </div>
       </section>
 
       <section class="card warp">
