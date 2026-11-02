@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { slotsUsed } from '../sim/rules';
-import { build, buildMilestone, closeMilestoneModal, getState, importSave, upgradeLine } from './store';
+import { capOf, slotsUsed } from '../sim/rules';
+import { build, buildMilestone, closeMilestoneModal, demolish, getState, getUi, importSave, upgradeLine } from './store';
 import { exportString, newGame } from './save';
 
 function load(items: Record<string, number>, techs: string[]) {
@@ -108,5 +108,28 @@ describe('upgradeLine', () => {
     load({ aluminum: 60, circuit: 12, cable: 60 }, []);
     upgradeLine(1);
     expect(getState().lines[0].machine).toBe('lv_electrolyzer');
+  });
+});
+
+describe('toasts', () => {
+  it('a repeated failure refreshes one toast instead of stacking copies', () => {
+    const s = newGame();
+    s.lines = [{ id: 1, machine: 'stone_furnace', recipe: 'smelt_iron', count: 0, enabled: true }];
+    s.nextLineId = 2;
+    importSave(exportString(s));
+    getUi().toasts = [];
+    for (let i = 0; i < 5; i++) build(1);
+    expect(getUi().toasts.filter((t) => t.title === '材料不足')).toHaveLength(1);
+    expect(getUi().toasts.at(-1)!.text).toBe('缺 石頭 10');
+  });
+
+  it('says when demolished materials do not fit back in storage', () => {
+    const s = newGame();
+    s.items = { stone: capOf(s, 'stone') };
+    s.lines = [{ id: 1, machine: 'stone_furnace', recipe: 'smelt_iron', count: 2, enabled: true }];
+    s.nextLineId = 2;
+    importSave(exportString(s));
+    demolish(1);
+    expect(getUi().toasts.some((t) => t.text.includes('沒退回'))).toBe(true);
   });
 });

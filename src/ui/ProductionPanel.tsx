@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { ITEM_ORDER, ITEMS, isPower, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPES } from '../data/recipes';
@@ -51,7 +51,9 @@ function ManualCard() {
 function NewLineCard() {
   const s = getState();
   const machines = MACHINE_LIST.filter((m) => isMachineUnlocked(s, m.id));
-  const [machine, setMachine] = useState(machines[0]?.id ?? '');
+  const [picked, setMachine] = useState(machines[0]?.id ?? '');
+  // After a reset or warp the machine picked earlier may be locked again
+  const machine = machines.some((mm) => mm.id === picked) ? picked : machines[0]?.id ?? '';
   const recipes = recipesFor(s, machine);
   const [recipe, setRecipeSel] = useState(recipes[0]?.id ?? '');
   const recipeId = recipes.some((r) => r.id === recipe) ? recipe : recipes[0]?.id ?? '';
@@ -80,7 +82,7 @@ function NewLineCard() {
             ))}
           </select>
         </label>
-        <button class="primary" disabled={!recipeId} onClick={() => addLine(machine, recipeId)}>建立</button>
+        <button class="primary" disabled={!machine || !recipeId} onClick={() => addLine(machine, recipeId)}>建立</button>
       </div>
       {m && (
         <div class="new-preview">
@@ -162,6 +164,25 @@ function IgnitionRow({ heat, igniting, power, time }: { heat: number; igniting: 
         {igniting ? `需要 ${fmtNum(power)} 電力/s，滿電 ${time} 秒` : heat > 0 ? '缺燃料，正在冷卻' : '裝入燃料後開始點火'}
       </span>
     </div>
+  );
+}
+
+/** Removing a line with machines in it takes a second tap within a few seconds */
+function RemoveButton({ line }: { line: Line }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <button
+      class={`danger ${armed ? 'armed' : ''}`}
+      title="拆除全部並移除這條生產線"
+      onClick={() => (line.count === 0 || armed ? removeLine(line.id) : setArmed(true))}
+    >
+      {armed ? `確定移除 ${line.count} 台？` : '移除'}
+    </button>
   );
 }
 
@@ -254,7 +275,7 @@ function LineCard({ line, status }: { line: Line; status?: LineStatus }) {
         <button onClick={() => build(line.id, 5)} title="建造五台">＋5</button>
         <button onClick={() => toggleLine(line.id)}>{line.enabled ? '暫停' : '繼續'}</button>
         <span class="spacer" />
-        <button class="danger" onClick={() => removeLine(line.id)} title="拆除全部並移除這條生產線">移除</button>
+        <RemoveButton line={line} />
       </footer>
       <p class="line-cost muted small">每台：<Cost cost={m.cost} /></p>
       {upgrade && <UpgradeRow line={line} to={upgrade} />}

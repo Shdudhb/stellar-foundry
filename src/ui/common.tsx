@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEMS, itemName } from '../data/items';
 import type { LineStatus, Reason } from '../sim/types';
 import { getState, openLookup, subscribe } from '../state/store';
@@ -137,17 +137,29 @@ export function PageHeader({ kicker, title, children }: { kicker: string; title:
   );
 }
 
+/** Open modals, innermost last: Escape closes only the top one */
+const modalStack: (() => void)[] = [];
+
 export function Modal({ title, icon, onClose, children }: {
   title: string;
   icon?: preact.ComponentChildren;
   onClose: () => void;
   children: preact.ComponentChildren;
 }) {
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const me = () => close.current();
+    modalStack.push(me);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === me) me();
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      modalStack.splice(modalStack.indexOf(me), 1);
+    };
+  }, []);
   return (
     <div class="modal-backdrop" onClick={onClose}>
       <div class="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>

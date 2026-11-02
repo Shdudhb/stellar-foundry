@@ -67,6 +67,7 @@ button.primary {
 }
 button.primary:hover:not(:disabled) { filter: brightness(1.08); background: linear-gradient(180deg, #f8bd74, #f2a654); }
 button.danger { color: var(--bad); }
+button.danger.armed { background: rgb(239 106 89 / 0.16); border-color: var(--bad); font-weight: 700; }
 button.big { padding: 9px 22px; font-size: 16px; }
 
 select, textarea {
@@ -459,10 +460,14 @@ p { margin: 0 0 8px; }
   animation: fade-in 0.15s ease-out;
 }
 @keyframes fade-in { from { opacity: 0; } }
+/* The page behind a window stays put */
+body:has(.modal-backdrop) { overflow: hidden; }
 .modal {
   width: min(580px, 100%);
   max-height: 86vh;
+  max-height: 86dvh;
   overflow: auto;
+  overscroll-behavior: contain;
   background: var(--panel-solid);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -684,6 +689,8 @@ p { margin: 0 0 8px; }
   .milestone { grid-template-columns: 1fr; }
   .ms-art { width: 64px; height: 64px; }
   .toasts { left: 12px; right: 12px; bottom: 80px; align-items: stretch; }
+  /* Full-width toasts sit over buttons: let taps go through to what is underneath */
+  .toast { pointer-events: none; }
   .toast { max-width: none; }
   .incident-chip { padding: 2px 8px; font-size: 11px; }
 }

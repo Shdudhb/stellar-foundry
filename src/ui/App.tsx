@@ -50,6 +50,7 @@ function SettingsPanel() {
   const [exported, setExported] = useState('');
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState(false);
+  const [copied, setCopied] = useState(false);
   return (
     <div class="panel">
       <PageHeader kicker="SYSTEM / SETTINGS" title="設定">聲音、存檔、遊戲規則，以及重新開始。</PageHeader>
@@ -59,7 +60,16 @@ function SettingsPanel() {
         <p class="muted small">每 10 秒自動存到瀏覽器。關掉分頁後，最多會補算 {offlineCap(getState()) / 3600} 小時的離線產出。</p>
         <div class="row">
           <button onClick={() => setExported(exportSave())}>匯出存檔字串</button>
-          {exported && <button onClick={() => navigator.clipboard?.writeText(exported)}>複製</button>}
+          {exported && (
+            <button
+              onClick={() => navigator.clipboard?.writeText(exported).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              })}
+            >
+              {copied ? '已複製 ✓' : '複製'}
+            </button>
+          )}
         </div>
         {exported && <textarea readOnly rows={3} value={exported} onFocus={(e) => (e.target as HTMLTextAreaElement).select()} />}
         <textarea
@@ -69,7 +79,7 @@ function SettingsPanel() {
           onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)}
         />
         <div class="row">
-          <button disabled={!importText.trim()} onClick={() => setImportError(!importSave(importText))}>匯入</button>
+          <button disabled={!importText.trim()} onClick={() => confirm('匯入會取代目前的進度，確定嗎？') && setImportError(!importSave(importText))}>匯入</button>
           {importError && <span class="tone-text-bad small">存檔字串無法讀取</span>}
         </div>
       </section>
@@ -326,6 +336,7 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return;
+      if (document.querySelector('.modal')) return;
       const i = Number(e.key) - 1;
       if (i >= 0 && i < visibleTabs.length) setTab(visibleTabs[i].id);
     };
@@ -366,7 +377,6 @@ export function App() {
           <View />
         </main>
       </div>
-      {ui.lookupItem && <RecipeLookup item={ui.lookupItem} />}
       {ui.offlineReport && <OfflineReportModal />}
       {ui.milestoneModal && (
         <MilestoneModal
@@ -380,6 +390,8 @@ export function App() {
       {ui.signalOpen && s.signal !== null && <SignalModal />}
       {ui.tradeOpen && activeIncident(s) && <IncidentModal />}
       {ui.intro && <IntroModal />}
+      {/* The item window opens from inside the others too, so it goes on top */}
+      {ui.lookupItem && <RecipeLookup item={ui.lookupItem} />}
       <Toasts />
     </div>
   );

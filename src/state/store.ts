@@ -112,7 +112,9 @@ interface ToastOpts {
 
 function toast(text: string, { tone = 'info', icon, title, log, sound }: ToastOpts = {}) {
   const id = nextToastId++;
-  ui.toasts = [...ui.toasts.slice(-3), { id, text, tone, icon, title }];
+  // The same message again (tapping a button that can't work) refreshes it instead of stacking copies
+  const others = ui.toasts.filter((x) => x.text !== text || x.title !== title);
+  ui.toasts = [...others.slice(-3), { id, text, tone, icon, title }];
   if (log) addLog(title ? `${title}：${text}` : text, tone, icon);
   if (sound) emit(sound);
   else if (tone === 'bad') emit('error');
@@ -241,14 +243,31 @@ export function start() {
 
 // ---------- actions ----------
 
+/** "缺 鐵錠 5、齒輪 2": what a cost still needs */
+function shortText(cost: Record<string, number>): string {
+  const short = Object.entries(cost)
+    .map(([item, n]) => [item, Math.ceil(n - (state.items[item] ?? 0))] as const)
+    .filter(([, n]) => n > 0)
+    .map(([item, n]) => `${ITEMS[item]?.name ?? item} ${n}`);
+  return short.length ? `缺 ${short.slice(0, 3).join('、')}${short.length > 3 ? ' 等' : ''}` : '';
+}
+
+const lacking = (cost: Record<string, number>, what = '材料不足') =>
+  toast(shortText(cost), { tone: 'bad', title: what, icon: Object.keys(cost).find((i) => (state.items[i] ?? 0) < cost[i]) });
+
 function pay(cost: Record<string, number>) {
   for (const [item, n] of Object.entries(cost)) state.items[item] = (state.items[item] ?? 0) - n;
 }
 
-function refund(cost: Record<string, number>, times: number) {
+/** Gives materials back up to storage capacity; returns the names of those that didn't all fit */
+function refund(cost: Record<string, number>, times: number): string[] {
+  const lost: string[] = [];
   for (const [item, n] of Object.entries(cost)) {
-    state.items[item] = Math.min(capOf(state, item), (state.items[item] ?? 0) + n * times);
+    const want = (state.items[item] ?? 0) + n * times;
+    state.items[item] = Math.min(capOf(state, item), want);
+    if (want > state.items[item] + 1e-9) lost.push(ITEMS[item].name);
   }
+  return lost;
 }
 
 export function gather(item: string) {
@@ -283,7 +302,7 @@ export function build(lineId: number, times = 1) {
       break;
     }
     if (!canAfford(state, m.cost)) {
-      if (built === 0) toast('材料不足', { tone: 'bad' });
+      if (built === 0) lacking(m.cost);
       break;
     }
     pay(m.cost);
@@ -302,8 +321,9 @@ export function demolish(lineId: number, times = 1) {
   if (!line) return;
   const n = Math.min(times, line.count);
   line.count -= n;
-  refund(MACHINES[line.machine].cost, n);
-  if (n > 0) emit('demolish');
+  const lost = refund(MACHINES[line.machine].cost, n);
+  if (lost.length > 0) toast(`倉庫放不下，部分${lost.join('、')}沒退回`, { tone: 'bad' });
+  else if (n > 0) emit('demolish');
   notify();
 }
 
@@ -320,7 +340,7 @@ export function upgradeLine(lineId: number) {
   }
   const net = upgradeCost(line, to);
   const pays = Object.fromEntries(Object.entries(net).filter(([, n]) => n > 0));
-  if (!canAfford(state, pays)) return toast('材料不足', { tone: 'bad' });
+  if (!canAfford(state, pays)) return lacking(pays);
   pay(pays);
   for (const [item, n] of Object.entries(net)) {
     if (n < 0) state.items[item] = Math.min(capOf(state, item), (state.items[item] ?? 0) - n);
@@ -358,7 +378,7 @@ export function research(techId: string) {
   const t = TECHS[techId];
   if (!t || !techAvailable(state, techId)) return;
   const cost = techCost(state, techId);
-  if (!canAfford(state, cost)) return toast('研究數據不足', { tone: 'bad' });
+  if (!canAfford(state, cost)) return lacking(cost, '研究數據不足');
   pay(cost);
   state.techs.push(techId);
   toast(t.name, { tone: 'good', title: '研究完成', icon: Object.keys(cost)[0], log: true, sound: 'research' });
@@ -368,7 +388,7 @@ export function research(techId: string) {
 export function buildMilestone(id: string) {
   const ms = MILESTONES[id];
   if (!ms || state.milestones.includes(id) || !milestoneUnlocked(state, id)) return;
-  if (!canBuildMilestone(state, id)) return toast('材料不足', { tone: 'bad' });
+  if (!canBuildMilestone(state, id)) return lacking(ms.cost);
   pay(ms.cost);
   state.milestones.push(id);
   if (id === 'stargate') state.stats.bestGate = Math.min(state.stats.bestGate ?? Infinity, state.playTime);
