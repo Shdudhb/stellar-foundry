@@ -88,3 +88,11 @@ describe('game data', () => {
     expect(TECH_LIST.filter((t) => !done.has(t.id)).map((t) => t.id)).toEqual([]);
   });
 });
+
+describe('lore', () => {
+  it('has a line for every item and nothing else', async () => {
+    const { ITEM_LORE } = await import('./lore');
+    const { ITEMS } = await import('./items');
+    expect(Object.keys(ITEM_LORE).sort()).toEqual(Object.keys(ITEMS).sort());
+  });
+});

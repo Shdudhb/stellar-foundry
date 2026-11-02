@@ -19,6 +19,11 @@ function game(items: Record<string, number>, lines: Omit<Line, 'id' | 'enabled'>
     nextSignal: 1e9,
     boostUntil: 0,
     legacy: { points: 0, warps: 0, upgrades: {} },
+    achievements: [],
+    stats: { produced: {}, gathered: 0, built: 0, signals: 0, incidents: 0, trades: 0 },
+    galaxy: null,
+    incident: null,
+    nextIncident: 1e9,
     playTime: 0,
     savedAt: 0,
   };

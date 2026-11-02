@@ -730,6 +730,24 @@ const T: Record<string, Rows> = {
     '.oooooooooooooo.',
     '................',
   ],
+  trophy: [
+    '................',
+    '..oooooooooooo..',
+    'oooohhhllllmoooo',
+    'ohoohhllllmmoomo',
+    'oh.ohlllllmmo.mo',
+    'oh.ohlllllmmo.mo',
+    '.ohohlllllmmomo.',
+    '..oohlllllmmoo..',
+    '....ohllllmo....',
+    '.....ohlmmo.....',
+    '......olmo......',
+    '......omdo......',
+    '.....ohlmdo.....',
+    '....oooooooo....',
+    '....ohhllmmo....',
+    '....oooooooo....',
+  ],
   monument: [
     '.......oo.......',
     '......oyyo......',
@@ -1047,6 +1065,7 @@ const UI_ART: Record<string, Layer[]> = {
   research: one('flask', '#5a8fe6'),
   milestones: one('monument', '#c9b27a'),
   legacy: one('portal', '#8f7ae6'),
+  records: one('trophy', '#d9a640'),
   settings: one('wrench', '#a4adb8'),
 };
 

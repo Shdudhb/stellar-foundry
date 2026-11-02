@@ -1,7 +1,7 @@
 import { DECAYING_ITEMS, ITEMS, POWER_ORDER, SWARM_EU, SWARM_ITEM, isPower } from '../data/items';
 import { MACHINES, MAINTENANCE_ITEM } from '../data/machines';
 import { RECIPES } from '../data/recipes';
-import { capOf, overclock } from './rules';
+import { capOf, categoryBoost, overclock } from './rules';
 import type { GameState, Line, LineStatus, PowerStatus, Reason, TickResult } from './types';
 
 /** A fully worn machine runs at this fraction of its speed */
@@ -58,7 +58,7 @@ export function tick(state: GameState, dt: number): TickResult {
     const recipe = RECIPES[line.recipe];
     if (!machine || !recipe) continue;
     const oc = overclock(machine, recipe);
-    const maxCraftsPerSec = (line.count * oc.speed * (machine.speed ?? 1)) / recipe.time;
+    const maxCraftsPerSec = (line.count * oc.speed * (machine.speed ?? 1) * categoryBoost(state, recipe.category)) / recipe.time;
     if (!line.enabled || line.count === 0) {
       if (machine.ignition) cool(line);
       lines[line.id] = {

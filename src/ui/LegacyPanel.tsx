@@ -1,9 +1,10 @@
+import { GALAXIES, GALAXY_LIST } from '../data/galaxies';
 import { SWARM_ITEM } from '../data/items';
 import { LEGACY_LIST, legacyCost, warpPoints } from '../data/legacy';
 import { simSpeed } from '../sim/rules';
 import { buyLegacy, getState, warp } from '../state/store';
 import { PageHeader, fmtNum } from './common';
-import { UiIcon } from './pixel';
+import { ItemIcon, UiIcon } from './pixel';
 
 export function LegacyPanel() {
   const s = getState();
@@ -27,6 +28,31 @@ export function LegacyPanel() {
         <div class="muted small">
           已躍遷 {warps} 次<br />
           工廠時間流速 ×{fmtNum(Math.round(simSpeed({ ...s, boostUntil: 0 }) * 100) / 100)}
+        </div>
+      </section>
+
+      <section class="card galaxy-card">
+        <div class="section-head">
+          <h2>星系特性</h2>
+          <span class="muted">每次躍遷都會隨機抽一個，和上一個不同</span>
+        </div>
+        {s.galaxy && GALAXIES[s.galaxy] ? (
+          <div class="galaxy-now">
+            <ItemIcon id={GALAXIES[s.galaxy].icon} size={40} />
+            <div>
+              <strong>目前：{GALAXIES[s.galaxy].name}</strong>
+              <p class="small">{GALAXIES[s.galaxy].text}</p>
+            </div>
+          </div>
+        ) : (
+          <p class="small muted">第一個星系沒有特性。躍遷之後，新的星系會讓某些機器更快、某些更慢。</p>
+        )}
+        <div class="galaxy-list">
+          {GALAXY_LIST.map((g) => (
+            <span key={g.id} class={`galaxy-pill ${g.id === s.galaxy ? 'on' : ''}`} title={g.text}>
+              <ItemIcon id={g.icon} size={16} /> {g.name}
+            </span>
+          ))}
         </div>
       </section>
 

@@ -1,13 +1,14 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+import { ITEMS } from '../data/items';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { MILESTONE_LIST, MILESTONES, TECH_LIST } from '../data/tech';
 import { BOOST_TIME } from '../data/legacy';
-import { canAfford, canBuildMilestone, milestoneUnlocked, offlineCap, techAvailable, techCost } from '../sim/rules';
+import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnlocked, offlineCap, techAvailable, techCost } from '../sim/rules';
 import type { GameState } from '../sim/types';
 import {
-  answerSignal, closeMilestoneModal, closeOfflineReport, exportSave, getLast, getState, getUi, importSave, openSignal, resetGame,
-  signalData, toggleMaintenance,
+  acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, getLast, getState, getUi,
+  importSave, openSignal, openTrade, resetGame, signalData, toggleMaintenance,
 } from '../state/store';
 import { ItemLink, Modal, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
 import { Embers } from './Embers';
@@ -16,10 +17,12 @@ import { MilestonePanel } from './MilestonePanel';
 import { Objective } from './Objective';
 import { ProductionPanel } from './ProductionPanel';
 import { RecipeLookup } from './RecipeLookup';
+import { RecordsPanel } from './RecordsPanel';
 import { ResearchPanel } from './ResearchPanel';
 import { StoragePanel } from './StoragePanel';
 import { Brand, TopBar } from './TopBar';
-import { ItemIcon, UiIcon } from './pixel';
+import { ItemIcon, TIER_COLORS, UiIcon } from './pixel';
+import { getAudioPrefs, onAudioPrefs, setAudioPrefs } from './sound';
 
 const TABS = [
   { id: 'production', label: '生產線', view: ProductionPanel },
@@ -27,6 +30,7 @@ const TABS = [
   { id: 'research', label: '研究', view: ResearchPanel },
   { id: 'milestones', label: '巨構', view: MilestonePanel },
   { id: 'legacy', label: '星系', view: LegacyPanel },
+  { id: 'records', label: '紀錄', view: RecordsPanel },
   { id: 'settings', label: '設定', view: SettingsPanel },
 ] as const;
 
@@ -48,7 +52,8 @@ function SettingsPanel() {
   const [importError, setImportError] = useState(false);
   return (
     <div class="panel">
-      <PageHeader kicker="SYSTEM / SETTINGS" title="設定">存檔、遊戲規則，以及重新開始。</PageHeader>
+      <PageHeader kicker="SYSTEM / SETTINGS" title="設定">聲音、存檔、遊戲規則，以及重新開始。</PageHeader>
+      <AudioSettings />
       <section class="card">
         <h3>存檔</h3>
         <p class="muted small">每 10 秒自動存到瀏覽器。關掉分頁後，最多會補算 {offlineCap(getState()) / 3600} 小時的離線產出。</p>
@@ -83,6 +88,111 @@ function SettingsPanel() {
         <p class="muted small">清除這一輪的工廠、研究和物品。躍遷得到的星際遺產會保留。</p>
         <button class="danger" onClick={() => confirm('清除這一輪的進度並重新開始？') && resetGame()}>清除進度</button>
       </section>
+    </div>
+  );
+}
+
+function AudioSettings() {
+  const [, setN] = useState(0);
+  useEffect(() => onAudioPrefs(() => setN((n) => n + 1)), []);
+  const a = getAudioPrefs();
+  return (
+    <section class="card">
+      <h3>聲音</h3>
+      <label class="check-row">
+        <input type="checkbox" checked={a.sfx} onChange={() => setAudioPrefs({ sfx: !a.sfx })} />
+        音效
+      </label>
+      <label class="check-row">
+        <input type="checkbox" checked={a.music} onChange={() => setAudioPrefs({ music: !a.music })} />
+        背景音樂
+      </label>
+      <label class="range-row">
+        <span>音量</span>
+        <input
+          type="range" min="0" max="1" step="0.05" value={a.volume}
+          onInput={(e) => setAudioPrefs({ volume: +(e.target as HTMLInputElement).value })}
+        />
+        <span class="muted small">{Math.round(a.volume * 100)}%</span>
+      </label>
+      <p class="muted small">聲音都是即時合成的。電腦上可以用數字鍵 1–7 切換分頁。</p>
+    </section>
+  );
+}
+
+function IntroModal() {
+  return (
+    <Modal title="墜落" icon={<ItemIcon id="rocket_part" size={24} />} onClose={closeIntro}>
+      <div class="intro">
+        <p class="kicker">殖民艦「餘燼號」· 航行日誌 第 2,113 天</p>
+        <p>
+          躍遷引擎在最後一次跳躍時炸了。你們迫降在一顆沒有名字的岩石行星上，船體斷成三截，
+          主電腦只救回了一份檔案：<strong>星門藍圖</strong>。
+        </p>
+        <p>
+          回家已經不可能。但只要工業夠強大，就能在這裡蓋出一座星門，把殖民地帶往群星之間。
+        </p>
+        <ol class="intro-steps">
+          <li><ItemIcon id="stone" size={20} /> 先用手採集石頭和礦石</li>
+          <li><ItemIcon id="iron_ingot" size={20} /> 建立生產線，讓機器自動冶煉、製作</li>
+          <li><ItemIcon id="data" size={20} /> 產出研究數據，解鎖蒸汽、電力、石化⋯⋯</li>
+          <li><ItemIcon id="exotic_matter" size={20} /> 一路走到星際時代，點亮星門</li>
+        </ol>
+      </div>
+      <button class="primary big" onClick={closeIntro}>開始建設</button>
+    </Modal>
+  );
+}
+
+function IncidentModal() {
+  const s = getState();
+  const def = activeIncident(s)!;
+  const offer = s.incident?.offer;
+  const left = Math.max(0, Math.ceil((s.incident?.until ?? 0) - s.playTime));
+  return (
+    <Modal title={def.name} icon={<ItemIcon id={def.icon} size={24} />} onClose={() => openTrade(false)}>
+      <p>{def.text}</p>
+      <p class="muted small">剩下 {left} 秒。</p>
+      {offer ? (
+        <>
+          <div class="trade">
+            <span class="trade-side">
+              <ItemIcon id={offer.item} size={40} />
+              <strong>−{fmt(offer.n)}</strong>
+              <span class="small muted">{ITEMS[offer.item].name}（庫存 {fmt(s.items[offer.item] ?? 0)}）</span>
+            </span>
+            <span class="trade-arrow">→</span>
+            <span class="trade-side">
+              <ItemIcon id={Object.keys(offer.pay)[0]} size={40} />
+              <strong>+{fmt(Object.values(offer.pay)[0])}</strong>
+              <span class="small muted">{ITEMS[Object.keys(offer.pay)[0]].name}</span>
+            </span>
+          </div>
+          <div class="row">
+            <button class="primary" disabled={(s.items[offer.item] ?? 0) < offer.n} onClick={acceptTrade}>成交</button>
+            <button onClick={() => openTrade(false)}>再想想</button>
+          </div>
+        </>
+      ) : (
+        <button class="primary" onClick={() => openTrade(false)}>知道了</button>
+      )}
+    </Modal>
+  );
+}
+
+function Toasts() {
+  const { toasts } = getUi();
+  return (
+    <div class="toasts" role="status" aria-live="polite">
+      {toasts.map((x) => (
+        <button key={x.id} class={`toast toast-${x.tone}`} onClick={() => dismissToast(x.id)}>
+          {x.icon && <ItemIcon id={x.icon} size={x.tone === 'achievement' ? 32 : 24} />}
+          <span class="toast-body">
+            {x.title && <span class="toast-title">{x.title}</span>}
+            <span>{x.text}</span>
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -207,21 +317,34 @@ export function App() {
     }
   };
   const legacyVisible = s.legacy.warps > 0 || s.milestones.includes('stargate');
+  const visibleTabs = TABS.filter((t) => t.id !== 'legacy' || legacyVisible);
   const shown = tab === 'legacy' && !legacyVisible ? 'production' : tab;
   const View = TABS.find((t) => t.id === shown)!.view;
   const badges = navBadges(s);
 
+  // Number keys switch tabs on a keyboard
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return;
+      const i = Number(e.key) - 1;
+      if (i >= 0 && i < visibleTabs.length) setTab(visibleTabs[i].id);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   return (
-    <div class="app">
+    <div class="app" style={{ '--tier': TIER_COLORS[Math.min(currentTier(s), TIER_COLORS.length - 1)] }}>
       <Embers />
       <aside class="sidebar">
         <div class="side-brand">
           <Brand />
         </div>
         <nav class="nav" aria-label="分頁">
-          {TABS.filter((t) => t.id !== 'legacy' || legacyVisible).map((t) => (
+          {visibleTabs.map((t, i) => (
             <button
               key={t.id}
+              title={`${t.label}（${i + 1}）`}
               class={`nav-btn ${shown === t.id ? 'active' : ''}`}
               aria-current={shown === t.id ? 'page' : undefined}
               onClick={() => setTab(t.id)}
@@ -255,7 +378,9 @@ export function App() {
         />
       )}
       {ui.signalOpen && s.signal !== null && <SignalModal />}
-      {ui.toast && <div class="toast" role="status">{ui.toast}</div>}
+      {ui.tradeOpen && activeIncident(s) && <IncidentModal />}
+      {ui.intro && <IntroModal />}
+      <Toasts />
     </div>
   );
 }

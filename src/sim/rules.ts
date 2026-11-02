@@ -1,3 +1,5 @@
+import { GALAXIES } from '../data/galaxies';
+import { INCIDENTS } from '../data/incidents';
 import { DEFAULT_CAP, ITEMS } from '../data/items';
 import { MACHINES, type MachineDef } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
@@ -5,6 +7,8 @@ import { MILESTONE_LIST, TECHS, TECH_LOCKED_MACHINES, TECH_LOCKED_RECIPES } from
 import type { GameState, Line } from './types';
 
 export const BASE_SLOTS = 20;
+/** Each achievement speeds the whole factory up by this much, forever */
+export const ACHIEVEMENT_BONUS = 0.01;
 
 const legacyLevel = (state: GameState, id: string) => state.legacy?.upgrades[id] ?? 0;
 
@@ -12,10 +16,22 @@ export function storageMult(state: GameState): number {
   return state.techs.reduce((m, id) => m * (TECHS[id]?.storageMult ?? 1), 1.5 ** legacyLevel(state, 'storage'));
 }
 
-/** How fast factory time runs: legacy speed, doubled while a relic boost lasts */
+/** How fast factory time runs: legacy speed and achievements, doubled while a relic boost lasts */
 export function simSpeed(state: GameState): number {
   const boost = state.boostUntil > state.playTime ? 2 : 1;
-  return (1 + 0.2 * legacyLevel(state, 'speed')) * boost;
+  return (1 + 0.2 * legacyLevel(state, 'speed') + ACHIEVEMENT_BONUS * (state.achievements?.length ?? 0)) * boost;
+}
+
+/** The world event in effect right now, if any */
+export function activeIncident(state: GameState) {
+  const inc = state.incident;
+  return inc && inc.until > state.playTime ? INCIDENTS[inc.id] ?? null : null;
+}
+
+/** Speed multiplier the current world event and galaxy trait give lines of this recipe category */
+export function categoryBoost(state: GameState, category: string): number {
+  const galaxy = state.galaxy ? GALAXIES[state.galaxy]?.boost[category] ?? 1 : 1;
+  return (activeIncident(state)?.boost?.[category] ?? 1) * galaxy;
 }
 
 /** Longest absence that is caught up on return */
@@ -95,7 +111,7 @@ export function upgradeCost(line: Line, to: MachineDef): Record<string, number> 
 
 /** What a tech costs this run */
 export function techCost(state: GameState, techId: string): Record<string, number> {
-  const k = 1 - 0.1 * legacyLevel(state, 'research');
+  const k = (1 - 0.1 * legacyLevel(state, 'research')) * (activeIncident(state)?.researchMult ?? 1);
   return Object.fromEntries(Object.entries(TECHS[techId]?.cost ?? {}).map(([i, n]) => [i, Math.ceil(n * k)]));
 }
 

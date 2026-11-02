@@ -1,9 +1,11 @@
 import { POWER_ORDER, SWARM_EU, SWARM_ITEM, itemName } from '../data/items';
+import { GALAXIES } from '../data/galaxies';
 import { TIER_NAMES } from '../data/tech';
-import { currentTier, slotsTotal, slotsUsed } from '../sim/rules';
-import { getLast, getRates, getState, openLookup, openSignal } from '../state/store';
+import { activeIncident, currentTier, slotsTotal, slotsUsed } from '../sim/rules';
+import { getLast, getRates, getState, openLookup, openSignal, openTrade } from '../state/store';
 import { fmt, fmtDuration, fmtNum, fmtRate } from './common';
 import { ItemIcon } from './pixel';
+import { getAudioPrefs, setAudioPrefs } from './sound';
 
 // What matters at each tier; the storage tab has everything else
 const KEY_ITEMS_BY_TIER: string[][] = [
@@ -52,6 +54,9 @@ export function TopBar() {
   const tier = currentTier(s);
   const keyItems = KEY_ITEMS_BY_TIER[Math.min(tier, KEY_ITEMS_BY_TIER.length - 1)];
   const day = Math.floor(s.playTime / DAY_SECONDS) + 1;
+  const incident = activeIncident(s);
+  const audio = getAudioPrefs();
+  const muted = !audio.sfx && !audio.music;
 
   return (
     <header class="topbar">
@@ -61,8 +66,23 @@ export function TopBar() {
       <section class="colony">
         <div class="colony-head">
           <span class="colony-title">✦ 殖民第 {day} 天 · {TIER_NAMES[tier]}</span>
-          {s.legacy.warps > 0 && <span class="colony-tag" title="已躍遷的星系數">星系 {s.legacy.warps + 1}</span>}
+          {s.legacy.warps > 0 && (
+            <span class="colony-tag" title={s.galaxy ? `${GALAXIES[s.galaxy]?.name}：${GALAXIES[s.galaxy]?.text}` : '已躍遷的星系數'}>
+              星系 {s.legacy.warps + 1}{s.galaxy && GALAXIES[s.galaxy] ? ` · ${GALAXIES[s.galaxy].name}` : ''}
+            </span>
+          )}
           <span class="spacer" />
+          {incident && (
+            <button
+              class={`incident-chip ${incident.tone}`}
+              title={incident.text}
+              onClick={() => openTrade(true)}
+            >
+              <ItemIcon id={incident.icon} />
+              {incident.name}
+              {s.incident?.offer && <span class="hide-sm"> · 查看報價</span>} <span class="small">{Math.max(0, Math.ceil(s.incident!.until - s.playTime))}s</span>
+            </button>
+          )}
           {s.boostUntil > s.playTime && (
             <span class="boost-chip" title="遺物的時間加速：整座工廠 ×2">⏩ 時間加速 ×2 · {Math.ceil(s.boostUntil - s.playTime)}s</span>
           )}
@@ -71,6 +91,14 @@ export function TopBar() {
               ◈ 遺物訊號 <span class="small">{Math.max(0, Math.ceil(s.signal - s.playTime))}s</span>
             </button>
           )}
+          <button
+            class="icon-btn"
+            title={muted ? '開啟聲音' : '靜音'}
+            aria-label={muted ? '開啟聲音' : '靜音'}
+            onClick={() => setAudioPrefs(muted ? { sfx: true, music: true } : { sfx: false, music: false })}
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
         </div>
         <div class="colony-stats">
           {POWER_ORDER.map((p) => {

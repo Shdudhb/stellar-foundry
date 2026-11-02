@@ -90,7 +90,9 @@ describe('warp', () => {
     expect(s.legacy.points).toBe(10);
     expect(techCost(s, 'steam_power')).toEqual({ data: 24 });
     expect(slotsTotal(s)).toBe(30);
-    expect(simSpeed(s)).toBeCloseTo(1.2);
+    // warps: 1 unlocks 越過地平線, worth +1% on top of the legacy +20%
+    expect(s.achievements).toEqual(['warp_1']);
+    expect(simSpeed(s)).toBeCloseTo(1.21);
     buyLegacy('speed');
     buyLegacy('speed');
     // 10 more for level 2, then 15 for level 3 is too much

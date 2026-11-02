@@ -1,14 +1,23 @@
+import { FIRST_INCIDENT } from '../data/incidents';
 import { KIT_LEVELS, FIRST_SIGNAL } from '../data/legacy';
 import { OBJECTIVES } from '../data/objectives';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
-import type { GameState } from '../sim/types';
+import type { GameState, Stats } from '../sim/types';
 
 export const SAVE_KEY = 'stellar-foundry-save';
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
-/** A fresh run; pass the legacy to carry it (and its starting kit) through a warp */
-export function newGame(legacy: GameState['legacy'] = { points: 0, warps: 0, upgrades: {} }): GameState {
+export const newStats = (): Stats => ({ produced: {}, gathered: 0, built: 0, signals: 0, incidents: 0, trades: 0 });
+
+/**
+ * A fresh run. Pass the legacy to carry it (and its starting kit) through a warp,
+ * and the achievements and lifetime stats, which every run keeps.
+ */
+export function newGame(
+  legacy: GameState['legacy'] = { points: 0, warps: 0, upgrades: {} },
+  keep: Pick<GameState, 'achievements' | 'stats'> = { achievements: [], stats: newStats() },
+): GameState {
   const items: Record<string, number> = {};
   for (const kit of KIT_LEVELS.slice(0, legacy.upgrades.kit ?? 0)) {
     for (const [i, n] of Object.entries(kit)) items[i] = (items[i] ?? 0) + n;
@@ -27,6 +36,11 @@ export function newGame(legacy: GameState['legacy'] = { points: 0, warps: 0, upg
     nextSignal: FIRST_SIGNAL,
     boostUntil: 0,
     legacy: { points: legacy.points, warps: legacy.warps, upgrades: { ...legacy.upgrades } },
+    achievements: [...keep.achievements],
+    stats: { ...keep.stats, produced: { ...keep.stats.produced } },
+    galaxy: null,
+    incident: null,
+    nextIncident: FIRST_INCIDENT,
     playTime: 0,
     savedAt: Date.now(),
   };
@@ -50,6 +64,11 @@ function migrate(raw: any): GameState {
     // v4: objectives pay rewards; ones already finished before rewards existed count as collected
     s.claimed = OBJECTIVES.filter((o) => o.done(s)).map((o) => o.text);
     s.nextSignal = s.playTime + FIRST_SIGNAL;
+  }
+  if ((raw.version ?? 1) < 5) {
+    // v5: achievements, lifetime stats and world events
+    s.stats = { ...newStats(), ...raw.stats, produced: { ...raw.stats?.produced } };
+    s.nextIncident = s.playTime + FIRST_INCIDENT;
   }
   // A line whose machine or recipe was renamed or removed would break the game; drop it
   s.lines = s.lines.filter((l) => MACHINES[l.machine] && RECIPES[l.recipe]);
