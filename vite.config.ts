@@ -19,6 +19,8 @@ function fullReloadGameLogic(): Plugin {
 }
 
 export default defineConfig({
+  // Relative asset paths, so the build works under any sub-path (GitHub Pages serves it at /<repo>/)
+  base: './',
   plugins: [fullReloadGameLogic(), preact()],
   server: { port: 5173 },
 });
