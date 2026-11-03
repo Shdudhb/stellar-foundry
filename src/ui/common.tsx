@@ -148,11 +148,10 @@ export function Bar({ value, tone = 'ok' }: { value: number; tone?: string }) {
   );
 }
 
-/** Big tab heading: a spaced-out kicker over the title, then a line on what the tab is for */
-export function PageHeader({ kicker, title, children }: { kicker: string; title: string; children?: preact.ComponentChildren }) {
+/** Tab heading, with a line under it only when there is something the player needs to know */
+export function PageHeader({ title, children }: { title: string; children?: preact.ComponentChildren }) {
   return (
     <header class="page-head">
-      <p class="kicker">{kicker}</p>
       <h1>{title}</h1>
       {children && <p class="page-desc">{children}</p>}
     </header>

@@ -53,7 +53,7 @@ function SettingsPanel() {
   const [copied, setCopied] = useState(false);
   return (
     <div class="panel">
-      <PageHeader kicker="SYSTEM / SETTINGS" title="設定">聲音、存檔、遊戲規則，以及重新開始。</PageHeader>
+      <PageHeader title="設定" />
       <AudioSettings />
       <section class="card">
         <h3>存檔</h3>
@@ -125,7 +125,7 @@ function AudioSettings() {
         />
         <span class="muted small">{Math.round(a.volume * 100)}%</span>
       </label>
-      <p class="muted small">聲音都是即時合成的。電腦上可以用數字鍵 1–7 切換分頁，按 P 暫停或繼續。</p>
+      <p class="muted small">電腦上可以用數字鍵 1–7 切換分頁，按 P 暫停或繼續。</p>
     </section>
   );
 }
@@ -134,7 +134,6 @@ function IntroModal() {
   return (
     <Modal title="墜落" icon={<ItemIcon id="rocket_part" size={24} />} onClose={closeIntro}>
       <div class="intro">
-        <p class="kicker cjk">殖民艦「餘燼號」· 航行日誌 第 2,113 天</p>
         <p>
           躍遷引擎在最後一次跳躍時炸了。你們迫降在一顆沒有名字的岩石行星上，船體斷成三截，主電腦只救回了一份檔案：<strong>星門藍圖</strong>。
         </p>
@@ -285,7 +284,7 @@ function SignalModal() {
   const data = signalData(s);
   return (
     <Modal title="遺物訊號" icon={<ItemIcon id="exotic_matter" size={24} />} onClose={() => openSignal(false)}>
-      <p>無人機在地表下找到一件會發光的異星遺物。訊號正在減弱，還剩 {Math.max(0, Math.ceil((s.signal ?? 0) - s.playTime))} 秒。</p>
+      <p>二選一，還剩 {Math.max(0, Math.ceil((s.signal ?? 0) - s.playTime))} 秒。</p>
       <div class="choice-row">
         <button class="choice" onClick={() => answerSignal('data')}>
           <ItemIcon id={Object.keys(data)[0]} size={32} />
@@ -308,16 +307,12 @@ function MilestoneModal({ id, onWarp }: { id: string; onWarp: () => void }) {
     <Modal title={victory.title} onClose={closeMilestoneModal}>
       <p>{victory.text}</p>
       <p class="muted">遊玩時間：{fmtDuration(getState().playTime)}</p>
-      {victory.ending ? (
+      {victory.ending && (
         <>
           <p class="tone-text-ok">恭喜通關《星燼工業》！</p>
-          <p class="small">
-            現在可以在「星系」分頁躍遷：帶著遺產點到新的星系重新開始，買永久升級，一輪比一輪快。留下來繼續擴大戴森群，躍遷時會拿到更多點數。
-          </p>
+          <p class="small">可以在「星系」分頁躍遷，帶著遺產點到新星系重新開始。戴森群越大，躍遷拿到的點數越多。</p>
           <button onClick={onWarp}>前往「星系」分頁</button>
         </>
-      ) : (
-        victory.last && <p class="muted small">這是原型目前的終點。完整版會從這裡繼續，一路走到星門。</p>
       )}
       <button class="primary" onClick={closeMilestoneModal}>繼續經營</button>
     </Modal>
@@ -410,7 +405,7 @@ export function App() {
               <span class="paused-icon"><PauseIcon paused={false} size={16} /></span>
               <span class="paused-text">
                 <strong>遊戲已暫停</strong>
-                <span class="muted small">機器、事件與倒數都停住了，關掉分頁也不會補算。仍然可以建造、研究和調整生產線。</span>
+                <span class="muted small">時間停止，關掉分頁也不補算。仍可建造、研究、調整生產線。</span>
               </span>
               <button class="primary resume-btn" onClick={togglePause}><PauseIcon paused size={11} /> 繼續</button>
             </div>

@@ -4,11 +4,11 @@ import { getLast, getRates, getState, openLookup, toggleVent, trash } from '../s
 import { Bar, PageHeader, fmt, fmtRate } from './common';
 import { ItemIcon } from './pixel';
 
-const GROUPS: { title: string; kicker: string; kinds: ItemKind[] }[] = [
-  { title: '原料', kicker: '礦物、燃料與採集來的東西', kinds: ['raw'] },
-  { title: '中間產物', kicker: '錠、零件、化學品', kinds: ['intermediate'] },
-  { title: '副產物', kicker: '滿了會讓產生它的線停工：回收它，或在物品視窗打開排放', kinds: ['byproduct'] },
-  { title: '科研', kicker: '科研包與研究數據', kinds: ['science', 'data'] },
+const GROUPS: { title: string; kicker?: string; kinds: ItemKind[] }[] = [
+  { title: '原料', kinds: ['raw'] },
+  { title: '中間產物', kinds: ['intermediate'] },
+  { title: '副產物', kicker: '要回收或設為排放，不然會塞住產生它的線', kinds: ['byproduct'] },
+  { title: '科研', kinds: ['science', 'data'] },
 ];
 
 function Slot({ id }: { id: string }) {
@@ -82,9 +82,7 @@ export function StoragePanel() {
 
   return (
     <div class="panel">
-      <PageHeader kicker="LOGISTICS / STORAGE" title="倉庫">
-        倉庫滿了，生產它的機器就會停工。點物品可以看配方、設定排放或丟棄。
-      </PageHeader>
+      <PageHeader title="倉庫">倉庫滿了，生產它的機器就會停工。點物品可以設定排放或丟棄。</PageHeader>
       {GROUPS.map((g) => {
         const ids = items.filter((id) => g.kinds.includes(ITEMS[id].kind));
         if (ids.length === 0) return null;
@@ -92,7 +90,7 @@ export function StoragePanel() {
           <section key={g.title} class="card inv-section">
             <div class="section-head">
               <h2>{g.title}</h2>
-              <span class="muted">{g.kicker}</span>
+              {g.kicker && <span class="muted">{g.kicker}</span>}
             </div>
             <div class="slot-grid">
               {ids.map((id) => <Slot key={id} id={id} />)}

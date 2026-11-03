@@ -1,5 +1,4 @@
 import { ITEMS, isPower, itemName } from '../data/items';
-import { ITEM_LORE } from '../data/lore';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { MILESTONES } from '../data/tech';
@@ -165,7 +164,6 @@ export function RecipeLookup({ item }: { item: string }) {
 
   return (
     <Modal title={itemName(item)} icon={<ItemIcon id={item} size={24} />} onClose={() => openLookup(null)}>
-      {ITEM_LORE[item] && <p class="lore">{ITEM_LORE[item]}</p>}
       <StoreControls id={item} />
       {def?.kind === 'byproduct' && <p class="tone-text-warn small">副產物：倉庫滿了會讓產生它的生產線停工。</p>}
       {def?.decay && (

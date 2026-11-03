@@ -16,13 +16,11 @@ export function LegacyPanel() {
 
   return (
     <div class="panel">
-      <PageHeader kicker="GALAXY / LEGACY" title="星系">
-        遺產永久保留：躍遷之後、重新開始之後都還在。升級會立刻生效。
-      </PageHeader>
+      <PageHeader title="星系">遺產在躍遷和重新開始後都會保留，升級立刻生效。</PageHeader>
       <section class="card legacy-hero">
         <UiIcon id="legacy" size={64} />
         <div>
-          <p class="kicker">LEGACY POINTS</p>
+          <p class="kicker cjk">遺產點數</p>
           <p class="legacy-points">{points}</p>
         </div>
         <div class="muted small">

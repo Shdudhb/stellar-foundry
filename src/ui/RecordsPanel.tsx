@@ -17,7 +17,7 @@ export function RecordsPanel() {
   const s = getState();
   return (
     <div class="panel">
-      <PageHeader kicker="RECORDS" title="紀錄">成就會永久加快整座工廠；統計和日誌記下這個殖民地發生過的事。</PageHeader>
+      <PageHeader title="紀錄" />
       <div class="seg" role="tablist">
         {([
           ['achievements', `成就 ${s.achievements.length}/${ACHIEVEMENT_LIST.length}`],
@@ -44,7 +44,7 @@ function Achievements() {
     <>
       <section class="card ach-summary">
         <div>
-          <p class="kicker">ACHIEVEMENTS</p>
+          <p class="kicker cjk">成就</p>
           <p class="ach-big">
             {got.size}<span class="muted">/{ACHIEVEMENT_LIST.length}</span>
           </p>

@@ -598,9 +598,7 @@ export function ProductionPanel() {
 
   return (
     <div class="panel">
-      <PageHeader kicker="FACTORY / PRODUCTION" title="生產線">
-        採集原料、建立生產線，讓機器自己運轉。卡住的線會亮黃燈或紅燈，告訴你缺什麼。
-      </PageHeader>
+      <PageHeader title="生產線" />
       <div class="prod-top">
         <ManualCard />
         <NewLineCard />

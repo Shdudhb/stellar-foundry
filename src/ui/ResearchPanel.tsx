@@ -17,6 +17,17 @@ function unlockSummary(id: string): string {
   return parts.join('、');
 }
 
+/** The description already says everything it unlocks ("解鎖蒸汽鍋爐。"): no need for the list too */
+function namedIn(id: string): boolean {
+  const t = TECHS[id];
+  const names = [
+    ...(t.unlockMachines ?? []).map((m) => MACHINES[m].name),
+    ...(t.unlockRecipes ?? []).map((r) => RECIPES[r].name),
+    ...(t.unlockMilestone ? [MILESTONES[t.unlockMilestone].name] : []),
+  ];
+  return names.every((n) => t.description.includes(n));
+}
+
 /** The picture on a tech card: what it unlocks */
 function TechArt({ id }: { id: string }) {
   const t = TECHS[id];
@@ -65,9 +76,7 @@ export function ResearchPanel() {
 
   return (
     <div class="panel">
-      <PageHeader kicker="SCIENCE / RESEARCH" title="研究">
-        研究站把科研包分析成研究數據，用數據解鎖新機器、配方和巨構。已完成 {s.techs.length}/{TECH_LIST.length}。
-      </PageHeader>
+      <PageHeader title="研究">已完成 {s.techs.length}/{TECH_LIST.length}</PageHeader>
       <div class="data-row">
         {DATA_ITEMS.filter((d) => tier >= d.minTier).map((d) => (
           <span key={d.id} class="data-chip" title={itemName(d.id)}>
@@ -106,7 +115,7 @@ export function ResearchPanel() {
                         <p class="small">{t.description}</p>
                       </div>
                     </div>
-                    {unlocks && <p class="muted small">{unlocks}</p>}
+                    {unlocks && !namedIn(t.id) && <p class="muted small">{unlocks}</p>}
                     {needMilestone && (
                       <p class="small tone-text-warn">需要先建成巨構「{MILESTONES[t.requiresMilestone!].name}」</p>
                     )}

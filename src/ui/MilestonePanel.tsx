@@ -29,9 +29,7 @@ export function MilestonePanel() {
   const s = getState();
   return (
     <div class="panel">
-      <PageHeader kicker="MEGASTRUCTURES" title="巨構">
-        每個時代的終點都是一座巨構。建成之後，下一個時代的科技就會打開。
-      </PageHeader>
+      <PageHeader title="巨構">建成這個時代的巨構，才會解鎖下一個時代的研究。</PageHeader>
       {MILESTONE_LIST.map((ms) => {
         const built = s.milestones.includes(ms.id);
         const unlocked = milestoneUnlocked(s, ms.id);
@@ -41,7 +39,7 @@ export function MilestonePanel() {
           return (
             <section key={ms.id} class="card milestone done compact">
               <span class="ms-art"><MilestoneArt id={ms.id} size={32} /></span>
-              <span class="kicker">TIER {ms.tier}</span>
+              <span class="tier-pill">T{ms.tier}</span>
               <strong>{ms.name}</strong>
               <span class="tone-text-ok small">✓ 已建成</span>
             </section>
@@ -51,9 +49,8 @@ export function MilestonePanel() {
           <section key={ms.id} class={`card milestone ${built ? 'done' : unlocked ? '' : 'locked'}`}>
             <span class="ms-art"><MilestoneArt id={ms.id} /></span>
             <div>
-              <p class="kicker">TIER {ms.tier} · MILESTONE</p>
-              <h2>{ms.name}</h2>
-              <p>{ms.description}</p>
+              <h2><span class="tier-pill">T{ms.tier}</span> {ms.name}</h2>
+              {ms.description && <p>{ms.description}</p>}
               {built ? (
                 <p class="tone-text-ok">✓ 已建成</p>
               ) : !unlocked ? (
@@ -75,12 +72,6 @@ export function MilestonePanel() {
           </section>
         );
       })}
-      <section class="card">
-        <h3>星門之後</h3>
-        <p class="muted small">
-          建成星門就通關了。之後可以在「星系」分頁躍遷：帶著星際遺產點到新的星系重新開始，用永久升級讓每一輪更快。
-        </p>
-      </section>
     </div>
   );
 }
