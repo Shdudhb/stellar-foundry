@@ -284,15 +284,20 @@ p { margin: 0 0 8px; }
 .empty { color: var(--muted); padding: 28px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); background: rgb(11 16 22 / 0.5); }
 
 .item-link {
-  display: inline-flex; align-items: center; gap: 4px;
+  /* Inline, not flex: a flex box takes its baseline from the icon's bottom edge, which lifted the name 3px
+     above the label it followed ("建造一台：石頭…"). As inline content the text sets the baseline and the
+     icon hangs off it by .px's vertical-align */
+  display: inline-block;
   background: none; border: none; padding: 0; border-radius: 4px;
-  color: inherit;
+  color: inherit; font: inherit; line-height: inherit; text-align: left;
 }
+.item-link > .px, .cost > span > .px { margin-right: 4px; }
 .item-link span { text-decoration: underline dotted rgb(138 151 166 / 0.6); text-underline-offset: 3px; }
 .item-link:hover:not(:disabled) { background: none; color: var(--accent); }
 
-.cost { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
-.cost > span { display: inline-flex; align-items: center; gap: 4px; }
+.cost { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+/* Each entry is a line of text with its icon inline, so the row lines up with the label in front of it */
+.cost > span { display: inline-block; white-space: nowrap; }
 .cost .have { color: var(--text); }
 .cost .lack { color: var(--bad); }
 
@@ -344,12 +349,44 @@ p { margin: 0 0 8px; }
 }
 @keyframes pop-up { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-18px); } }
 
-.new-line { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
-.new-line label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
-.new-line label { flex: 1 1 160px; min-width: 0; max-width: 280px; }
-.new-line select { color: var(--text); width: 100%; }
-.new-preview { display: flex; gap: 12px; align-items: center; margin-top: 10px; padding: 10px; border-radius: 8px; background: rgb(11 16 22 / 0.6); border: 1px dashed var(--line); }
-.new-preview p { margin: 0; }
+/* ---------- new line: recipe tiles ---------- */
+.picker-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.picker-head h2 { margin: 0; font-size: 17px; }
+.picker-search {
+  flex: 1 1 180px; max-width: 280px; margin-left: auto;
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: rgb(9 13 18 / 0.8); color: var(--text); font: inherit; font-size: 14px;
+}
+.picker-search:focus { outline: none; border-color: var(--accent); }
+.picker-groups { margin-bottom: 12px; }
+.recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 10px; }
+.recipe-tile {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--line-soft);
+}
+.rt-head { display: flex; align-items: center; gap: 10px; }
+.rt-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rt-name { font-size: 15px; font-weight: 800; }
+.rt-machine { font-size: 13px; color: var(--muted); }
+.rt-machines { display: flex; flex-wrap: wrap; gap: 4px; margin-top: -2px; }
+.rt-machines button { padding: 2px 10px; font-size: 13px; border-radius: 999px; color: var(--muted); }
+.rt-machines button.on { color: var(--text); border-color: var(--accent); background: var(--panel-3); }
+.rt-build, .rt-go { flex: none; padding: 6px 14px; font-size: 14px; }
+.rt-go { color: var(--teal); }
+.rt-formula {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  padding: 7px 9px; border-radius: 8px; background: rgb(9 13 18 / 0.7);
+  font-size: 14px; font-variant-numeric: tabular-nums;
+}
+.rt-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rt-rate { font-weight: 700; }
+.rt-unit { color: var(--muted); font-size: 12px; margin-left: auto; }
+.rt-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+/* 建造 stays at the left; the materials wrap among themselves beside it */
+.rt-cost { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.rt-cost > .cost { flex: 1; min-width: 0; }
+.rt-draw { white-space: nowrap; }
 
 .lines { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
 .line {
@@ -759,11 +796,6 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .art-grid figcaption { font-size: 11px; color: var(--muted); text-align: center; }
 
 .prod-top { display: grid; gap: 14px; }
-@media (min-width: 1180px) {
-  .prod-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: start; }
-  .prod-top .gather-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 /* ---------- small screens: bottom tab bar ---------- */
 
 @media (max-width: 860px) {
@@ -827,8 +859,7 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .ach-grid { grid-template-columns: 1fr; }
   .stat-tiles { grid-template-columns: repeat(2, 1fr); }
   .gather-row { grid-template-columns: repeat(2, 1fr); }
-  .new-line select { min-width: 0; width: 100%; }
-  .new-line label { flex: 1 1 100%; max-width: none; }
+  .picker-search { max-width: none; margin-left: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

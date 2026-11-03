@@ -2,15 +2,15 @@ import { Component } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEM_ORDER, ITEMS, canVent, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
-import { RECIPES } from '../data/recipes';
+import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { WORN_SPEED, fuelLines } from '../sim/engine';
-import { canAfford, capOf, categoryBoost, isMachineUnlocked, overclock, recipesFor, upgradeCost, upgradeTarget } from '../sim/rules';
+import { canAfford, canRun, capOf, categoryBoost, isMachineUnlocked, isRecipeUnlocked, overclock, recipesFor, upgradeCost, upgradeTarget } from '../sim/rules';
 import type { Line, LineStatus } from '../sim/types';
 import {
   build, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, removeLine, setRecipe, toggleLine, toggleVent,
   upgradeLine,
 } from '../state/store';
-import { Bar, Cost, ItemLink, PageHeader, Side, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone } from './common';
+import { Bar, Cost, ItemLink, PageHeader, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone } from './common';
 import { ItemIcon, MachineIcon } from './pixel';
 
 /** Holding a tile keeps gathering after a short delay; a tap still gathers one */
@@ -88,56 +88,156 @@ function ManualCard() {
   );
 }
 
+/** What a recipe group is for, in the player's terms; every recipe category belongs to one */
+const GROUPS: { id: string; label: string; categories: string[] }[] = [
+  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind'] },
+  { id: 'metal', label: '冶煉', categories: ['smelting', 'blasting', 'arc', 'vacuum', 'freezing', 'cooling', 'coking'] },
+  { id: 'parts', label: '零件', categories: ['crafting', 'compressing', 'assembling'] },
+  { id: 'chem', label: '化工', categories: ['crushing', 'electrolysis', 'mixing', 'distilling', 'chemistry'] },
+  { id: 'power', label: '電力', categories: ['burning', 'turbine', 'solar', 'combustion', 'fusion', 'launch', 'elevator'] },
+  { id: 'science', label: '研究', categories: ['research'] },
+  { id: 'space', label: '太空', categories: ['microgravity', 'neutron', 'swarm', 'collider', 'stabilizer'] },
+];
+const GROUP_KEY = 'sf-new-group';
+
+function readGroup(): string {
+  try {
+    return localStorage.getItem(GROUP_KEY) ?? GROUPS[0].id;
+  } catch {
+    return GROUPS[0].id;
+  }
+}
+
+/** One side of a recipe as per-second amounts for a single machine */
+function Rates({ items, perSec, sign }: { items: Record<string, number>; perSec: number; sign: '−' | '+' }) {
+  const entries = Object.entries(items);
+  if (entries.length === 0) return null;
+  return (
+    <>
+      {entries.map(([id, n]) => (
+        <span key={id} class={`rt-item ${ITEMS[id]?.kind === 'byproduct' ? 'byproduct' : ''}`}>
+          <ItemIcon id={id} />
+          <span>{itemName(id)}</span>
+          <span class="rt-rate">{sign}{fmtNum(Math.round(n * perSec * 100) / 100)}</span>
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** A recipe the player can start a line of: what it makes per machine, what that machine costs, one tap to build */
+function RecipeTile({ r, machines }: { r: RecipeDef; machines: MachineDef[] }) {
+  const s = getState();
+  const [picked, setPicked] = useState(machines[0].id);
+  const m = machines.find((x) => x.id === picked) ?? machines[0];
+  const per = perMachineRate(m, r);
+  const existing = s.lines.find((l) => l.recipe === r.id && l.machine === m.id);
+  const main = Object.keys(r.outputs)[0];
+  const draw = m.power ? m.power.amount * overclock(m, r).power : 0;
+  return (
+    <article class="recipe-tile">
+      <div class="rt-head">
+        <ItemIcon id={main} size={32} />
+        <div class="rt-title">
+          <span class="rt-name">{r.name}</span>
+          {machines.length === 1 && <span class="rt-machine">{m.name}</span>}
+        </div>
+        {existing ? (
+          <button class="rt-go" onClick={() => focusLine(existing.id)} title="已經有這條生產線">前往 ×{existing.count}</button>
+        ) : (
+          <button class="primary rt-build" onClick={() => createLine(m.id, r.id)}>建立</button>
+        )}
+      </div>
+      {machines.length > 1 && (
+        <div class="rt-machines" role="radiogroup" aria-label="用哪種機器">
+          {machines.map((x) => (
+            <button key={x.id} role="radio" aria-checked={x.id === m.id} class={x.id === m.id ? 'on' : ''} onClick={() => setPicked(x.id)}>
+              {x.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <div class="rt-formula" aria-label="每台每秒">
+        {Object.keys(r.inputs).length > 0 && (
+          <>
+            <Rates items={r.inputs} perSec={per} sign="−" />
+            <span class="flow-arrow">→</span>
+          </>
+        )}
+        <Rates items={r.outputs} perSec={per} sign="+" />
+        <span class="rt-unit">/秒</span>
+      </div>
+      <div class="rt-foot">
+        <span class="rt-cost">建造 <Cost cost={m.cost} /></span>
+        {draw > 0 && (
+          <span class="rt-draw">
+            <ItemIcon id={m.power!.item} /> 耗{itemName(m.power!.item)} {fmtNum(Math.round(draw * 100) / 100)}/秒
+          </span>
+        )}
+      </div>
+    </article>
+  );
+}
+
+const perMachineRate = (m: MachineDef, r: RecipeDef) => (overclock(m, r).speed * (m.speed ?? 1) * categoryBoost(getState(), r.category)) / r.time;
+
 function NewLineCard() {
   const s = getState();
-  const machines = MACHINE_LIST.filter((m) => isMachineUnlocked(s, m.id));
-  const [picked, setMachine] = useState(machines[0]?.id ?? '');
-  // After a reset or warp the machine picked earlier may be locked again
-  const machine = machines.some((mm) => mm.id === picked) ? picked : machines[0]?.id ?? '';
-  const recipes = recipesFor(s, machine);
-  const [recipe, setRecipeSel] = useState(recipes[0]?.id ?? '');
-  const recipeId = recipes.some((r) => r.id === recipe) ? recipe : recipes[0]?.id ?? '';
-  const m = MACHINES[machine];
+  const [group, setGroupState] = useState(readGroup);
+  const [query, setQuery] = useState('');
+  const setGroup = (g: string) => {
+    setGroupState(g);
+    try {
+      localStorage.setItem(GROUP_KEY, g);
+    } catch {
+      // ignore
+    }
+  };
+  // Every recipe that can be built right now, with the machines that can run it (cheapest first)
+  const ready = RECIPE_LIST.flatMap((r) => {
+    if (!isRecipeUnlocked(s, r.id)) return [];
+    const ms = MACHINE_LIST.filter((m) => canRun(m, r) && isMachineUnlocked(s, m.id)).sort((a, b) => a.tier - b.tier);
+    return ms.length ? [{ r, ms }] : [];
+  });
+  const groupOf = (r: RecipeDef) => GROUPS.find((g) => g.categories.includes(r.category))?.id ?? GROUPS[2].id;
+  const counts = Object.fromEntries(GROUPS.map((g) => [g.id, ready.filter(({ r }) => groupOf(r) === g.id).length]));
+  const groups = GROUPS.filter((g) => counts[g.id] > 0);
+  const active = groups.some((g) => g.id === group) ? group : groups[0]?.id;
+  const q = query.trim();
+  const matches = (r: RecipeDef, ms: MachineDef[]) =>
+    [r.name, ...Object.keys(r.inputs).map(itemName), ...Object.keys(r.outputs).map(itemName), ...ms.map((m) => m.name)].some((t) => t.includes(q));
+  // Newest tier first: what was just unlocked is usually what the player came for
+  const shown = ready
+    .filter(({ r, ms }) => (q ? matches(r, ms) : groupOf(r) === active))
+    .sort((a, b) => b.r.tier - a.r.tier);
 
   return (
     <section class="card">
-      <div class="section-head">
+      <div class="picker-head">
         <h2>新增生產線</h2>
-        <span class="muted">選機器和配方，建立後再加蓋機器</span>
+        <input
+          type="search"
+          class="picker-search"
+          placeholder="搜尋物品或機器"
+          value={query}
+          onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+          aria-label="搜尋配方"
+        />
       </div>
-      <div class="new-line">
-        <label>
-          機器
-          <select value={machine} onChange={(e) => setMachine((e.target as HTMLSelectElement).value)}>
-            {machines.map((mm) => (
-              <option key={mm.id} value={mm.id}>T{mm.tier} {mm.name}{mm.orbital ? '（軌道）' : ''}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          配方
-          <select value={recipeId} onChange={(e) => setRecipeSel((e.target as HTMLSelectElement).value)}>
-            {recipes.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-        </label>
-        <button class="primary" disabled={!machine || !recipeId} onClick={() => createLine(machine, recipeId)}>建立</button>
-      </div>
-      {m && (
-        <div class="new-preview">
-          <MachineIcon id={m.id} size={48} />
-          <div>
-            <p class="small">{m.description}</p>
-            {recipeId && (
-              <p class="small recipe-eq">
-                <span class="side"><Side items={RECIPES[recipeId].inputs} /></span>
-                <span class="side"><span class="flow-arrow">→</span><Side items={RECIPES[recipeId].outputs} /></span>
-                <span class="muted">· {RECIPES[recipeId].time} 秒</span>
-              </p>
-            )}
-            <p class="small muted">建造一台：<Cost cost={m.cost} /></p>
-          </div>
+      {!q && (
+        <div class="line-filter picker-groups" role="tablist" aria-label="配方分類">
+          {groups.map((g) => (
+            <button key={g.id} role="tab" aria-selected={g.id === active} class={`filter-chip ${g.id === active ? 'active' : ''}`} onClick={() => setGroup(g.id)}>
+              {g.label} <span class="filter-count">{counts[g.id]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {shown.length === 0 ? (
+        <p class="muted">沒有符合「{q}」的配方。</p>
+      ) : (
+        <div class="recipe-grid">
+          {shown.map(({ r, ms }) => <RecipeTile key={r.id} r={r} machines={ms} />)}
         </div>
       )}
     </section>
