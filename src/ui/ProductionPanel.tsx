@@ -546,13 +546,14 @@ function LineRow({ line, status, onOpen }: { line: Line; status?: LineStatus; on
         </span>
         <span class="lrow-text">
           <span class="lrow-name">{r.name}</span>
+          {/* What it makes (or why not) comes first; on a narrow screen the machine name is what gets cut */}
           <span class="lrow-sub">
-            <span class="muted">{m.name}</span>
             {fine ? (
               <span class="lrow-rate"><ItemIcon id={main} /> {fmtRate(rate)}</span>
             ) : (
-              <span class={`tone-text-${tone}`}>{reasonText(reason, status, true)}</span>
+              <span class={`lrow-reason tone-text-${tone}`}>{reasonText(reason, status, true)}</span>
             )}
+            <span class="lrow-machine muted">{m.name}</span>
           </span>
         </span>
         <span class={`lrow-eff tone-text-${tone === 'ok' ? 'muted' : tone}`}>{Math.round(eff * 100)}%</span>
@@ -644,12 +645,27 @@ function useOnScreen(ids: number[], layout: string): Set<number> {
 
 const VIEW_KEY = 'sf-line-view';
 
+/** What the player chose; until then a phone gets the list, where a screen holds ten lines instead of two */
 function readView(): 'cards' | 'list' {
+  let saved: string | null = null;
   try {
-    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'cards';
+    saved = localStorage.getItem(VIEW_KEY);
   } catch {
-    return 'cards';
+    // ignore
   }
+  if (saved === 'list' || saved === 'cards') return saved;
+  return window.matchMedia?.('(max-width: 860px)').matches ? 'list' : 'cards';
+}
+
+/** After the list changes under a stuck toolbar, start it from its first line rather than somewhere in the middle */
+function listToTop() {
+  requestAnimationFrame(() => {
+    const bar = document.querySelector('.prod-bar');
+    const list = document.querySelector('.lines, .prod-panel > .empty');
+    if (!bar || !list) return;
+    const gap = list.getBoundingClientRect().top - bar.getBoundingClientRect().bottom;
+    if (gap < 0) window.scrollBy(0, gap - 8);
+  });
 }
 
 export function ProductionPanel() {
@@ -661,6 +677,7 @@ export function ProductionPanel() {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const setFilter = (f: string) => {
     setPicked(f);
+    listToTop();
     try {
       localStorage.setItem(FILTER_KEY, f);
     } catch {
@@ -670,6 +687,7 @@ export function ProductionPanel() {
   const setView = (v: 'cards' | 'list') => {
     setViewState(v);
     setOpen(new Set());
+    listToTop();
     try {
       localStorage.setItem(VIEW_KEY, v);
     } catch {
@@ -726,9 +744,12 @@ export function ProductionPanel() {
   const machines = s.lines.reduce((n, l) => n + l.count, 0);
   return (
     <div class="panel prod-panel">
-      {/* The page heading doubles as the toolbar; on a phone it stays at the top while the list scrolls */}
+      {/* The page heading doubles as the toolbar; on a phone it and the filter stay at the top while the list scrolls */}
+      <div class="prod-bar">
       <header class="page-head prod-head">
-        <h1>生產線</h1>
+        <h1>
+          <button class="title-btn" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} title="回到最上面">生產線</button>
+        </h1>
         {s.lines.length > 0 && <span class="muted prod-count">{s.lines.length} 條 · {machines} 台</span>}
         <span class="spacer" />
         {s.lines.length > 1 && (
@@ -743,6 +764,8 @@ export function ProductionPanel() {
           </button>
         )}
       </header>
+      {s.lines.length > 1 && <LineFilter filter={filter} setFilter={setFilter} counts={counts} />}
+      </div>
       <ManualCard />
       {s.lines.length === 0 ? (
         <div class="empty empty-cta">
@@ -751,7 +774,6 @@ export function ProductionPanel() {
         </div>
       ) : (
         <>
-        {s.lines.length > 1 && <LineFilter filter={filter} setFilter={setFilter} counts={counts} />}
         {shown.length === 0 ? (
           <p class="empty">{filter === 'stuck' ? '沒有卡住的生產線，一切順暢。' : '這裡沒有生產線。'}</p>
         ) : (

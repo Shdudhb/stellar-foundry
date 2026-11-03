@@ -12,7 +12,7 @@ export function Objective({ state }: { state: GameState }) {
         <span class="objective-step">✓ 目標完成</span>
         <span class="objective-text">{OBJECTIVES[pending[0]].text}{pending.length > 1 && ` 等 ${pending.length} 項`}</span>
         <button class="primary" onClick={claimObjectives}>
-          領取 <Reward items={reward} />
+          領取 <span class="objective-claim-reward"><Reward items={reward} /></span>
         </button>
       </div>
     );

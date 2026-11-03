@@ -36,6 +36,9 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id'];
 
+/** Where each tab was scrolled to when the player left it */
+const scrollPlaces: Partial<Record<string, number>> = {};
+
 function readTab(): TabId {
   try {
     const t = localStorage.getItem('sf-tab');
@@ -340,6 +343,8 @@ export function App() {
   const ui = getUi();
   const [tab, setTabState] = useState<TabId>(readTab);
   const setTab = (t: TabId) => {
+    // Each tab keeps its own place: coming back to the lines lands where the player left them
+    scrollPlaces[tab] = window.scrollY;
     setTabState(t);
     try {
       localStorage.setItem('sf-tab', t);
@@ -352,6 +357,11 @@ export function App() {
   const shown = tab === 'legacy' && !legacyVisible ? 'production' : tab;
   const View = TABS.find((t) => t.id === shown)!.view;
   const badges = navBadges(s);
+
+  useEffect(() => {
+    // A line being focused does its own scrolling
+    if (ui.focusLine === null) window.scrollTo(0, scrollPlaces[shown] ?? 0);
+  }, [shown]);
 
   // Picking a line elsewhere (the item window) takes the player to the production tab, which scrolls to it
   useEffect(() => {
@@ -390,7 +400,8 @@ export function App() {
               title={`${t.label}（${i + 1}）`}
               class={`nav-btn ${shown === t.id ? 'active' : ''}`}
               aria-current={shown === t.id ? 'page' : undefined}
-              onClick={() => setTab(t.id)}
+              // Tapping the tab you're on goes back to its top
+              onClick={() => (shown === t.id ? window.scrollTo({ top: 0, behavior: 'smooth' }) : setTab(t.id))}
             >
               <span class="nav-icon">
                 <UiIcon id={t.id} size={24} />

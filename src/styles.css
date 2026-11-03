@@ -394,8 +394,11 @@ p { margin: 0 0 8px; }
 .rt-cost > .cost { flex: 1; min-width: 0; }
 .rt-draw { white-space: nowrap; }
 
+.prod-bar { display: flex; flex-direction: column; gap: 12px; }
+.prod-bar .line-filter { margin: 0; }
 .prod-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .prod-head h1 { margin: 0; }
+.title-btn, .title-btn:hover:not(:disabled) { background: none; border: 0; padding: 0; font: inherit; color: inherit; letter-spacing: inherit; }
 .prod-count { font-size: 13px; white-space: nowrap; }
 .prod-head .seg { margin: 0; }
 .view-seg button { padding: 4px 12px; font-size: 13px; }
@@ -425,8 +428,9 @@ p { margin: 0 0 8px; }
 .lrow-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
 .lrow-name { font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lrow-sub { display: flex; gap: 8px; font-size: 12px; white-space: nowrap; overflow: hidden; }
-.lrow-sub > span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.lrow-rate { color: var(--text); font-variant-numeric: tabular-nums; }
+.lrow-rate { flex: none; color: var(--text); font-variant-numeric: tabular-nums; }
+.lrow-reason { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lrow-machine { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .lrow-eff { flex: none; min-width: 38px; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .lrow .line-count-badge { right: -8px; bottom: -5px; font-size: 10px; }
 .lrow-btn { flex: none; width: 40px; height: 36px; padding: 0; font-size: 18px; line-height: 1; }
@@ -877,7 +881,8 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .boost-chip { font-size: 11px; }
   .colony-stats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 14px; }
   .colony-stats::-webkit-scrollbar { display: none; }
-  .mobile-brand { display: block; }
+  /* The tab bar and the colony title already say where you are: no logo row eating the screen */
+  .mobile-brand { display: none; }
   .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -14px; padding: 0 14px; }
   .chips::-webkit-scrollbar { display: none; }
   .chip { flex-shrink: 0; }
@@ -889,7 +894,18 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .page-head { margin: 4px 0 12px; }
   .page-head h1 { font-size: 22px; margin-bottom: 2px; }
   .page-desc { font-size: 13px; line-height: 1.5; }
-  .objective { gap: 8px; padding: 8px 12px; }
+  /* One row: what's done or next, and the claim button beside it */
+  .objective { flex-wrap: nowrap; gap: 8px; padding: 7px 8px 7px 12px; }
+  .objective-text {
+    flex: 1; min-width: 0; font-size: 13px; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .objective-step { font-size: 10px; padding: 0 6px; }
+  .objective.claim .objective-step { display: none; }
+  .objective.claim button { flex: none; padding: 6px 12px; }
+  .objective-claim-reward { display: none; }
+  .objective:not(.claim) { flex-wrap: wrap; }
+  .objective-reward { margin-left: 0; flex-basis: 100%; }
   .lines { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
   .hide-sm { display: none; }
   .milestone { grid-template-columns: 1fr; }
@@ -908,14 +924,17 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .modal-bar { padding: 10px 14px 8px; }
   .modal-bar .line-filter { margin: 0 -14px; }
   .picker-search { max-width: none; }
-  /* The toolbar rides along at the top, so adding a line or switching views never needs a scroll back up */
-  .prod-head {
+  /* Toolbar and filter ride along at the top, so adding a line, switching views or filters never needs a scroll back up */
+  .prod-bar {
     position: sticky; top: 0; z-index: 6;
-    flex-wrap: nowrap; gap: 8px;
-    margin: 0 -14px 10px; padding: calc(6px + env(safe-area-inset-top)) 14px 6px;
-    background: rgb(6 9 13 / 0.94); backdrop-filter: blur(8px);
+    gap: 6px;
+    margin: 0 -14px; padding: calc(6px + env(safe-area-inset-top)) 14px 6px;
+    background: rgb(6 9 13 / 0.95); backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--line-soft);
   }
+  .prod-bar .line-filter { margin: 0 -14px; }
+  .prod-bar .filter-chip { padding: 3px 10px; }
+  .prod-head { flex-wrap: nowrap; gap: 8px; margin: 0; }
   .prod-head h1 { font-size: 20px; margin: 0; }
   .prod-count { font-size: 12px; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .view-seg { padding: 2px; flex: none; }
@@ -935,7 +954,7 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .gather-row { grid-template-columns: repeat(2, 1fr); }
   /* The thin strip: four tiles across, the name over the count */
   .gather-strip { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 10px; }
-  .gather-strip-label { font-size: 12px; }
+  .gather-strip-label { display: none; }
   .gather-row.compact { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .gather-tile.compact { padding: 5px 6px; gap: 6px; }
   .gather-tile.compact .gather-info { flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; }
