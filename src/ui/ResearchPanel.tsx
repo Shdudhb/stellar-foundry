@@ -59,8 +59,9 @@ export function ResearchPanel() {
   const rates = getRates();
   const tier = currentTier(s);
   const order = (id: string) => (s.techs.includes(id) ? 2 : techAvailable(s, id) ? 0 : 1);
-  // Show the tiers the player has reached, plus a peek at the next one
-  const tiers = [...new Set(TECH_LIST.map((t) => t.tier))].filter((t) => t <= Math.max(1, tier));
+  // Show the tiers the player has reached, plus a peek at the next one (locked behind its megastructure),
+  // so a finished tier never leaves the tab with nothing to look forward to
+  const tiers = [...new Set(TECH_LIST.map((t) => t.tier))].filter((t) => t <= Math.max(1, tier + 1));
 
   return (
     <div class="panel">

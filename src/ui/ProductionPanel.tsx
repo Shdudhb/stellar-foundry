@@ -1,6 +1,6 @@
 import { Component } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ITEM_ORDER, ITEMS, isPower, itemName } from '../data/items';
+import { ITEM_ORDER, ITEMS, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { WORN_SPEED } from '../sim/engine';
@@ -131,9 +131,8 @@ function NewLineCard() {
             <p class="small">{m.description}</p>
             {recipeId && (
               <p class="small recipe-eq">
-                <Side items={RECIPES[recipeId].inputs} />
-                <span class="flow-arrow">→</span>
-                <Side items={RECIPES[recipeId].outputs} />
+                <span class="side"><Side items={RECIPES[recipeId].inputs} /></span>
+                <span class="side"><span class="flow-arrow">→</span><Side items={RECIPES[recipeId].outputs} /></span>
                 <span class="muted">· {RECIPES[recipeId].time} 秒</span>
               </p>
             )}
@@ -147,22 +146,17 @@ function NewLineCard() {
 
 const WORN_SPEED_LOSS = 1 - WORN_SPEED;
 
-/** "鐵錠 −1/s、煤 −0.5/s": plain text for the full-speed line */
-function rateList(items: Record<string, number>, crafts: number, sign: '−' | '+'): string {
-  return Object.entries(items)
-    .filter(([id]) => !isPower(id))
-    .map(([id, n]) => `${itemName(id)} ${sign}${fmtNum(Math.round(n * crafts * 100) / 100)}/s`)
-    .join('、') || '無';
-}
-
-function Flow({ items, perSec, sign }: { items: Record<string, number>; perSec: number; sign: '−' | '+' }) {
-  const entries = Object.entries(items).filter(([id]) => !isPower(id));
+/** One side of a line's recipe, one item per row; with `full`, each rate is followed by its full-speed figure */
+function Flow({ items, perSec, full, sign }: { items: Record<string, number>; perSec: number; full?: number; sign: '−' | '+' }) {
+  const entries = Object.entries(items);
   if (entries.length === 0) return <span class="muted">無</span>;
+  const num = (x: number) => fmtNum(Math.round(x * 100) / 100);
   return (
     <span class="flow">
       {entries.map(([id, n]) => (
         <span key={id} class={ITEMS[id]?.kind === 'byproduct' ? 'byproduct' : ''}>
-          <ItemLink id={id} /> {sign}{fmtNum(Math.round(n * perSec * 100) / 100)}/s
+          <ItemLink id={id} /> {sign}{num(n * perSec)}/s
+          {full !== undefined && <span class="flow-full"> / {num(n * full)}</span>}
         </span>
       ))}
     </span>
@@ -242,7 +236,6 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
   const eff = status?.efficiency ?? 0;
   const reason = status?.reason ?? { kind: 'idle' as const };
   const tone = reasonTone(reason);
-  const generator = Object.keys(r.outputs).some(isPower);
   // An empty line shows what one machine would do; a slowed line also shows what full speed would be
   const perMachine = (oc.speed * (m.speed ?? 1) * categoryBoost(s, r.category)) / r.time;
   const empty = line.count === 0;
@@ -255,6 +248,10 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
   const recipeOptions = recipesFor(s, line.machine);
   if (!recipeOptions.some((rr) => rr.id === r.id)) recipeOptions.unshift(r);
   const upgrade = upgradeTarget(s, line);
+  // What the machines themselves draw to run, apart from power the recipe turns into something else
+  const drawItem = m.power?.item;
+  const recipeNet = drawItem ? (r.outputs[drawItem] ?? 0) - (r.inputs[drawItem] ?? 0) : 0;
+  const draw = !drawItem ? 0 : empty ? m.power!.amount * oc.power : recipeNet * perSec - (status?.power[drawItem] ?? 0);
 
   return (
     <article id={`line-${line.id}`} data-line={line.id} class={`card line tone-border-${tone} ${line.enabled ? '' : 'paused'} ${eff > 0.01 ? 'running' : ''} ${fresh ? 'fresh' : ''}`}>
@@ -264,8 +261,8 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
           <span class="line-count-badge">×{line.count}</span>
         </span>
         <div class="line-title">
+          <div class="line-name-row">
           <span class="line-name">{m.name}</span>
-          <span class="line-badges">
           <span class="badge tier">T{m.tier}</span>
           {oc.speed > 1 && (
             <span class="badge oc" title="機器階層高於配方：速度與耗能增加">{m.perfectOC ? '完美超頻' : '超頻'} ×{oc.speed}</span>
@@ -274,7 +271,7 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
           {m.upkeep && s.maintenance && <span class="badge" title="每台每分鐘全速運轉消耗的維護套件">維護 {m.upkeep}/分</span>}
           {m.orbital && <span class="badge orbit" title="佔軌道槽位，靠軌道運力運轉">軌道</span>}
           {m.ignition && line.count > 0 && (line.heat ?? 0) >= 1 && <span class="badge lit">已點火</span>}
-          </span>
+          </div>
           <select value={line.recipe} aria-label="配方" onChange={(e) => setRecipe(line.id, (e.target as HTMLSelectElement).value)}>
             {recipeOptions.map((rr) => (
               <option key={rr.id} value={rr.id}>{rr.name}</option>
@@ -284,28 +281,19 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
       </header>
 
       <div class="flow-row">
-        {empty && <span class="badge" title="還沒有機器：這是一台的產能">每台</span>}
-        <Flow items={r.inputs} perSec={perSec} sign="−" />
-        {!generator && (
-          <>
-            <span class="flow-arrow">→</span>
-            <Flow items={r.outputs} perSec={perSec} sign="+" />
-          </>
-        )}
+        {empty && <span class="flow-tag" title="還沒有機器：這是一台的產能">每台</span>}
+        {showFull && <span class="flow-tag" title="現在的速度 / 全速時的速度">實際 / 滿速</span>}
+        <Flow items={r.inputs} perSec={perSec} full={showFull ? fullSpeed : undefined} sign="−" />
+        <span class="flow-arrow">→</span>
+        <Flow items={r.outputs} perSec={perSec} full={showFull ? fullSpeed : undefined} sign="+" />
       </div>
-      {showFull && (
-        <p class="full-speed muted small">
-          滿速：{rateList(r.inputs, fullSpeed, '−')}
-          {!generator && <> → {rateList(r.outputs, fullSpeed, '+')}</>}
-        </p>
-      )}
-      {(Object.keys(status?.power ?? {}).length > 0 || status?.upkeep) && (
+      {(draw > 0.005 || status?.upkeep) && (
         <div class="flow-extra">
-          {Object.entries(status?.power ?? {}).map(([p, v]) => (
-            <span key={p} class={v > 0 ? 'tone-text-ok' : 'muted'}>
-              <ItemLink id={p} /> {fmtRate(v)}
+          {draw > 0.005 && (
+            <span class="muted">
+              機器耗用 <ItemLink id={drawItem!} /> −{fmtNum(Math.round(draw * 100) / 100)}/s
             </span>
-          ))}
+          )}
           {status?.upkeep && (
             <span>
               <ItemLink id={MAINTENANCE_ITEM} /> {fmtRate(-status.upkeep.need * status.upkeep.supplied)}

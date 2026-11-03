@@ -37,7 +37,8 @@ function RecipeRow({ r }: { r: RecipeDef }) {
         {locked && <span class="badge">未解鎖</span>}
       </div>
       <div class="small recipe-eq">
-        <Side items={r.inputs} /> <span class="flow-arrow">→</span> <Side items={r.outputs} />
+        <span class="side"><Side items={r.inputs} /></span>
+        <span class="side"><span class="flow-arrow">→</span><Side items={r.outputs} /></span>
       </div>
       {usable.length > 0 && (
         <div class="build-row">
@@ -115,13 +116,15 @@ function FlowList({ title, rows, sign }: { title: string; rows: FlowRow[]; sign:
               <button class="flow-line" title="到這條生產線" onClick={() => focusLine(line.id)}>
                 <MachineIcon id={line.machine} size={20} />
                 <span class="flow-line-name">
-                  {MACHINES[line.machine].name} ×{line.count}
-                  <span class="muted small"> · {RECIPES[line.recipe].name}</span>
-                  {slow && st && <span class={`small tone-text-${reasonTone(st.reason)}`}> · {reasonText(st.reason, st, true)}</span>}
+                  <span>{MACHINES[line.machine].name} ×{line.count}</span>
+                  <span class="small">
+                    <span class="muted">{RECIPES[line.recipe].name}</span>
+                    {slow && st && <span class={`tone-text-${reasonTone(st.reason)}`}> · {reasonText(st.reason, st, true)}</span>}
+                  </span>
                 </span>
                 <span class="flow-line-rate">
                   {fmtRate(now)}
-                  {slow && <span class="muted small"> / 滿速 {fmtRate(full!)}</span>}
+                  {slow && <span class="muted small">滿速 {fmtRate(full!)}</span>}
                 </span>
               </button>
             </li>

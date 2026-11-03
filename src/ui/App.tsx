@@ -134,10 +134,9 @@ function IntroModal() {
   return (
     <Modal title="墜落" icon={<ItemIcon id="rocket_part" size={24} />} onClose={closeIntro}>
       <div class="intro">
-        <p class="kicker">殖民艦「餘燼號」· 航行日誌 第 2,113 天</p>
+        <p class="kicker cjk">殖民艦「餘燼號」· 航行日誌 第 2,113 天</p>
         <p>
-          躍遷引擎在最後一次跳躍時炸了。你們迫降在一顆沒有名字的岩石行星上，船體斷成三截，
-          主電腦只救回了一份檔案：<strong>星門藍圖</strong>。
+          躍遷引擎在最後一次跳躍時炸了。你們迫降在一顆沒有名字的岩石行星上，船體斷成三截，主電腦只救回了一份檔案：<strong>星門藍圖</strong>。
         </p>
         <p>
           回家已經不可能。但只要工業夠強大，就能在這裡蓋出一座星門，把殖民地帶往群星之間。
@@ -260,10 +259,12 @@ function OfflineReportModal() {
                 >
                   <MachineIcon id={l.machine} size={20} />
                   <span class="flow-line-name">
-                    {MACHINES[l.machine].name} ×{l.count}
-                    <span class="muted small"> · {RECIPES[l.recipe].name}</span>
+                    <span>{MACHINES[l.machine].name} ×{l.count}</span>
+                    <span class="small">
+                      <span class="muted">{RECIPES[l.recipe].name}</span>
+                      <span class={`tone-text-${reasonTone(st!.reason)}`}> · {reasonText(st!.reason, st)}</span>
+                    </span>
                   </span>
-                  <span class={`small tone-text-${reasonTone(st!.reason)}`}>{reasonText(st!.reason, st)}</span>
                 </button>
               </li>
             ))}
@@ -311,8 +312,7 @@ function MilestoneModal({ id, onWarp }: { id: string; onWarp: () => void }) {
         <>
           <p class="tone-text-ok">恭喜通關《星燼工業》！</p>
           <p class="small">
-            現在可以在「星系」分頁躍遷：帶著遺產點到新的星系重新開始，買永久升級，一輪比一輪快。
-            留下來繼續擴大戴森群，躍遷時會拿到更多點數。
+            現在可以在「星系」分頁躍遷：帶著遺產點到新的星系重新開始，買永久升級，一輪比一輪快。留下來繼續擴大戴森群，躍遷時會拿到更多點數。
           </p>
           <button onClick={onWarp}>前往「星系」分頁</button>
         </>
