@@ -36,6 +36,17 @@ export function MilestonePanel() {
         const built = s.milestones.includes(ms.id);
         const unlocked = milestoneUnlocked(s, ms.id);
         const p = progress(ms);
+        // Finished ones fold to a single row, so the one being worked on isn't pushed down the page
+        if (built) {
+          return (
+            <section key={ms.id} class="card milestone done compact">
+              <span class="ms-art"><MilestoneArt id={ms.id} /></span>
+              <span class="kicker">TIER {ms.tier}</span>
+              <strong>{ms.name}</strong>
+              <span class="tone-text-ok small">✓ 已建成</span>
+            </section>
+          );
+        }
         return (
           <section key={ms.id} class={`card milestone ${built ? 'done' : unlocked ? '' : 'locked'}`}>
             <span class="ms-art"><MilestoneArt id={ms.id} /></span>

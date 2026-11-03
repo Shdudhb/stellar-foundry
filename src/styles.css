@@ -481,6 +481,11 @@ p { margin: 0 0 8px; }
   border: 1px solid var(--line);
 }
 .milestone.done .ms-art { background: radial-gradient(circle at 50% 35%, rgb(87 201 138 / 0.2), transparent 70%), #0b1016; }
+.milestone.compact { display: flex; align-items: center; gap: 12px; padding-top: 8px; padding-bottom: 8px; }
+.milestone.compact .kicker { margin: 0; }
+.milestone.compact .ms-art { width: 36px; height: 36px; }
+.milestone.compact .ms-art .px { width: 28px; height: 28px; }
+.milestone.compact strong { flex: 1; }
 .ms-progress { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; max-width: 420px; }
 .roadmap { margin: 0; padding-left: 20px; }
 
