@@ -329,6 +329,11 @@ export function App() {
   const View = TABS.find((t) => t.id === shown)!.view;
   const badges = navBadges(s);
 
+  // Picking a line elsewhere (the item window) takes the player to the production tab, which scrolls to it
+  useEffect(() => {
+    if (ui.focusLine !== null && shown !== 'production') setTab('production');
+  }, [ui.focusLine]);
+
   // Number keys switch tabs on a keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

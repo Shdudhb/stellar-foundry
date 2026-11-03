@@ -67,6 +67,8 @@ export interface UiState {
   tradeOpen: boolean;
   /** First launch: the crash-landing story */
   intro: boolean;
+  /** A line to bring into view on the production tab (just created, or picked in the item window) */
+  focusLine: number | null;
   toasts: Toast[];
   /** Recent notable happenings, newest first */
   log: LogEntry[];
@@ -78,7 +80,8 @@ let state: GameState = newGame();
 let last: TickResult = emptyTick();
 const smoothRates: Record<string, number> = {};
 const ui: UiState = {
-  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, toasts: [], log: [],
+  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null,
+  toasts: [], log: [],
 };
 const listeners = new Set<() => void>();
 const history: HistorySample[] = [];
@@ -302,6 +305,19 @@ export function addLine(machineId: string, recipeId: string): number | null {
   emit('click');
   notify();
   return id;
+}
+
+/** Show this line on the production tab, closing the item window it was picked from */
+export function focusLine(id: number | null) {
+  ui.focusLine = id;
+  if (id !== null) ui.lookupItem = null;
+  notify();
+}
+
+/** Add a line and take the player to it */
+export function createLine(machineId: string, recipeId: string) {
+  const id = addLine(machineId, recipeId);
+  if (id !== null) focusLine(id);
 }
 
 export function build(lineId: number, times = 1) {

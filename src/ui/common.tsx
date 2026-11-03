@@ -92,14 +92,15 @@ export function Reward({ items }: { items: Record<string, number> }) {
   );
 }
 
-export function reasonText(reason: Reason, status?: LineStatus): string {
+/** Why a line is slow. `brief` drops the how-to hint, for places that offer the fix right there */
+export function reasonText(reason: Reason, status?: LineStatus, brief = false): string {
   switch (reason.kind) {
     case 'ok': return '運轉中';
     case 'idle': return '沒有機器';
     case 'paused': return '已暫停';
     case 'input': return `缺少${itemName(reason.item)}`;
     case 'output':
-      return ITEMS[reason.item]?.kind === 'byproduct'
+      return ITEMS[reason.item]?.kind === 'byproduct' && !brief
         ? `${itemName(reason.item)}倉庫已滿（可在倉庫設為排放）`
         : `${itemName(reason.item)}倉庫已滿`;
     case 'power': return `${itemName(reason.item)}不足`;

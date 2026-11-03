@@ -1,26 +1,65 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEM_ORDER, ITEMS, isPower, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { WORN_SPEED } from '../sim/engine';
-import { canAfford, capOf, isMachineUnlocked, overclock, recipesFor, upgradeCost, upgradeTarget } from '../sim/rules';
+import { canAfford, capOf, categoryBoost, isMachineUnlocked, overclock, recipesFor, upgradeCost, upgradeTarget } from '../sim/rules';
 import type { Line, LineStatus } from '../sim/types';
 import {
-  addLine, build, demolish, gather, getLast, getState, removeLine, setRecipe, toggleLine, upgradeLine,
+  build, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, removeLine, setRecipe, toggleLine, toggleVent,
+  upgradeLine,
 } from '../state/store';
 import { Bar, Cost, ItemLink, PageHeader, Side, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone } from './common';
 import { ItemIcon, MachineIcon } from './pixel';
+
+/** Holding a tile keeps gathering after a short delay; a tap still gathers one */
+const HOLD_DELAY = 400;
+const HOLD_EVERY = 150;
 
 function GatherTile({ id }: { id: string }) {
   const s = getState();
   const [pops, setPops] = useState(0);
   const full = (s.items[id] ?? 0) >= capOf(s, id);
+  const timers = useRef<{ wait?: ReturnType<typeof setTimeout>; repeat?: ReturnType<typeof setInterval>; held: boolean }>({ held: false });
+  const one = () => {
+    const st = getState();
+    if ((st.items[id] ?? 0) >= capOf(st, id)) return false;
+    gather(id);
+    setPops((n) => n + 1);
+    return true;
+  };
+  const stop = () => {
+    clearTimeout(timers.current.wait);
+    clearInterval(timers.current.repeat);
+  };
+  useEffect(() => stop, []);
   return (
     <button
       class="gather-tile"
+      title="點一下採一個，按住連續採集"
+      onPointerDown={() => {
+        stop();
+        timers.current.held = false;
+        timers.current.wait = setTimeout(() => {
+          timers.current.held = true;
+          if (!one()) return;
+          timers.current.repeat = setInterval(() => {
+            if (!one()) stop();
+          }, HOLD_EVERY);
+        }, HOLD_DELAY);
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onContextMenu={(e) => e.preventDefault()}
       onClick={() => {
-        gather(id);
-        if (!full) setPops((n) => n + 1);
+        // The click that ends a hold has already been paid for by the repeats
+        if (timers.current.held) {
+          timers.current.held = false;
+          return;
+        }
+        // A tap on a full tile still says why nothing happened
+        if (!one()) gather(id);
       }}
     >
       <ItemIcon id={id} size={40} />
@@ -39,7 +78,7 @@ function ManualCard() {
     <section class="card">
       <div class="section-head">
         <h2>手動採集</h2>
-        <span class="muted">點一下撿一個，早期的原料從這裡來</span>
+        <span class="muted">點一下撿一個，按住連續採集</span>
       </div>
       <div class="gather-row">
         {manual.map((id) => <GatherTile key={id} id={id} />)}
@@ -48,7 +87,7 @@ function ManualCard() {
   );
 }
 
-function NewLineCard({ onCreated }: { onCreated: (id: number) => void }) {
+function NewLineCard() {
   const s = getState();
   const machines = MACHINE_LIST.filter((m) => isMachineUnlocked(s, m.id));
   const [picked, setMachine] = useState(machines[0]?.id ?? '');
@@ -82,10 +121,7 @@ function NewLineCard({ onCreated }: { onCreated: (id: number) => void }) {
             ))}
           </select>
         </label>
-        <button class="primary" disabled={!machine || !recipeId} onClick={() => {
-            const id = addLine(machine, recipeId);
-            if (id !== null) onCreated(id);
-          }}>建立</button>
+        <button class="primary" disabled={!machine || !recipeId} onClick={() => createLine(machine, recipeId)}>建立</button>
       </div>
       {m && (
         <div class="new-preview">
@@ -109,6 +145,14 @@ function NewLineCard({ onCreated }: { onCreated: (id: number) => void }) {
 }
 
 const WORN_SPEED_LOSS = 1 - WORN_SPEED;
+
+/** "鐵錠 −1/s、煤 −0.5/s": plain text for the full-speed line */
+function rateList(items: Record<string, number>, crafts: number, sign: '−' | '+'): string {
+  return Object.entries(items)
+    .filter(([id]) => !isPower(id))
+    .map(([id, n]) => `${itemName(id)} ${sign}${fmtNum(Math.round(n * crafts * 100) / 100)}/s`)
+    .join('、') || '無';
+}
 
 function Flow({ items, perSec, sign }: { items: Record<string, number>; perSec: number; sign: '−' | '+' }) {
   const entries = Object.entries(items).filter(([id]) => !isPower(id));
@@ -197,8 +241,16 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
   const eff = status?.efficiency ?? 0;
   const reason = status?.reason ?? { kind: 'idle' as const };
   const tone = reasonTone(reason);
-  const perSec = status?.craftsPerSec ?? 0;
   const generator = Object.keys(r.outputs).some(isPower);
+  // An empty line shows what one machine would do; a slowed line also shows what full speed would be
+  const perMachine = (oc.speed * (m.speed ?? 1) * categoryBoost(s, r.category)) / r.time;
+  const empty = line.count === 0;
+  const perSec = empty ? perMachine : status?.craftsPerSec ?? 0;
+  const fullSpeed = status?.maxCraftsPerSec ?? 0;
+  const showFull = !empty && line.enabled && eff < 0.999 && fullSpeed > 0 && !['load', 'igniting', 'idle', 'paused'].includes(reason.kind);
+  const ventable = reason.kind === 'output' && ITEMS[reason.item]?.kind === 'byproduct' && !s.vent.includes(reason.item);
+  const reasonItem = 'item' in reason ? reason.item : undefined;
+  const reasonLabel = reasonText(reason, status, ventable);
   const recipeOptions = recipesFor(s, line.machine);
   if (!recipeOptions.some((rr) => rr.id === r.id)) recipeOptions.unshift(r);
   const upgrade = upgradeTarget(s, line);
@@ -231,6 +283,7 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
       </header>
 
       <div class="flow-row">
+        {empty && <span class="badge" title="還沒有機器：這是一台的產能">每台</span>}
         <Flow items={r.inputs} perSec={perSec} sign="−" />
         {!generator && (
           <>
@@ -239,6 +292,12 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
           </>
         )}
       </div>
+      {showFull && (
+        <p class="full-speed muted small">
+          滿速：{rateList(r.inputs, fullSpeed, '−')}
+          {!generator && <> → {rateList(r.outputs, fullSpeed, '+')}</>}
+        </p>
+      )}
       {(Object.keys(status?.power ?? {}).length > 0 || status?.upkeep) && (
         <div class="flow-extra">
           {Object.entries(status?.power ?? {}).map(([p, v]) => (
@@ -268,9 +327,21 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
 
       <div class="line-status">
         <Bar value={eff} tone={tone} />
-        <span class={`reason tone-text-${tone}`}>{reasonText(reason, status)}</span>
+        {reasonItem && line.count > 0 ? (
+          <button class={`reason reason-link tone-text-${tone}`} title={`查看${itemName(reasonItem)}：誰在生產、誰在用`} onClick={() => openLookup(reasonItem)}>
+            {reasonLabel}
+          </button>
+        ) : (
+          <span class={`reason tone-text-${tone}`}>{reasonLabel}</span>
+        )}
         <span class="muted small">{Math.round(eff * 100)}%</span>
       </div>
+      {ventable && line.count > 0 && (
+        <div class="line-fix">
+          <button class="small-btn" onClick={() => toggleVent(reasonItem!)}>排放{itemName(reasonItem!)}</button>
+          <span class="muted small">滿了就銷毀多出來的量，這條線不會再停</span>
+        </div>
+      )}
 
       <footer class="line-actions">
         <button onClick={() => demolish(line.id)} disabled={line.count === 0} title="拆除一台（全額退還材料）">−</button>
@@ -341,24 +412,29 @@ export function ProductionPanel() {
     ['paused', '已暫停', s.lines.filter(tests.paused).length],
     ...tiers.map((t): [string, string, number] => [t, t.toUpperCase(), s.lines.filter(tests[t]).length]),
   ];
-  // A tier filter from a run that no longer has that tier falls back to everything
-  const filter = tests[picked] ? picked : 'all';
+  // A line picked elsewhere (just created, or chosen in the item window) must not be hidden by the filter
+  const focus = getUi().focusLine;
+  const focused = focus === null ? undefined : s.lines.find((l) => l.id === focus);
+  let filter = tests[picked] ? picked : 'all';
+  if (focused && !tests[filter](focused)) filter = 'all';
   const shown = s.lines.filter(tests[filter]);
 
-  // A newly created line lands at the end of the list: bring it into view (and out of a filter that hides it)
-  const [fresh, setFresh] = useState<number | null>(null);
-  const created = (id: number) => {
-    const line = s.lines.find((l) => l.id === id);
-    if (line && !tests[filter](line)) setFilter('all');
-    setFresh(id);
-  };
+  // Bring it into view with a brief glow so the eye finds it after the scroll
+  const [glow, setGlow] = useState<number | null>(null);
   useEffect(() => {
-    if (fresh === null) return;
+    if (focus === null) return;
+    if (filter !== picked) setFilter(filter);
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    document.getElementById(`line-${fresh}`)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
-    const t = setTimeout(() => setFresh(null), 1800);
+    document.getElementById(`line-${focus}`)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
+    setGlow(focus);
+    focusLine(null);
+  }, [focus]);
+  useEffect(() => {
+    if (glow === null) return;
+    const t = setTimeout(() => setGlow(null), 1800);
     return () => clearTimeout(t);
-  }, [fresh]);
+  }, [glow]);
+
   return (
     <div class="panel">
       <PageHeader kicker="FACTORY / PRODUCTION" title="生產線">
@@ -366,7 +442,7 @@ export function ProductionPanel() {
       </PageHeader>
       <div class="prod-top">
         <ManualCard />
-        <NewLineCard onCreated={created} />
+        <NewLineCard />
       </div>
       {s.lines.length === 0 ? (
         <p class="empty">還沒有生產線。先手動採集石頭，然後建立一條「石爐」生產線。</p>
@@ -382,7 +458,7 @@ export function ProductionPanel() {
         ) : (
           <div class="lines">
             {shown.map((l) => (
-              <LineCard key={l.id} line={l} status={last.lines[l.id]} fresh={l.id === fresh} />
+              <LineCard key={l.id} line={l} status={last.lines[l.id]} fresh={l.id === glow} />
             ))}
           </div>
         )}

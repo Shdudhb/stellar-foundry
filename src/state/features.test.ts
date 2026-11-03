@@ -4,7 +4,9 @@ import { INCIDENTS, eligibleIncidents } from '../data/incidents';
 import { tick } from '../sim/engine';
 import { capOf, categoryBoost, simSpeed, techCost } from '../sim/rules';
 import { exportString, newGame, parseSave } from './save';
-import { acceptTrade, build, checkAchievements, gather, getState, importSave, traderOffer, warp, addLine } from './store';
+import {
+  acceptTrade, build, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, traderOffer, warp, addLine,
+} from './store';
 
 function load(patch: (s: ReturnType<typeof newGame>) => void) {
   const s = newGame();
@@ -63,6 +65,27 @@ describe('world events', () => {
 
   it('has no offer when nothing is piling up', () => {
     expect(traderOffer(newGame())).toBeNull();
+  });
+});
+
+describe('building from the item window', () => {
+  it('adds the line, closes the window and asks the production tab to show it', () => {
+    load(() => {});
+    openLookup('stone');
+    createLine('basic_drill', 'mine_stone');
+    const line = getState().lines.at(-1)!;
+    expect(line).toMatchObject({ machine: 'basic_drill', recipe: 'mine_stone', count: 0 });
+    expect(getUi().lookupItem).toBeNull();
+    expect(getUi().focusLine).toBe(line.id);
+    focusLine(null);
+    expect(getUi().focusLine).toBeNull();
+  });
+
+  it('adds nothing for a locked machine', () => {
+    load(() => {});
+    createLine('steam_drill', 'mine_stone');
+    expect(getState().lines).toEqual([]);
+    expect(getUi().focusLine).toBeNull();
   });
 });
 

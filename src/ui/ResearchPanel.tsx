@@ -2,9 +2,9 @@ import { itemName } from '../data/items';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS, TIER_NAMES } from '../data/tech';
-import { canAfford, currentTier, techAvailable, techCost } from '../sim/rules';
+import { canAfford, currentTier, simSpeed, techAvailable, techCost } from '../sim/rules';
 import { getRates, getState, research } from '../state/store';
-import { Cost, PageHeader, fmt, fmtRate } from './common';
+import { Cost, PageHeader, fmt, fmtDuration, fmtRate } from './common';
 import { ItemIcon, MachineIcon, UiIcon } from './pixel';
 
 function unlockSummary(id: string): string {
@@ -27,6 +27,22 @@ function TechArt({ id }: { id: string }) {
   }
   if (t.unlockMilestone) return <UiIcon id="milestones" size={32} />;
   return <UiIcon id={t.slotBonus || t.orbitSlotBonus ? 'production' : 'storage'} size={32} />;
+}
+
+/** "約 2 分 10 秒後": when the current data income covers the cost, or what is missing for it to ever do so */
+function eta(cost: Record<string, number>): string {
+  const s = getState();
+  const rates = getRates();
+  let wait = 0;
+  for (const [item, n] of Object.entries(cost)) {
+    const need = n - (s.items[item] ?? 0);
+    if (need <= 0) continue;
+    // Rates are per second of factory time; factory time runs faster than the clock with speed upgrades
+    const perSec = (rates[item] ?? 0) * simSpeed(s);
+    if (perSec < 0.005) return `目前沒有產出${itemName(item)}`;
+    wait = Math.max(wait, need / perSec);
+  }
+  return `照目前速度約 ${fmtDuration(Math.ceil(wait))} 後`;
 }
 
 const DATA_ITEMS = [
@@ -102,6 +118,7 @@ export function ResearchPanel() {
                       ) : (
                         <>
                           <p class="small"><Cost cost={techCost(s, t.id)} /></p>
+                          {avail && !canAfford(s, techCost(s, t.id)) && <p class="muted small tech-eta">{eta(techCost(s, t.id))}</p>}
                           <button class="primary" disabled={!avail || !canAfford(s, techCost(s, t.id))} onClick={() => research(t.id)}>
                             研究
                           </button>

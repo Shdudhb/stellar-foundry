@@ -382,6 +382,14 @@ p { margin: 0 0 8px; }
 .byproduct, .byproduct .item-link { color: var(--byproduct); }
 .line-status { display: flex; gap: 8px; align-items: center; }
 .reason { font-size: 12px; font-weight: 600; }
+/* A stall reason that names an item opens that item's window */
+.reason-link {
+  background: none; border: none; padding: 0; border-radius: 4px; text-align: left;
+  text-decoration: underline dotted currentColor; text-underline-offset: 3px;
+}
+.reason-link:hover:not(:disabled) { background: none; filter: brightness(1.2); }
+.line-fix { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: -4px; }
+.full-speed { margin: -4px 0 0; font-variant-numeric: tabular-nums; }
 .line-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .line-cost { margin: -4px 0 0; }
 .upgrade-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-top: 10px; border-top: 1px dashed var(--line); }
@@ -441,6 +449,7 @@ p { margin: 0 0 8px; }
 .tech h4 { margin: 0 0 4px; }
 .tech footer { margin-top: auto; padding-top: 8px; }
 .tech footer .cost { margin-bottom: 8px; }
+.tech-eta { margin: -4px 0 8px; }
 .tech.avail { border-color: rgb(240 160 75 / 0.7); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035), 0 0 0 1px rgb(240 160 75 / 0.15), 0 10px 30px rgb(0 0 0 / 0.25); }
 .tech.locked { opacity: 0.55; }
 .tech.done { opacity: 0.6; }
@@ -505,6 +514,20 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .recipe-list, .changes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .recipe-list li { padding: 9px 11px; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 8px; }
 .recipe-list li.locked, .recipe-list span.locked { opacity: 0.5; }
+.build-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.build-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-color: rgb(240 160 75 / 0.5); }
+.build-chip:hover:not(:disabled) { border-color: var(--accent); }
+.build-chip .muted { font-size: 11px; }
+
+.flow-lists { display: flex; flex-direction: column; gap: 10px; }
+.flow-list h5 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.flow-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.flow-line {
+  width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
+  padding: 6px 9px; background: var(--panel-2); border-color: var(--line-soft); font-size: 13px;
+}
+.flow-line-name { flex: 1; min-width: 0; }
+.flow-line-rate { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .recipe-eq { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 4px 0; }
 .changes { gap: 3px; font-variant-numeric: tabular-nums; }
 .changes li { display: flex; align-items: center; gap: 6px; }
