@@ -23,5 +23,9 @@ export default defineConfig({
   // Relative asset paths, so the build works under any sub-path (GitHub Pages serves it at /<repo>/)
   base: './',
   plugins: [cjkFont(), fullReloadGameLogic(), preact()],
+  build: {
+    // Fonts stay separate files, fetched in parallel, rather than base64 inside the render-blocking CSS
+    assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),
+  },
   server: { port: 5173 },
 });
