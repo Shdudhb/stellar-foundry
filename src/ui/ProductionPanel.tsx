@@ -308,14 +308,23 @@ function UpgradeRow({ line, to }: { line: Line; to: MachineDef }) {
   const net = upgradeCost(line, to);
   const pays = Object.fromEntries(Object.entries(net).filter(([, n]) => n > 0));
   const refunds = Object.entries(net).filter(([, n]) => n < 0);
-  const oc = overclock(to, RECIPES[line.recipe]);
+  const r = RECIPES[line.recipe];
+  const from = MACHINES[line.machine];
+  // Compared with the machines in the line now, which may themselves be overclocked or draw nothing at all
+  const speedOf = (m: MachineDef) => overclock(m, r).speed * (m.speed ?? 1);
+  const faster = speedOf(to) / speedOf(from);
+  const draw = to.power ? to.power.amount * overclock(to, r).power : 0;
+  const was = from.power ? from.power.amount * overclock(from, r).power : 0;
+  const drawText = draw > 0 && (to.power!.item !== from.power?.item || Math.abs(draw - was) > 1e-9)
+    ? `每台耗${itemName(to.power!.item)} ${fmtNum(Math.round(draw * 100) / 100)}/s`
+    : '';
   return (
     <div class="upgrade-row">
       <button disabled={!canAfford(getState(), pays)} onClick={() => upgradeLine(line.id)}>
         升級為 {to.name}
       </button>
       <span class="muted small">
-        {oc.speed > 1 ? `速度 ×${oc.speed}、耗電 ×${oc.power}` : `T${to.tier} 配方可用`}
+        {[faster > 1.001 ? `速度 ×${fmtNum(Math.round(faster * 100) / 100)}` : `T${to.tier} 配方可用`, drawText].filter(Boolean).join('、')}
         {line.count > 0 && <> · 全線 {line.count} 台：<Cost cost={pays} /></>}
         {refunds.length > 0 && <> · 退還 {refunds.map(([id, n]) => `${itemName(id)} ${-n}`).join('、')}</>}
       </span>

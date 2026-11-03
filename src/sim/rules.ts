@@ -100,10 +100,15 @@ export function canAfford(state: GameState, cost: Record<string, number>): boole
 }
 
 /** The machine a line can upgrade to right now, if any */
+/** The best unlocked machine up the line's upgrade chain, skipping steps already outgrown (basic drill → electric drill) */
 export function upgradeTarget(state: GameState, line: Line): MachineDef | null {
-  const to = MACHINES[MACHINES[line.machine]?.upgradesTo ?? ''];
-  if (!to || !isMachineUnlocked(state, to.id) || !canRun(to, RECIPES[line.recipe])) return null;
-  return to;
+  let best: MachineDef | null = null;
+  const seen = new Set<string>();
+  for (let to = MACHINES[MACHINES[line.machine]?.upgradesTo ?? '']; to && !seen.has(to.id); to = MACHINES[to.upgradesTo ?? '']) {
+    seen.add(to.id);
+    if (isMachineUnlocked(state, to.id) && canRun(to, RECIPES[line.recipe])) best = to;
+  }
+  return best;
 }
 
 /** Net materials to upgrade every machine in a line: positive = pay, negative = refunded */

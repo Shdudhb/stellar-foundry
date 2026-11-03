@@ -17,7 +17,9 @@
 // Limits: it is a heuristic, not an optimal player. It misplans slots, power and basic supplies in later
 // tiers, so a stall it reports may be its own; inspect with --item before blaming the game.
 // Found with it: float drift blocking builds at "10/10"; co-products (aluminium dust, sodium, salt) locking
-// whole chains when only byproducts could vent; brownouts collapsing generation by starving the fuel chain.
+// whole chains when only byproducts could vent; brownouts collapsing generation by starving the fuel chain;
+// T2 running out of slots (slow coke ovens, basic drills with no upgrade to electric ones); oil power that
+// barely paid for its own pumps and towers.
 import { ITEMS, isPower } from '../src/data/items';
 import { MACHINES, MACHINE_LIST, MAINTENANCE_ITEM, type MachineDef } from '../src/data/machines';
 import { OBJECTIVES, currentObjective } from '../src/data/objectives';

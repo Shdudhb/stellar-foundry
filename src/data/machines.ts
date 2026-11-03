@@ -31,7 +31,7 @@ export const MAINTENANCE_ITEM = 'maintenance_kit';
 const list: MachineDef[] = [
   // ---- T0 ----
   {
-    id: 'basic_drill', name: '簡易鑽機', tier: 0, categories: ['mining'], slots: 1,
+    id: 'basic_drill', name: '簡易鑽機', tier: 0, categories: ['mining'], slots: 1, upgradesTo: 'steam_drill',
     cost: { stone: 5, iron_ingot: 5 },
     description: '不耗能，慢慢地鑽。',
   },
@@ -57,7 +57,7 @@ const list: MachineDef[] = [
     description: '燒煤產生蒸汽，只燒需要的量。',
   },
   {
-    id: 'steam_drill', name: '蒸汽鑽機', tier: 1, categories: ['mining'], power: { item: 'steam', amount: 1 }, slots: 1,
+    id: 'steam_drill', name: '蒸汽鑽機', tier: 1, categories: ['mining'], power: { item: 'steam', amount: 1 }, slots: 1, upgradesTo: 'electric_drill',
     cost: { gear: 10, iron_ingot: 10, stone_brick: 5 },
     description: '跑 T0 開採配方會超頻：速度 ×2、耗汽 ×4。',
   },
@@ -144,17 +144,17 @@ const list: MachineDef[] = [
     description: '冶煉不鏽鋼，也能把氧化鐵粉直接煉成鋼。',
   },
   {
-    id: 'oil_pump', name: 'MV 抽油機', tier: 3, categories: ['pumping'], power: { item: 'eu', amount: 16 }, slots: 1,
+    id: 'oil_pump', name: 'MV 抽油機', tier: 3, categories: ['pumping'], power: { item: 'eu', amount: 8 }, slots: 1,
     cost: { stainless: 20, aluminum: 20, circuit: 4, gear: 20 },
     description: '每秒抽 2 原油。',
   },
   {
-    id: 'distillation_tower', name: '分餾塔', tier: 3, categories: ['distilling'], power: { item: 'eu', amount: 32 }, slots: 1,
+    id: 'distillation_tower', name: '分餾塔', tier: 3, categories: ['distilling'], power: { item: 'eu', amount: 16 }, slots: 1,
     cost: { stainless: 60, aluminum: 40, circuit: 10, cable: 40 },
     description: '大型設施：原油一次分出四種產物，任何一種塞滿整座塔就停。',
   },
   {
-    id: 'combustion_gen', name: '燃燒發電機', tier: 3, categories: ['combustion'], slots: 1,
+    id: 'combustion_gen', name: '燃燒發電機', tier: 3, categories: ['combustion'], slots: 1, upgradesTo: 'large_combustion_engine',
     cost: { stainless: 10, aluminum: 10, circuit: 2, gear: 10 },
     description: '燒輕油或煉廠氣發電，只依需求燃燒。',
   },

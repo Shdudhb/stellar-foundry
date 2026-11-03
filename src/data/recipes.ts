@@ -48,7 +48,7 @@ const list: RecipeDef[] = [
   { id: 'solar_eu', name: '太陽能發電', category: 'solar', tier: 2, time: 1, inputs: {}, outputs: { eu: 2 } },
 
   // ---- T2: coke and the blast furnace ----
-  { id: 'make_coke', name: '煉焦', category: 'coking', tier: 1, time: 4, inputs: { coal: 2 }, outputs: { coke: 1, coal_tar: 1 } },
+  { id: 'make_coke', name: '煉焦', category: 'coking', tier: 1, time: 2, inputs: { coal: 2 }, outputs: { coke: 1, coal_tar: 1 } },
   // 3x the steam per boiler slot of coal, and 60 vs 40 steam per 2 coal: worth it once slots run out.
   { id: 'burn_coke', name: '燒焦炭產蒸汽', category: 'burning', tier: 1, time: 2, inputs: { coke: 1 }, outputs: { steam: 60 } },
   { id: 'mine_bauxite', name: '開採鋁土礦', category: 'mining', tier: 1, time: 2, inputs: {}, outputs: { bauxite: 1 } },
