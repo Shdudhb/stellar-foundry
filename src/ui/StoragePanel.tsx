@@ -1,4 +1,4 @@
-import { ITEM_ORDER, ITEMS, type ItemKind } from '../data/items';
+import { ITEM_ORDER, ITEMS, canVent, type ItemKind } from '../data/items';
 import { capOf, itemDiscovered } from '../sim/rules';
 import { getLast, getRates, getState, openLookup, toggleVent, trash } from '../state/store';
 import { Bar, PageHeader, fmt, fmtRate } from './common';
@@ -60,7 +60,7 @@ export function StoreControls({ id }: { id: string }) {
         </div>
         <Bar value={n / cap} tone={n >= cap - 1e-6 ? (venting ? 'warn' : 'bad') : 'ok'} />
       </div>
-      {byproduct && (
+      {canVent(id) && (
         <label class="vent-toggle" title="滿了就銷毀多出來的量，生產線不會停">
           <input type="checkbox" checked={venting} onChange={() => toggleVent(id)} />
           排放

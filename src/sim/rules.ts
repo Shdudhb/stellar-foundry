@@ -89,8 +89,14 @@ export function machinesFor(recipeId: string): MachineDef[] {
   return Object.values(MACHINES).filter((m) => canRun(m, r));
 }
 
+/** Stock counts drift by float error (9.999999999999998 bricks); this much short still counts as enough */
+export const AMOUNT_EPSILON = 1e-6;
+
+/** Has at least `n`, allowing for float drift: the UI shows 9.999999999999998 as 10, so the check must agree */
+export const hasAmount = (have: number, n: number) => have + AMOUNT_EPSILON >= n;
+
 export function canAfford(state: GameState, cost: Record<string, number>): boolean {
-  return Object.entries(cost).every(([item, n]) => (state.items[item] ?? 0) >= n);
+  return Object.entries(cost).every(([item, n]) => hasAmount(state.items[item] ?? 0, n));
 }
 
 /** The machine a line can upgrade to right now, if any */

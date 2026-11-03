@@ -136,6 +136,15 @@ export const ITEM_ORDER = list.map((i) => i.id);
  */
 export const POWER_ORDER = ['lift', 'eu', 'steam'];
 
+/**
+ * Can be set to vent: a full store then destroys overflow instead of stalling what makes it.
+ * Not just byproducts: co-products such as aluminium dust (electrolysis also makes the oxygen everything
+ * needs), sodium (salt electrolysis also makes chlorine) and returned salt fill up and lock a whole chain.
+ */
+export function canVent(id: string): boolean {
+  return ['raw', 'intermediate', 'byproduct'].includes(ITEMS[id]?.kind ?? '');
+}
+
 export function isPower(id: string): boolean {
   return ITEMS[id]?.kind === 'power';
 }

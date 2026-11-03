@@ -5,7 +5,7 @@ import { tick } from '../sim/engine';
 import { capOf, categoryBoost, simSpeed, techCost } from '../sim/rules';
 import { exportString, newGame, parseSave } from './save';
 import {
-  acceptTrade, build, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, traderOffer, warp, addLine,
+  acceptTrade, build, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, traderOffer, warp, addLine,
 } from './store';
 
 function load(patch: (s: ReturnType<typeof newGame>) => void) {
@@ -65,6 +65,47 @@ describe('world events', () => {
 
   it('has no offer when nothing is piling up', () => {
     expect(traderOffer(newGame())).toBeNull();
+  });
+});
+
+describe('venting co-products', () => {
+  it('lets a full intermediate vent, so the line keeps making the oxygen next to it', () => {
+    load((s) => {
+      s.techs = ['electricity', 'mineral_processing', 'electrolysis'];
+      s.milestones = ['blast_furnace'];
+      s.items = { bauxite_dust: 1000, aluminum_dust: capOf(s, 'aluminum_dust') };
+      s.lines = [{ id: 1, machine: 'lv_electrolyzer', recipe: 'electrolyze_bauxite', count: 1, enabled: true }];
+    });
+    const s = getState();
+    // Electrolysis needs EU: hand it a free supply for the test
+    s.items.dyson_swarm = 10;
+    expect(tick(s, 1).lines[1].reason.kind).toBe('output');
+    toggleVent('aluminum_dust');
+    expect(s.vent).toContain('aluminum_dust');
+    const before = s.items.oxygen ?? 0;
+    tick(s, 10);
+    expect(s.items.oxygen ?? 0).toBeGreaterThan(before);
+    expect(s.items.aluminum_dust).toBe(capOf(s, 'aluminum_dust'));
+  });
+
+  it('still refuses data and power', () => {
+    load(() => {});
+    toggleVent('data');
+    toggleVent('eu');
+    expect(getState().vent).toEqual([]);
+  });
+});
+
+describe('float drift in stock counts', () => {
+  it('builds with 9.999999999999998 of a 10 cost, as the UI shows 10/10, and leaves zero', () => {
+    load((s) => {
+      s.items = { stone: 9.999999999999998 };
+      s.lines = [{ id: 1, machine: 'stone_furnace', recipe: 'fire_brick', count: 0, enabled: true }];
+      s.nextLineId = 2;
+    });
+    build(1);
+    expect(getState().lines[0].count).toBe(1);
+    expect(getState().items.stone).toBe(0);
   });
 });
 

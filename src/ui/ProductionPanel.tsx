@@ -1,6 +1,6 @@
 import { Component } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ITEM_ORDER, ITEMS, itemName } from '../data/items';
+import { ITEM_ORDER, ITEMS, canVent, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { WORN_SPEED } from '../sim/engine';
@@ -242,7 +242,7 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
   const perSec = empty ? perMachine : status?.craftsPerSec ?? 0;
   const fullSpeed = status?.maxCraftsPerSec ?? 0;
   const showFull = !empty && line.enabled && eff < 0.999 && fullSpeed > 0 && !['load', 'igniting', 'idle', 'paused'].includes(reason.kind);
-  const ventable = reason.kind === 'output' && ITEMS[reason.item]?.kind === 'byproduct' && !s.vent.includes(reason.item);
+  const ventable = reason.kind === 'output' && canVent(reason.item) && !s.vent.includes(reason.item);
   const reasonItem = 'item' in reason ? reason.item : undefined;
   const reasonLabel = reasonText(reason, status, ventable);
   const recipeOptions = recipesFor(s, line.machine);

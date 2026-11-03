@@ -1,7 +1,7 @@
 import { ACHIEVEMENT_LIST } from '../data/achievements';
 import { GALAXIES, rollGalaxy } from '../data/galaxies';
 import { INCIDENT_INTERVAL, eligibleIncidents } from '../data/incidents';
-import { ITEMS, SWARM_ITEM, isPower } from '../data/items';
+import { ITEMS, SWARM_ITEM, canVent, isPower } from '../data/items';
 import { BOOST_TIME, KIT_LEVELS, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
 import { OBJECTIVES, unclaimedObjectives } from '../data/objectives';
 import { MACHINES } from '../data/machines';
@@ -10,7 +10,7 @@ import { MILESTONES, TECH_LIST, TECHS } from '../data/tech';
 import { tick } from '../sim/engine';
 import { simulateOffline, type OfflineReport } from '../sim/offline';
 import {
-  activeIncident, canAfford, canBuildMilestone, canRun, capOf, currentTier, isMachineUnlocked, offlineCap, simSpeed, techCost, isRecipeUnlocked, milestoneUnlocked, slotsTotal, slotsUsed, techAvailable,
+  AMOUNT_EPSILON, activeIncident, canAfford, canBuildMilestone, hasAmount, canRun, capOf, currentTier, isMachineUnlocked, offlineCap, simSpeed, techCost, isRecipeUnlocked, milestoneUnlocked, slotsTotal, slotsUsed, techAvailable,
   upgradeCost, upgradeTarget,
 } from '../sim/rules';
 import type { GameState, TickResult } from '../sim/types';
@@ -250,7 +250,7 @@ export function start() {
 /** "缺 鐵錠 5、齒輪 2": what a cost still needs */
 function shortText(cost: Record<string, number>): string {
   const short = Object.entries(cost)
-    .map(([item, n]) => [item, Math.ceil(n - (state.items[item] ?? 0))] as const)
+    .map(([item, n]) => [item, Math.ceil(n - (state.items[item] ?? 0) - AMOUNT_EPSILON)] as const)
     .filter(([, n]) => n > 0)
     .map(([item, n]) => `${ITEMS[item]?.name ?? item} ${n}`);
   return short.length ? `缺 ${short.slice(0, 3).join('、')}${short.length > 3 ? ' 等' : ''}` : '';
@@ -263,14 +263,15 @@ function consumerOf(item: string): string | null {
 }
 
 function lacking(cost: Record<string, number>, what = '材料不足') {
-  const short = Object.keys(cost).find((i) => (state.items[i] ?? 0) < cost[i]);
+  const short = Object.keys(cost).find((i) => !hasAmount(state.items[i] ?? 0, cost[i]));
   const user = short && consumerOf(short);
   const hint = user ? `。「${user}」正在用掉${ITEMS[short].name}，可以先暫停它` : '';
   toast(shortText(cost) + hint, { tone: 'bad', title: what, icon: short });
 }
 
 function pay(cost: Record<string, number>) {
-  for (const [item, n] of Object.entries(cost)) state.items[item] = (state.items[item] ?? 0) - n;
+  // Never below zero: paying 10 from 9.999999999999998 (float drift) leaves nothing, not -2e-15
+  for (const [item, n] of Object.entries(cost)) state.items[item] = Math.max(0, (state.items[item] ?? 0) - n);
 }
 
 /** Gives materials back up to storage capacity; returns the names of those that didn't all fit */
@@ -443,9 +444,9 @@ export function openLookup(item: string | null) {
   notify();
 }
 
-/** Byproducts only: when on, a full store destroys overflow instead of stalling producers */
+/** When on, a full store destroys overflow instead of stalling producers */
 export function toggleVent(item: string) {
-  if (ITEMS[item]?.kind !== 'byproduct') return;
+  if (!canVent(item)) return;
   state.vent = state.vent.includes(item) ? state.vent.filter((i) => i !== item) : [...state.vent, item];
   notify();
 }

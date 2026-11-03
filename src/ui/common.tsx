@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ITEMS, itemName } from '../data/items';
+import { ITEMS, canVent, itemName } from '../data/items';
 import type { Line, LineStatus, Reason } from '../sim/types';
+import { hasAmount } from '../sim/rules';
 import { getState, openLookup, subscribe } from '../state/store';
 import { ItemIcon } from './pixel';
 
@@ -55,7 +56,7 @@ export function Cost({ cost }: { cost: Record<string, number> }) {
   return (
     <span class="cost">
       {Object.entries(cost).map(([id, n]) => (
-        <span key={id} class={(items[id] ?? 0) >= n ? 'have' : 'lack'}>
+        <span key={id} class={hasAmount(items[id] ?? 0, n) ? 'have' : 'lack'}>
           <ItemLink id={id} /> {fmt(items[id] ?? 0)}/{n}
         </span>
       ))}
@@ -100,7 +101,7 @@ export function reasonText(reason: Reason, status?: LineStatus, brief = false): 
     case 'paused': return '已暫停';
     case 'input': return `缺少${itemName(reason.item)}`;
     case 'output':
-      return ITEMS[reason.item]?.kind === 'byproduct' && !brief
+      return canVent(reason.item) && !brief
         ? `${itemName(reason.item)}倉庫已滿（可在倉庫設為排放）`
         : `${itemName(reason.item)}倉庫已滿`;
     case 'power': return `${itemName(reason.item)}不足`;
