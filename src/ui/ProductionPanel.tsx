@@ -48,7 +48,7 @@ function ManualCard() {
   );
 }
 
-function NewLineCard() {
+function NewLineCard({ onCreated }: { onCreated: (id: number) => void }) {
   const s = getState();
   const machines = MACHINE_LIST.filter((m) => isMachineUnlocked(s, m.id));
   const [picked, setMachine] = useState(machines[0]?.id ?? '');
@@ -82,7 +82,10 @@ function NewLineCard() {
             ))}
           </select>
         </label>
-        <button class="primary" disabled={!machine || !recipeId} onClick={() => addLine(machine, recipeId)}>建立</button>
+        <button class="primary" disabled={!machine || !recipeId} onClick={() => {
+            const id = addLine(machine, recipeId);
+            if (id !== null) onCreated(id);
+          }}>建立</button>
       </div>
       {m && (
         <div class="new-preview">
@@ -186,7 +189,7 @@ function RemoveButton({ line }: { line: Line }) {
   );
 }
 
-function LineCard({ line, status }: { line: Line; status?: LineStatus }) {
+function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fresh?: boolean }) {
   const s = getState();
   const m = MACHINES[line.machine];
   const r = RECIPES[line.recipe];
@@ -201,7 +204,7 @@ function LineCard({ line, status }: { line: Line; status?: LineStatus }) {
   const upgrade = upgradeTarget(s, line);
 
   return (
-    <article class={`card line tone-border-${tone} ${line.enabled ? '' : 'paused'}`}>
+    <article id={`line-${line.id}`} class={`card line tone-border-${tone} ${line.enabled ? '' : 'paused'} ${fresh ? 'fresh' : ''}`}>
       <header class="line-head">
         <span class={`line-icon ${eff > 0.01 ? 'running' : ''}`}>
           <MachineIcon id={m.id} size={44} title />
@@ -341,6 +344,21 @@ export function ProductionPanel() {
   // A tier filter from a run that no longer has that tier falls back to everything
   const filter = tests[picked] ? picked : 'all';
   const shown = s.lines.filter(tests[filter]);
+
+  // A newly created line lands at the end of the list: bring it into view (and out of a filter that hides it)
+  const [fresh, setFresh] = useState<number | null>(null);
+  const created = (id: number) => {
+    const line = s.lines.find((l) => l.id === id);
+    if (line && !tests[filter](line)) setFilter('all');
+    setFresh(id);
+  };
+  useEffect(() => {
+    if (fresh === null) return;
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(`line-${fresh}`)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
+    const t = setTimeout(() => setFresh(null), 1800);
+    return () => clearTimeout(t);
+  }, [fresh]);
   return (
     <div class="panel">
       <PageHeader kicker="FACTORY / PRODUCTION" title="生產線">
@@ -348,7 +366,7 @@ export function ProductionPanel() {
       </PageHeader>
       <div class="prod-top">
         <ManualCard />
-        <NewLineCard />
+        <NewLineCard onCreated={created} />
       </div>
       {s.lines.length === 0 ? (
         <p class="empty">還沒有生產線。先手動採集石頭，然後建立一條「石爐」生產線。</p>
@@ -364,7 +382,7 @@ export function ProductionPanel() {
         ) : (
           <div class="lines">
             {shown.map((l) => (
-              <LineCard key={l.id} line={l} status={last.lines[l.id]} />
+              <LineCard key={l.id} line={l} status={last.lines[l.id]} fresh={l.id === fresh} />
             ))}
           </div>
         )}

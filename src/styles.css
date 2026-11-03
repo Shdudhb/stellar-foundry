@@ -344,6 +344,9 @@ p { margin: 0 0 8px; }
 
 .lines { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
 .line { position: relative; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+/* Just created: a brief glow so the eye finds it after the scroll */
+.line.fresh { animation: line-fresh 1.8s ease-out; }
+@keyframes line-fresh { from { box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgb(240 160 75 / 0.45); } }
 .line::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--line); }
 .tone-border-ok::before { background: var(--ok); }
 .tone-border-warn::before { background: var(--warn); }

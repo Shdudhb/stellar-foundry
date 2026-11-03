@@ -291,14 +291,17 @@ export function gather(item: string) {
   notify();
 }
 
-export function addLine(machineId: string, recipeId: string) {
+/** Adds an empty line; returns its id, or null if that machine can't run that recipe yet */
+export function addLine(machineId: string, recipeId: string): number | null {
   const m = MACHINES[machineId];
   const r = RECIPES[recipeId];
-  if (!m || !r || !canRun(m, r)) return;
-  if (!isMachineUnlocked(state, machineId) || !isRecipeUnlocked(state, recipeId)) return;
-  state.lines.push({ id: state.nextLineId++, machine: machineId, recipe: recipeId, count: 0, enabled: true });
+  if (!m || !r || !canRun(m, r)) return null;
+  if (!isMachineUnlocked(state, machineId) || !isRecipeUnlocked(state, recipeId)) return null;
+  const id = state.nextLineId++;
+  state.lines.push({ id, machine: machineId, recipe: recipeId, count: 0, enabled: true });
   emit('click');
   notify();
+  return id;
 }
 
 export function build(lineId: number, times = 1) {
