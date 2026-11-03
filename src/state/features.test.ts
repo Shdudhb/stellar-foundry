@@ -5,7 +5,7 @@ import { tick } from '../sim/engine';
 import { capOf, categoryBoost, simSpeed, techCost } from '../sim/rules';
 import { exportString, importString, newGame, parseSave } from './save';
 import {
-  acceptTrade, advance, build, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, togglePause, traderOffer, warp, addLine,
+  acceptTrade, advance, build, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, togglePause, traderOffer, warp, addLine, openPicker,
 } from './store';
 
 function load(patch: (s: ReturnType<typeof newGame>) => void) {
@@ -155,6 +155,20 @@ describe('building from the item window', () => {
     expect(getUi().focusLine).toBe(line.id);
     focusLine(null);
     expect(getUi().focusLine).toBeNull();
+  });
+
+  it('puts the first machine in when it is affordable, and closes the new-line window', () => {
+    load((s) => {
+      s.items = { stone: 50 };
+    });
+    openPicker(true);
+    createLine('stone_furnace', 'smelt_iron');
+    const line = getState().lines.at(-1)!;
+    expect(line.count).toBe(1);
+    expect(getState().items.stone).toBeLessThan(50);
+    expect(getUi().picker).toBe(false);
+    expect(getUi().focusLine).toBe(line.id);
+    focusLine(null);
   });
 
   it('adds nothing for a locked machine', () => {

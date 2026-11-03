@@ -64,6 +64,15 @@ export function PauseIcon({ paused, size = 12 }: { paused: boolean; size?: numbe
   );
 }
 
+/** A small arrowhead, drawn so it sits centred in a button on every platform */
+export function Chevron({ up, size = 14 }: { up?: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" aria-hidden="true">
+      <path d={up ? 'M3 9 L7 5 L11 9' : 'M3 5 L7 9 L11 5'} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  );
+}
+
 /** Material list, red where the player does not have enough */
 export function Cost({ cost }: { cost: Record<string, number> }) {
   const items = getState().items;
@@ -161,10 +170,14 @@ export function PageHeader({ title, children }: { title: string; children?: prea
 /** Open modals, innermost last: Escape closes only the top one */
 const modalStack: (() => void)[] = [];
 
-export function Modal({ title, icon, onClose, children }: {
+export function Modal({ title, icon, onClose, wide, bar, children }: {
   title: string;
   icon?: preact.ComponentChildren;
   onClose: () => void;
+  /** A big window with a fixed height, for long lists */
+  wide?: boolean;
+  /** Controls that stay put above the scrolling body (search, tabs) */
+  bar?: preact.ComponentChildren;
   children: preact.ComponentChildren;
 }) {
   const close = useRef(onClose);
@@ -183,13 +196,73 @@ export function Modal({ title, icon, onClose, children }: {
   }, []);
   return (
     <div class="modal-backdrop" onClick={onClose}>
-      <div class="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div class={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <header class="modal-head">
           <h2>{icon}{title}</h2>
-          <button class="icon-btn" onClick={onClose} aria-label="關閉">✕</button>
+          <button class="icon-btn close-btn" onClick={onClose} aria-label="關閉">✕</button>
         </header>
+        {bar && <div class="modal-bar">{bar}</div>}
         <div class="modal-body">{children}</div>
       </div>
     </div>
   );
+}
+
+/** Repeats start this long after the press, then speed up from HOLD_EVERY down to HOLD_FASTEST */
+const HOLD_DELAY = 400;
+const HOLD_EVERY = 150;
+const HOLD_FASTEST = 50;
+
+/**
+ * Handlers for a button that acts once per tap and keeps acting while held. `act` returns false when
+ * it couldn't (can't afford, nothing left), which ends the hold. `tap` is what a plain tap does.
+ */
+export function useHold(act: () => boolean, tap: () => void = act) {
+  const t = useRef<{ timer?: ReturnType<typeof setTimeout>; held: boolean }>({ held: false });
+  const fns = useRef({ act, tap });
+  fns.current = { act, tap };
+  const stop = () => clearTimeout(t.current.timer);
+  useEffect(() => stop, []);
+  const repeat = (wait: number) => {
+    t.current.timer = setTimeout(() => {
+      t.current.held = true;
+      if (fns.current.act()) repeat(Math.max(HOLD_FASTEST, wait * 0.85));
+    }, wait);
+  };
+  return {
+    onPointerDown: (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      stop();
+      t.current.held = false;
+      t.current.timer = setTimeout(() => {
+        t.current.held = true;
+        if (fns.current.act()) repeat(HOLD_EVERY);
+      }, HOLD_DELAY);
+    },
+    onPointerUp: stop,
+    onPointerLeave: stop,
+    onPointerCancel: stop,
+    onContextMenu: (e: Event) => e.preventDefault(),
+    onClick: () => {
+      // The click that ends a hold has already been paid for by the repeats
+      if (t.current.held) {
+        t.current.held = false;
+        return;
+      }
+      fns.current.tap();
+    },
+  };
+}
+
+/** A button that repeats while held */
+export function HoldButton({ act, class: cls, title, disabled, label, children }: {
+  act: () => boolean;
+  class?: string;
+  title?: string;
+  disabled?: boolean;
+  label?: string;
+  children: preact.ComponentChildren;
+}) {
+  const hold = useHold(act);
+  return <button class={cls} title={title} aria-label={label} disabled={disabled} {...hold}>{children}</button>;
 }

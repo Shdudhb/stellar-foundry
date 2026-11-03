@@ -58,12 +58,22 @@ function unicodeRange(chars: string): string {
   return runs.join(',');
 }
 
+/** Glyphs in an sfnt font, from its maxp table; 1 means only the .notdef box */
+function glyphCount(sfnt: Buffer): number {
+  const tables = sfnt.readUInt16BE(4);
+  for (let i = 0; i < tables; i++) {
+    const rec = 12 + i * 16;
+    if (sfnt.toString('latin1', rec, rec + 4) === 'maxp') return sfnt.readUInt16BE(sfnt.readUInt32BE(rec + 8) + 4);
+  }
+  return 0;
+}
+
 async function generate(root: string): Promise<void> {
   const chars = gameChars(root);
   const sourceCss = fs.readFileSync(path.join(root, SOURCE, 'index.css'), 'utf8');
   const latinCss = fs.readFileSync(path.join(root, LATIN_SOURCE, 'index.css'), 'utf8');
   const out = path.join(root, OUT);
-  const key = createHash('sha1').update(chars).update(sourceCss).update(latinCss).update(METRICS).digest('hex');
+  const key = createHash('sha1').update(chars).update(sourceCss).update(latinCss).update(METRICS).update('skip-empty').digest('hex');
   const keyFile = path.join(out, 'key');
   if (fs.existsSync(keyFile) && fs.readFileSync(keyFile, 'utf8') === key) return;
 
@@ -86,7 +96,11 @@ async function generate(root: string): Promise<void> {
       return ranges.some(([a, b = a]) => cp >= a && cp <= b);
     }).join('');
     if (!mine) continue;
-    const font = await subsetFont(fs.readFileSync(path.join(root, SOURCE, 'files', m[1])), mine, { targetFormat: 'woff2' });
+    const source = fs.readFileSync(path.join(root, SOURCE, 'files', m[1]));
+    // A slice can claim a codepoint it has no glyph for (✦): a subset of only those is an empty font,
+    // which browsers refuse to decode. Leave it out, and the next font in the stack draws the character
+    if (glyphCount(await subsetFont(source, mine, { targetFormat: 'sfnt' })) <= 1) continue;
+    const font = await subsetFont(source, mine, { targetFormat: 'woff2' });
     const file = `cjk-${faces.length}.woff2`;
     fs.writeFileSync(path.join(out, file), font);
     bytes += font.length;

@@ -4,24 +4,23 @@ import { ITEM_ORDER, ITEMS, canVent, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { WORN_SPEED, fuelLines } from '../sim/engine';
-import { canAfford, canRun, capOf, categoryBoost, isMachineUnlocked, isRecipeUnlocked, overclock, recipesFor, upgradeCost, upgradeTarget } from '../sim/rules';
+import {
+  canAfford, canRun, capOf, categoryBoost, isMachineUnlocked, isRecipeUnlocked, overclock, recipesFor, slotsTotal, slotsUsed, upgradeCost, upgradeTarget,
+} from '../sim/rules';
 import type { Line, LineStatus } from '../sim/types';
 import {
-  build, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, removeLine, setRecipe, toggleLine, toggleVent,
-  upgradeLine,
+  build, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, openPicker, removeLine, setRecipe, toggleLine,
+  toggleVent, upgradeLine,
 } from '../state/store';
-import { Bar, Cost, ItemLink, PageHeader, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone } from './common';
+import {
+  Bar, Chevron, Cost, HoldButton, ItemLink, Modal, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone, useHold,
+} from './common';
 import { ItemIcon, MachineIcon } from './pixel';
 
-/** Holding a tile keeps gathering after a short delay; a tap still gathers one */
-const HOLD_DELAY = 400;
-const HOLD_EVERY = 150;
-
-function GatherTile({ id }: { id: string }) {
+function GatherTile({ id, compact }: { id: string; compact?: boolean }) {
   const s = getState();
   const [pops, setPops] = useState(0);
   const full = (s.items[id] ?? 0) >= capOf(s, id);
-  const timers = useRef<{ wait?: ReturnType<typeof setTimeout>; repeat?: ReturnType<typeof setInterval>; held: boolean }>({ held: false });
   const one = () => {
     const st = getState();
     if ((st.items[id] ?? 0) >= capOf(st, id)) return false;
@@ -29,52 +28,43 @@ function GatherTile({ id }: { id: string }) {
     setPops((n) => n + 1);
     return true;
   };
-  const stop = () => {
-    clearTimeout(timers.current.wait);
-    clearInterval(timers.current.repeat);
-  };
-  useEffect(() => stop, []);
+  // A tap on a full tile still says why nothing happened
+  const hold = useHold(one, () => {
+    if (!one()) gather(id);
+  });
   return (
     <button
-      class="gather-tile"
-      title="點一下採一個，按住連續採集"
-      onPointerDown={() => {
-        stop();
-        timers.current.held = false;
-        timers.current.wait = setTimeout(() => {
-          timers.current.held = true;
-          if (!one()) return;
-          timers.current.repeat = setInterval(() => {
-            if (!one()) stop();
-          }, HOLD_EVERY);
-        }, HOLD_DELAY);
-      }}
-      onPointerUp={stop}
-      onPointerLeave={stop}
-      onPointerCancel={stop}
-      onContextMenu={(e) => e.preventDefault()}
-      onClick={() => {
-        // The click that ends a hold has already been paid for by the repeats
-        if (timers.current.held) {
-          timers.current.held = false;
-          return;
-        }
-        // A tap on a full tile still says why nothing happened
-        if (!one()) gather(id);
-      }}
+      class={`gather-tile ${compact ? 'compact' : ''}`}
+      title={`${itemName(id)} ${fmt(s.items[id] ?? 0)}/${fmt(capOf(s, id))}：點一下採一個，按住連續採集`}
+      {...hold}
     >
-      <ItemIcon id={id} size={40} />
+      <ItemIcon id={id} size={compact ? 24 : 40} />
       <span class="gather-info">
         <span class="gather-name">{itemName(id)}</span>
-        <span class={`gather-count ${full ? 'tone-text-warn' : ''}`}>{fmt(s.items[id] ?? 0)}/{fmt(capOf(s, id))}</span>
+        <span class={`gather-count ${full ? 'tone-text-warn' : ''}`}>
+          {fmt(s.items[id] ?? 0)}{!compact && `/${fmt(capOf(s, id))}`}
+        </span>
       </span>
       {pops > 0 && <span key={pops} class="gather-pop">+1</span>}
     </button>
   );
 }
 
+/** Big tiles while gathering by hand matters; once machines mine everything, a thin strip */
 function ManualCard() {
+  const s = getState();
   const manual = ITEM_ORDER.filter((id) => ITEMS[id].manual);
+  const mined = manual.every((id) => s.lines.some((l) => l.count > 0 && id in (RECIPES[l.recipe]?.outputs ?? {})));
+  if (mined) {
+    return (
+      <section class="card gather-strip" aria-label="手動採集">
+        <span class="gather-strip-label">手動採集</span>
+        <div class="gather-row compact">
+          {manual.map((id) => <GatherTile key={id} id={id} compact />)}
+        </div>
+      </section>
+    );
+  }
   return (
     <section class="card">
       <div class="section-head">
@@ -100,12 +90,20 @@ const GROUPS: { id: string; label: string; categories: string[] }[] = [
 ];
 const GROUP_KEY = 'sf-new-group';
 
+/** The group the player last looked at, or '' the first time */
 function readGroup(): string {
   try {
-    return localStorage.getItem(GROUP_KEY) ?? GROUPS[0].id;
+    return localStorage.getItem(GROUP_KEY) ?? '';
   } catch {
-    return GROUPS[0].id;
+    return '';
   }
+}
+
+/** One more of this machine fits and is paid for right now */
+function affordable(m: MachineDef): boolean {
+  const s = getState();
+  const orbit = !!m.orbital;
+  return canAfford(s, m.cost) && slotsUsed(s, orbit) + m.slots <= slotsTotal(s, orbit);
 }
 
 /** One side of a recipe as per-second amounts for a single machine */
@@ -145,7 +143,13 @@ function RecipeTile({ r, machines }: { r: RecipeDef; machines: MachineDef[] }) {
         {existing ? (
           <button class="rt-go" onClick={() => focusLine(existing.id)} title="已經有這條生產線">前往 ×{existing.count}</button>
         ) : (
-          <button class="primary rt-build" onClick={() => createLine(m.id, r.id)}>建立</button>
+          <button
+            class={`rt-build ${affordable(m) ? 'primary' : ''}`}
+            onClick={() => createLine(m.id, r.id)}
+            title={affordable(m) ? '建立生產線並蓋第一台' : '材料或槽位不夠：先建立空的生產線，之後再按＋'}
+          >
+            建立
+          </button>
         )}
       </div>
       {machines.length > 1 && (
@@ -158,14 +162,13 @@ function RecipeTile({ r, machines }: { r: RecipeDef; machines: MachineDef[] }) {
         </div>
       )}
       <div class="rt-formula" aria-label="每台每秒">
-        {Object.keys(r.inputs).length > 0 && (
-          <>
-            <Rates items={r.inputs} perSec={per} sign="−" />
-            <span class="flow-arrow">→</span>
-          </>
-        )}
-        <Rates items={r.outputs} perSec={per} sign="+" />
-        <span class="rt-unit">/秒</span>
+        <span class="rt-unit">每秒</span>
+        <Rates items={r.inputs} perSec={per} sign="−" />
+        {/* The arrow travels with what it points at when the row wraps */}
+        <span class="rt-side">
+          {Object.keys(r.inputs).length > 0 && <span class="flow-arrow">→</span>}
+          <Rates items={r.outputs} perSec={per} sign="+" />
+        </span>
       </div>
       <div class="rt-foot">
         <span class="rt-cost">建造 <Cost cost={m.cost} /></span>
@@ -181,49 +184,77 @@ function RecipeTile({ r, machines }: { r: RecipeDef; machines: MachineDef[] }) {
 
 const perMachineRate = (m: MachineDef, r: RecipeDef) => (overclock(m, r).speed * (m.speed ?? 1) * categoryBoost(getState(), r.category)) / r.time;
 
-function NewLineCard() {
+/** Every recipe that can be built right now, with the machines that can run it (cheapest first) */
+function readyRecipes() {
   const s = getState();
+  return RECIPE_LIST.flatMap((r) => {
+    if (!isRecipeUnlocked(s, r.id)) return [];
+    const ms = MACHINE_LIST.filter((m) => canRun(m, r) && isMachineUnlocked(s, m.id)).sort((a, b) => a.tier - b.tier);
+    return ms.length ? [{ r, ms }] : [];
+  });
+}
+
+const groupOf = (r: RecipeDef) => GROUPS.find((g) => g.categories.includes(r.category))?.id ?? GROUPS[2].id;
+
+/** The new-line window: recipes by what they're for, or found by name; one tap builds the first machine */
+export function NewLinePicker() {
   const [group, setGroupState] = useState(readGroup);
   const [query, setQuery] = useState('');
+  const search = useRef<HTMLInputElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const setGroup = (g: string) => {
     setGroupState(g);
+    body.current?.closest('.modal')?.querySelector('.modal-body')?.scrollTo(0, 0);
     try {
       localStorage.setItem(GROUP_KEY, g);
     } catch {
       // ignore
     }
   };
-  // Every recipe that can be built right now, with the machines that can run it (cheapest first)
-  const ready = RECIPE_LIST.flatMap((r) => {
-    if (!isRecipeUnlocked(s, r.id)) return [];
-    const ms = MACHINE_LIST.filter((m) => canRun(m, r) && isMachineUnlocked(s, m.id)).sort((a, b) => a.tier - b.tier);
-    return ms.length ? [{ r, ms }] : [];
-  });
-  const groupOf = (r: RecipeDef) => GROUPS.find((g) => g.categories.includes(r.category))?.id ?? GROUPS[2].id;
+  // A keyboard can start typing right away; on a phone the on-screen keyboard would cover the list
+  useEffect(() => {
+    if (window.matchMedia?.('(pointer: fine)').matches) search.current?.focus();
+  }, []);
+  const ready = readyRecipes();
   const counts = Object.fromEntries(GROUPS.map((g) => [g.id, ready.filter(({ r }) => groupOf(r) === g.id).length]));
   const groups = GROUPS.filter((g) => counts[g.id] > 0);
-  const active = groups.some((g) => g.id === group) ? group : groups[0]?.id;
+  // The first time, open where something can be built right now (at the start: the stone furnace's smelting)
+  const fallback = groups.find((g) => ready.some(({ r, ms }) => groupOf(r) === g.id && ms.some(affordable))) ?? groups[0];
+  const active = groups.some((g) => g.id === group) ? group : fallback?.id;
   const q = query.trim();
-  const matches = (r: RecipeDef, ms: MachineDef[]) =>
-    [r.name, ...Object.keys(r.inputs).map(itemName), ...Object.keys(r.outputs).map(itemName), ...ms.map((m) => m.name)].some((t) => t.includes(q));
+  // How well a recipe answers the search: makes it, is named it, runs on it, uses it (lower is better)
+  const rank = (r: RecipeDef, ms: MachineDef[]) => {
+    const tests = [Object.keys(r.outputs).map(itemName), [r.name], ms.map((m) => m.name), Object.keys(r.inputs).map(itemName)];
+    const i = tests.findIndex((names) => names.some((t) => t.includes(q)));
+    return i < 0 ? Infinity : i;
+  };
   // Newest tier first: what was just unlocked is usually what the player came for
-  const shown = ready
-    .filter(({ r, ms }) => (q ? matches(r, ms) : groupOf(r) === active))
-    .sort((a, b) => b.r.tier - a.r.tier);
+  const shown = q
+    ? ready
+      .map((x) => ({ ...x, score: rank(x.r, x.ms) }))
+      .filter((x) => x.score < Infinity)
+      .sort((a, b) => a.score - b.score || b.r.tier - a.r.tier)
+    : ready.filter(({ r }) => groupOf(r) === active).sort((a, b) => b.r.tier - a.r.tier);
+  const enter = () => {
+    const first = shown[0];
+    if (!first) return;
+    const existing = getState().lines.find((l) => l.recipe === first.r.id && l.machine === first.ms[0].id);
+    if (existing) focusLine(existing.id);
+    else createLine(first.ms[0].id, first.r.id);
+  };
 
-  return (
-    <section class="card">
-      <div class="picker-head">
-        <h2>新增生產線</h2>
-        <input
-          type="search"
-          class="picker-search"
-          placeholder="搜尋物品或機器"
-          value={query}
-          onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
-          aria-label="搜尋配方"
-        />
-      </div>
+  const bar = (
+    <>
+      <input
+        ref={search}
+        type="search"
+        class="picker-search"
+        placeholder="搜尋物品或機器"
+        value={query}
+        onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+        onKeyDown={(e) => e.key === 'Enter' && enter()}
+        aria-label="搜尋配方"
+      />
       {!q && (
         <div class="line-filter picker-groups" role="tablist" aria-label="配方分類">
           {groups.map((g) => (
@@ -233,14 +264,20 @@ function NewLineCard() {
           ))}
         </div>
       )}
-      {shown.length === 0 ? (
-        <p class="muted">沒有符合「{q}」的配方。</p>
-      ) : (
-        <div class="recipe-grid">
-          {shown.map(({ r, ms }) => <RecipeTile key={r.id} r={r} machines={ms} />)}
-        </div>
-      )}
-    </section>
+    </>
+  );
+  return (
+    <Modal title="新增生產線" wide bar={bar} onClose={() => openPicker(false)}>
+      <div ref={body}>
+        {shown.length === 0 ? (
+          <p class="muted">沒有符合「{q}」的配方。</p>
+        ) : (
+          <div class="recipe-grid">
+            {shown.map(({ r, ms }) => <RecipeTile key={r.id} r={r} machines={ms} />)}
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -328,7 +365,14 @@ function RemoveButton({ line }: { line: Line }) {
   );
 }
 
-function LineCard({ line, status, fresh, fuel }: { line: Line; status?: LineStatus; fresh?: boolean; fuel?: boolean }) {
+function LineCard({ line, status, fresh, fuel, onCollapse }: {
+  line: Line;
+  status?: LineStatus;
+  fresh?: boolean;
+  fuel?: boolean;
+  /** In the list view: fold back to a row */
+  onCollapse?: () => void;
+}) {
   const s = getState();
   const m = MACHINES[line.machine];
   const r = RECIPES[line.recipe];
@@ -381,6 +425,11 @@ function LineCard({ line, status, fresh, fuel }: { line: Line; status?: LineStat
             ))}
           </select>
         </div>
+        {onCollapse && (
+          <button class="icon-btn collapse-btn" onClick={onCollapse} aria-label="收合" title="收合">
+            <Chevron up />
+          </button>
+        )}
       </header>
 
       <div class="flow-row">
@@ -436,8 +485,8 @@ function LineCard({ line, status, fresh, fuel }: { line: Line; status?: LineStat
       )}
 
       <footer class="line-actions">
-        <button onClick={() => demolish(line.id)} disabled={line.count === 0} title="拆除一台（全額退還材料）">−</button>
-        <button class="primary" onClick={() => build(line.id)} title="建造一台">＋</button>
+        <HoldButton act={() => demolish(line.id) > 0} disabled={line.count === 0} title="拆除一台（全額退還材料），按住連續拆除" label="拆除一台">−</HoldButton>
+        <HoldButton class="primary" act={() => build(line.id) > 0} title="建造一台，按住連續建造" label="建造一台">＋</HoldButton>
         <button onClick={() => build(line.id, 5)} title="建造五台">＋5</button>
         <button onClick={() => toggleLine(line.id)}>{line.enabled ? '暫停' : '繼續'}</button>
         <span class="spacer" />
@@ -478,20 +527,68 @@ function LineFilter({ filter, setFilter, counts }: { filter: string; setFilter: 
   );
 }
 
+/** The list view: one row per line, with what it makes or why it's stuck, and the build buttons */
+function LineRow({ line, status, onOpen }: { line: Line; status?: LineStatus; onOpen: () => void }) {
+  const m = MACHINES[line.machine];
+  const r = RECIPES[line.recipe];
+  const eff = status?.efficiency ?? 0;
+  const reason = status?.reason ?? { kind: 'idle' as const };
+  const tone = reasonTone(reason);
+  const main = Object.keys(r.outputs)[0];
+  const rate = (r.outputs[main] ?? 0) * (status?.craftsPerSec ?? 0);
+  const fine = reason.kind === 'ok' || (reason.kind === 'load' && eff > 0);
+  return (
+    <div id={`line-${line.id}`} data-line={line.id} class={`lrow tone-border-${tone} ${line.enabled ? '' : 'paused'}`}>
+      <button class="lrow-main" onClick={onOpen} title="展開這條生產線">
+        <span class={`line-icon ${eff > 0.01 ? 'running' : ''}`}>
+          <MachineIcon id={m.id} size={32} />
+          <span class="line-count-badge">×{line.count}</span>
+        </span>
+        <span class="lrow-text">
+          <span class="lrow-name">{r.name}</span>
+          <span class="lrow-sub">
+            <span class="muted">{m.name}</span>
+            {fine ? (
+              <span class="lrow-rate"><ItemIcon id={main} /> {fmtRate(rate)}</span>
+            ) : (
+              <span class={`tone-text-${tone}`}>{reasonText(reason, status, true)}</span>
+            )}
+          </span>
+        </span>
+        <span class={`lrow-eff tone-text-${tone === 'ok' ? 'muted' : tone}`}>{Math.round(eff * 100)}%</span>
+        <Chevron />
+      </button>
+      <HoldButton class="lrow-btn" act={() => demolish(line.id) > 0} disabled={line.count === 0} title="拆除一台，按住連續拆除" label="拆除一台">−</HoldButton>
+      <HoldButton class="lrow-btn add" act={() => build(line.id) > 0} title="建造一台，按住連續建造" label="建造一台">＋</HoldButton>
+      <span class="lrow-bar"><Bar value={eff} tone={tone} /></span>
+    </div>
+  );
+}
+
 /**
  * The panel redraws four times a second. A card scrolled out of view keeps its last picture instead,
  * which in a big factory is most of them; it catches up the moment it scrolls back in.
  */
-interface LiveProps { line: Line; status?: LineStatus; fresh?: boolean; fuel: boolean; onScreen: boolean }
+interface LiveProps {
+  line: Line;
+  status?: LineStatus;
+  fresh?: boolean;
+  fuel: boolean;
+  onScreen: boolean;
+  /** List view: a row, unless the player opened it */
+  row: boolean;
+  onToggle?: () => void;
+}
 
-class LiveLineCard extends Component<LiveProps> {
+class LiveLine extends Component<LiveProps> {
   shouldComponentUpdate(next: LiveProps) {
     const p = this.props;
-    return p.onScreen || next.onScreen || p.fresh !== next.fresh || p.fuel !== next.fuel || p.line !== next.line;
+    return p.onScreen || next.onScreen || p.fresh !== next.fresh || p.fuel !== next.fuel || p.line !== next.line || p.row !== next.row;
   }
 
   render(p: LiveProps) {
-    return <LineCard line={p.line} status={p.status} fresh={p.fresh} fuel={p.fuel} />;
+    if (p.row) return <LineRow line={p.line} status={p.status} onOpen={p.onToggle!} />;
+    return <LineCard line={p.line} status={p.status} fresh={p.fresh} fuel={p.fuel} onCollapse={p.onToggle} />;
   }
 }
 
@@ -515,10 +612,10 @@ function scrollToLine(id: number) {
   requestAnimationFrame(settle);
 }
 
-/** Ids of the line cards near the viewport */
-function useOnScreen(ids: number[]): Set<number> {
+/** Ids of the line cards near the viewport; `layout` changes whenever the elements are swapped out */
+function useOnScreen(ids: number[], layout: string): Set<number> {
   const [seen, setSeen] = useState<Set<number>>(new Set());
-  const key = ids.join(',');
+  const key = `${layout}|${ids.join(',')}`;
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') {
       setSeen(new Set(ids));
@@ -545,10 +642,23 @@ function useOnScreen(ids: number[]): Set<number> {
   return seen;
 }
 
+const VIEW_KEY = 'sf-line-view';
+
+function readView(): 'cards' | 'list' {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'cards';
+  } catch {
+    return 'cards';
+  }
+}
+
 export function ProductionPanel() {
   const s = getState();
   const last = getLast();
   const [picked, setPicked] = useState(readFilter);
+  const [view, setViewState] = useState(readView);
+  // Rows the player opened in the list view
+  const [open, setOpen] = useState<Set<number>>(new Set());
   const setFilter = (f: string) => {
     setPicked(f);
     try {
@@ -557,6 +667,20 @@ export function ProductionPanel() {
       // ignore
     }
   };
+  const setView = (v: 'cards' | 'list') => {
+    setViewState(v);
+    setOpen(new Set());
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // ignore
+    }
+  };
+  const toggleOpen = (id: number) => setOpen((prev) => {
+    const next = new Set(prev);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  });
   const tierOf = (l: Line) => `t${MACHINES[l.machine]?.tier ?? 0}`;
   const tests: Record<string, (l: Line) => boolean> = {
     all: () => true,
@@ -577,17 +701,20 @@ export function ProductionPanel() {
   let filter = tests[picked] ? picked : 'all';
   if (focused && !tests[filter](focused)) filter = 'all';
   const shown = s.lines.filter(tests[filter]);
+  const list = view === 'list';
 
-  const onScreen = useOnScreen(shown.map((l) => l.id));
+  const onScreen = useOnScreen(shown.map((l) => l.id), `${view}|${[...open].join(',')}`);
   const fuel = fuelLines(s);
 
-  // Bring it into view with a brief glow so the eye finds it after the scroll
+  // Bring it into view with a brief glow so the eye finds it after the scroll; in the list it opens up
   const [glow, setGlow] = useState<number | null>(null);
   useEffect(() => {
     if (focus === null) return;
     if (filter !== picked) setFilter(filter);
-    scrollToLine(focus);
+    if (list && !open.has(focus)) setOpen((prev) => new Set(prev).add(focus));
     setGlow(focus);
+    // After the render that shows it (and opens its row), so the scroll aims at the card
+    requestAnimationFrame(() => scrollToLine(focus));
     focusLine(null);
   }, [focus]);
   useEffect(() => {
@@ -596,28 +723,50 @@ export function ProductionPanel() {
     return () => clearTimeout(t);
   }, [glow]);
 
+  const machines = s.lines.reduce((n, l) => n + l.count, 0);
   return (
-    <div class="panel">
-      <PageHeader title="生產線" />
-      <div class="prod-top">
-        <ManualCard />
-        <NewLineCard />
-      </div>
+    <div class="panel prod-panel">
+      {/* The page heading doubles as the toolbar; on a phone it stays at the top while the list scrolls */}
+      <header class="page-head prod-head">
+        <h1>生產線</h1>
+        {s.lines.length > 0 && <span class="muted prod-count">{s.lines.length} 條 · {machines} 台</span>}
+        <span class="spacer" />
+        {s.lines.length > 1 && (
+          <div class="seg view-seg" role="radiogroup" aria-label="顯示方式">
+            <button role="radio" aria-checked={!list} class={list ? '' : 'on'} onClick={() => setView('cards')}>卡片</button>
+            <button role="radio" aria-checked={list} class={list ? 'on' : ''} onClick={() => setView('list')}>清單</button>
+          </div>
+        )}
+        {s.lines.length > 0 && (
+          <button class="primary new-line-btn" onClick={() => openPicker(true)} title="新增生產線（N）">
+            ＋ 新增<span class="hide-sm">生產線</span>
+          </button>
+        )}
+      </header>
+      <ManualCard />
       {s.lines.length === 0 ? (
-        <p class="empty">還沒有生產線。先手動採集石頭，然後建立一條「石爐」生產線。</p>
+        <div class="empty empty-cta">
+          <p>還沒有生產線。先手動採集石頭，然後建立一條「石爐」生產線。</p>
+          <button class="primary big" onClick={() => openPicker(true)}>＋ 新增生產線</button>
+        </div>
       ) : (
         <>
-        <div class="section-head">
-          <h2>生產線</h2>
-          <span class="muted">{s.lines.length} 條 · {s.lines.reduce((n, l) => n + l.count, 0)} 台機器</span>
-        </div>
         {s.lines.length > 1 && <LineFilter filter={filter} setFilter={setFilter} counts={counts} />}
         {shown.length === 0 ? (
           <p class="empty">{filter === 'stuck' ? '沒有卡住的生產線，一切順暢。' : '這裡沒有生產線。'}</p>
         ) : (
-          <div class="lines">
+          <div class={list ? 'lines lines-list' : 'lines'}>
             {shown.map((l) => (
-              <LiveLineCard key={l.id} line={l} status={last.lines[l.id]} fresh={l.id === glow} fuel={fuel.has(l.id)} onScreen={onScreen.has(l.id)} />
+              <LiveLine
+                key={l.id}
+                line={l}
+                status={last.lines[l.id]}
+                fresh={l.id === glow}
+                fuel={fuel.has(l.id)}
+                onScreen={onScreen.has(l.id)}
+                row={list && !open.has(l.id)}
+                onToggle={list ? () => toggleOpen(l.id) : undefined}
+              />
             ))}
           </div>
         )}

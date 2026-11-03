@@ -8,14 +8,14 @@ import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnl
 import type { GameState } from '../sim/types';
 import {
   acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, focusLine, getLast, getState, getUi,
-  importSave, openSignal, openTrade, resetGame, signalData, toggleMaintenance, togglePause,
+  importSave, openPicker, openSignal, openTrade, resetGame, signalData, toggleMaintenance, togglePause,
 } from '../state/store';
 import { ItemLink, Modal, PauseIcon, isStuck, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
 import { Embers } from './Embers';
 import { LegacyPanel } from './LegacyPanel';
 import { MilestonePanel } from './MilestonePanel';
 import { Objective } from './Objective';
-import { ProductionPanel } from './ProductionPanel';
+import { NewLinePicker, ProductionPanel } from './ProductionPanel';
 import { RecipeLookup } from './RecipeLookup';
 import { RecordsPanel } from './RecordsPanel';
 import { ResearchPanel } from './ResearchPanel';
@@ -125,7 +125,7 @@ function AudioSettings() {
         />
         <span class="muted small">{Math.round(a.volume * 100)}%</span>
       </label>
-      <p class="muted small">電腦上可以用數字鍵 1–7 切換分頁，按 P 暫停或繼續。</p>
+      <p class="muted small">電腦上可以用數字鍵 1–7 切換分頁，N 新增生產線，P 暫停或繼續，Esc 關閉視窗。</p>
     </section>
   );
 }
@@ -364,6 +364,11 @@ export function App() {
       if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return;
       if (document.querySelector('.modal')) return;
       if (e.key === 'p' || e.key === 'P') return togglePause();
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        setTab('production');
+        return openPicker(true);
+      }
       const i = Number(e.key) - 1;
       if (i >= 0 && i < visibleTabs.length) setTab(visibleTabs[i].id);
     };
@@ -427,6 +432,7 @@ export function App() {
       {ui.signalOpen && s.signal !== null && <SignalModal />}
       {ui.tradeOpen && activeIncident(s) && <IncidentModal />}
       {ui.intro && <IntroModal />}
+      {ui.picker && <NewLinePicker />}
       {/* The item window opens from inside the others too, so it goes on top */}
       {ui.lookupItem && <RecipeLookup item={ui.lookupItem} />}
       <Toasts />

@@ -69,6 +69,8 @@ export interface UiState {
   intro: boolean;
   /** A line to bring into view on the production tab (just created, or picked in the item window) */
   focusLine: number | null;
+  /** The new-line picker is open */
+  picker: boolean;
   toasts: Toast[];
   /** Recent notable happenings, newest first */
   log: LogEntry[];
@@ -80,7 +82,7 @@ let state: GameState = newGame();
 let last: TickResult = emptyTick();
 const smoothRates: Record<string, number> = {};
 const ui: UiState = {
-  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null,
+  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false,
   toasts: [], log: [],
 };
 const listeners = new Set<() => void>();
@@ -326,22 +328,35 @@ export function addLine(machineId: string, recipeId: string): number | null {
   return id;
 }
 
-/** Show this line on the production tab, closing the item window it was picked from */
+/** Show this line on the production tab, closing the window it was picked from */
 export function focusLine(id: number | null) {
   ui.focusLine = id;
-  if (id !== null) ui.lookupItem = null;
+  if (id !== null) {
+    ui.lookupItem = null;
+    ui.picker = false;
+  }
   notify();
 }
 
-/** Add a line and take the player to it */
-export function createLine(machineId: string, recipeId: string) {
-  const id = addLine(machineId, recipeId);
-  if (id !== null) focusLine(id);
+export function openPicker(open: boolean) {
+  ui.picker = open;
+  notify();
 }
 
-export function build(lineId: number, times = 1) {
+/** Add a line, put the first machine in it when that's affordable, and take the player to it */
+export function createLine(machineId: string, recipeId: string) {
+  const id = addLine(machineId, recipeId);
+  if (id === null) return;
+  const m = MACHINES[machineId];
+  const orbit = !!m.orbital;
+  if (canAfford(state, m.cost) && slotsUsed(state, orbit) + m.slots <= slotsTotal(state, orbit)) build(id);
+  focusLine(id);
+}
+
+/** Returns how many were built */
+export function build(lineId: number, times = 1): number {
   const line = state.lines.find((l) => l.id === lineId);
-  if (!line) return;
+  if (!line) return 0;
   const m = MACHINES[line.machine];
   const orbit = !!m.orbital;
   let built = 0;
@@ -363,17 +378,20 @@ export function build(lineId: number, times = 1) {
   state.stats.built += built;
   if (built > 0) emit('build');
   notify();
+  return built;
 }
 
-export function demolish(lineId: number, times = 1) {
+/** Returns how many were taken down */
+export function demolish(lineId: number, times = 1): number {
   const line = state.lines.find((l) => l.id === lineId);
-  if (!line) return;
+  if (!line) return 0;
   const n = Math.min(times, line.count);
   line.count -= n;
   const lost = refund(MACHINES[line.machine].cost, n);
   if (lost.length > 0) toast(`倉庫放不下，部分${lost.join('、')}沒退回`, { tone: 'bad' });
   else if (n > 0) emit('demolish');
   notify();
+  return n;
 }
 
 /** Swap every machine in a line for its upgrade, paying the difference */
