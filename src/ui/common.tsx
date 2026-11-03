@@ -50,6 +50,20 @@ export function ItemLink({ id }: { id: string }) {
   );
 }
 
+/** Pause / play glyph drawn as SVG: the ▶ character turns into a coloured emoji on phones */
+export function PauseIcon({ paused, size = 12 }: { paused: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" aria-hidden="true" class="pause-icon">
+      {paused ? <path d="M2.5 1.5 L10.5 6 L2.5 10.5 Z" fill="currentColor" /> : (
+        <>
+          <rect x="2" y="1.5" width="3" height="9" rx="0.6" fill="currentColor" />
+          <rect x="7" y="1.5" width="3" height="9" rx="0.6" fill="currentColor" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 /** Material list, red where the player does not have enough */
 export function Cost({ cost }: { cost: Record<string, number> }) {
   const items = getState().items;

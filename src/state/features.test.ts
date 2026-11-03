@@ -3,9 +3,9 @@ import { ACHIEVEMENT_LIST } from '../data/achievements';
 import { INCIDENTS, eligibleIncidents } from '../data/incidents';
 import { tick } from '../sim/engine';
 import { capOf, categoryBoost, simSpeed, techCost } from '../sim/rules';
-import { exportString, newGame, parseSave } from './save';
+import { exportString, importString, newGame, parseSave } from './save';
 import {
-  acceptTrade, build, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, traderOffer, warp, addLine,
+  acceptTrade, advance, build, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, togglePause, traderOffer, warp, addLine,
 } from './store';
 
 function load(patch: (s: ReturnType<typeof newGame>) => void) {
@@ -65,6 +65,41 @@ describe('world events', () => {
 
   it('has no offer when nothing is piling up', () => {
     expect(traderOffer(newGame())).toBeNull();
+  });
+});
+
+describe('pause', () => {
+  it('stops factory time while paused, live and for long gaps, and keeps actions working', () => {
+    load((s) => {
+      s.items = { stone: 100, iron_ingot: 100 };
+      s.lines = [{ id: 1, machine: 'basic_drill', recipe: 'mine_stone', count: 1, enabled: true }];
+      s.nextLineId = 2;
+    });
+    advance(1);
+    const t = getState().playTime;
+    expect(t).toBeGreaterThan(0);
+    togglePause();
+    expect(getState().paused).toBe(true);
+    const stone = getState().items.stone;
+    advance(1);
+    // A long gap (tab in the background) is not caught up either
+    advance(3600);
+    expect(getState().playTime).toBe(t);
+    expect(getState().items.stone).toBe(stone);
+    // Building still works
+    build(1);
+    expect(getState().lines[0].count).toBe(2);
+    togglePause();
+    advance(1);
+    expect(getState().playTime).toBeGreaterThan(t);
+  });
+
+  it('is kept in the save', () => {
+    load((s) => {
+      s.paused = true;
+    });
+    expect(getState().paused).toBe(true);
+    expect(importString(exportString(getState()))!.paused).toBe(true);
   });
 });
 

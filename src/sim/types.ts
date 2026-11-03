@@ -45,6 +45,8 @@ export interface GameState {
   playTime: number;
   /** Epoch ms of the last save */
   savedAt: number;
+  /** The player paused the game: no factory time passes, live or while away */
+  paused?: boolean;
 }
 
 export interface Stats {

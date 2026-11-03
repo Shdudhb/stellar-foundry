@@ -203,6 +203,35 @@ function catchUp(seconds: number) {
 // ---------- lifecycle ----------
 
 let started = false;
+let acc = 0;
+
+/** Wall-clock seconds since the last call: run the factory, or catch up a long gap as offline time */
+export function advance(elapsed: number) {
+  if (state.paused) {
+    acc = 0;
+    return;
+  }
+  if (elapsed > CATCH_UP_THRESHOLD) {
+    catchUp(elapsed);
+    acc = 0;
+    notify();
+    return;
+  }
+  acc += elapsed;
+  while (acc >= TICK) {
+    step(TICK);
+    acc -= TICK;
+  }
+}
+
+/** Stop or restart factory time. Building, research and every other action still work while paused. */
+export function togglePause() {
+  state.paused = !state.paused;
+  acc = 0;
+  emit('click');
+  saveLocal(state);
+  notify();
+}
 
 export function start() {
   if (started) return;
@@ -211,28 +240,17 @@ export function start() {
   if (saved) {
     state = saved;
     checkAchievements(true);
-    catchUp((Date.now() - saved.savedAt) / 1000);
+    // A paused game stays as it was left: nothing to catch up
+    if (!saved.paused) catchUp((Date.now() - saved.savedAt) / 1000);
   } else {
     ui.intro = true;
   }
 
   let prev = performance.now();
-  let acc = 0;
   setInterval(() => {
     const now = performance.now();
-    const elapsed = (now - prev) / 1000;
+    advance((now - prev) / 1000);
     prev = now;
-    if (elapsed > CATCH_UP_THRESHOLD) {
-      catchUp(elapsed);
-      acc = 0;
-      notify();
-      return;
-    }
-    acc += elapsed;
-    while (acc >= TICK) {
-      step(TICK);
-      acc -= TICK;
-    }
   }, TICK * 1000);
 
   setInterval(notify, UI_INTERVAL);

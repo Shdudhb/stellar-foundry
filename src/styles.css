@@ -557,6 +557,24 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .modal-head h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
 .modal-body { padding: 12px 16px 16px; }
 .icon-btn { background: none; border: none; color: var(--muted); }
+.pause-btn { display: inline-grid; place-items: center; min-width: 30px; min-height: 26px; }
+.pause-btn.on { color: var(--accent); }
+
+/* Paused: a clear strip at the top, and everything that suggests motion holds still */
+.paused-banner {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 8px;
+  border: 1px solid rgb(99 179 240 / 0.55); border-radius: var(--radius);
+  background: linear-gradient(90deg, rgb(99 179 240 / 0.16), rgb(99 179 240 / 0.03)), var(--panel);
+}
+.paused-icon { color: var(--orbit); display: inline-grid; place-items: center; }
+.resume-btn { display: inline-flex; align-items: center; gap: 6px; }
+.paused-text { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.paused-text strong { color: var(--orbit); }
+/* Only the factory's motion stops; toasts and windows still animate in, or they'd freeze invisible */
+.app.paused .line-icon.running::before, .app.paused .line.running .bar-fill.tone-ok::after { animation-play-state: paused; }
+.app.paused .embers { opacity: 0.35; }
+.app.paused .chip-rate, .app.paused .colony-stats { opacity: 0.55; }
 .recipe-list, .changes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .recipe-list li { padding: 9px 11px; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 8px; }
 .recipe-list li.locked, .recipe-list span.locked { opacity: 0.5; }

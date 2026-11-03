@@ -2,8 +2,8 @@ import { POWER_ORDER, SWARM_EU, SWARM_ITEM, itemName } from '../data/items';
 import { GALAXIES } from '../data/galaxies';
 import { TIER_NAMES } from '../data/tech';
 import { activeIncident, currentTier, slotsTotal, slotsUsed } from '../sim/rules';
-import { getLast, getRates, getState, openLookup, openSignal, openTrade } from '../state/store';
-import { fmt, fmtDuration, fmtNum, fmtRate } from './common';
+import { getLast, getRates, getState, openLookup, openSignal, openTrade, togglePause } from '../state/store';
+import { PauseIcon, fmt, fmtDuration, fmtNum, fmtRate } from './common';
 import { ItemIcon } from './pixel';
 import { getAudioPrefs, setAudioPrefs } from './sound';
 
@@ -91,6 +91,15 @@ export function TopBar() {
               ◈ 遺物訊號 <span class="small">{Math.max(0, Math.ceil(s.signal - s.playTime))}s</span>
             </button>
           )}
+          <button
+            class={`icon-btn pause-btn ${s.paused ? 'on' : ''}`}
+            title={s.paused ? '繼續（P）' : '暫停遊戲（P）'}
+            aria-label={s.paused ? '繼續遊戲' : '暫停遊戲'}
+            aria-pressed={!!s.paused}
+            onClick={togglePause}
+          >
+            <PauseIcon paused={!!s.paused} />
+          </button>
           <button
             class="icon-btn"
             title={muted ? '開啟聲音' : '靜音'}

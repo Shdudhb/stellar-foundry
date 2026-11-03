@@ -8,9 +8,9 @@ import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnl
 import type { GameState } from '../sim/types';
 import {
   acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, focusLine, getLast, getState, getUi,
-  importSave, openSignal, openTrade, resetGame, signalData, toggleMaintenance,
+  importSave, openSignal, openTrade, resetGame, signalData, toggleMaintenance, togglePause,
 } from '../state/store';
-import { ItemLink, Modal, isStuck, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
+import { ItemLink, Modal, PauseIcon, isStuck, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
 import { Embers } from './Embers';
 import { LegacyPanel } from './LegacyPanel';
 import { MilestonePanel } from './MilestonePanel';
@@ -125,7 +125,7 @@ function AudioSettings() {
         />
         <span class="muted small">{Math.round(a.volume * 100)}%</span>
       </label>
-      <p class="muted small">聲音都是即時合成的。電腦上可以用數字鍵 1–7 切換分頁。</p>
+      <p class="muted small">聲音都是即時合成的。電腦上可以用數字鍵 1–7 切換分頁，按 P 暫停或繼續。</p>
     </section>
   );
 }
@@ -368,6 +368,7 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return;
       if (document.querySelector('.modal')) return;
+      if (e.key === 'p' || e.key === 'P') return togglePause();
       const i = Number(e.key) - 1;
       if (i >= 0 && i < visibleTabs.length) setTab(visibleTabs[i].id);
     };
@@ -376,7 +377,7 @@ export function App() {
   });
 
   return (
-    <div class="app" style={{ '--tier': TIER_COLORS[Math.min(currentTier(s), TIER_COLORS.length - 1)] }}>
+    <div class={`app ${s.paused ? 'paused' : ''}`} style={{ '--tier': TIER_COLORS[Math.min(currentTier(s), TIER_COLORS.length - 1)] }}>
       <Embers />
       <aside class="sidebar">
         <div class="side-brand">
@@ -404,6 +405,16 @@ export function App() {
       <div class="content">
         <TopBar />
         <main class="main">
+          {s.paused && (
+            <div class="paused-banner" role="status">
+              <span class="paused-icon"><PauseIcon paused={false} size={16} /></span>
+              <span class="paused-text">
+                <strong>遊戲已暫停</strong>
+                <span class="muted small">機器、事件與倒數都停住了，關掉分頁也不會補算。仍然可以建造、研究和調整生產線。</span>
+              </span>
+              <button class="primary resume-btn" onClick={togglePause}><PauseIcon paused size={11} /> 繼續</button>
+            </div>
+          )}
           <Objective state={s} />
           <View />
         </main>
