@@ -342,12 +342,11 @@ export function upgradeLine(lineId: number) {
   const pays = Object.fromEntries(Object.entries(net).filter(([, n]) => n > 0));
   if (!canAfford(state, pays)) return lacking(pays);
   pay(pays);
-  for (const [item, n] of Object.entries(net)) {
-    if (n < 0) state.items[item] = Math.min(capOf(state, item), (state.items[item] ?? 0) - n);
-  }
+  const lost = refund(Object.fromEntries(Object.entries(net).filter(([, n]) => n < 0).map(([i, n]) => [i, -n])), 1);
   const fromName = MACHINES[line.machine].name;
   line.machine = to.id;
   toast(`${fromName} × ${line.count} 已升級為 ${to.name}`, { tone: 'good', sound: 'build', log: true });
+  if (lost.length > 0) toast(`倉庫放不下，部分${lost.join('、')}沒退回`, { tone: 'bad' });
 }
 
 export function removeLine(lineId: number) {

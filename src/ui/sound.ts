@@ -14,6 +14,8 @@ const DEFAULT_PREFS: AudioPrefs = { sfx: true, music: true, volume: 0.6 };
 
 let prefs: AudioPrefs = readPrefs();
 let ctx: AudioContext | null = null;
+/** The player has tapped or pressed a key, so the browser lets audio start */
+let unlocked = false;
 let master: GainNode | null = null;
 let musicBus: GainNode | null = null;
 let musicTimer: ReturnType<typeof setTimeout> | undefined;
@@ -185,7 +187,9 @@ const SFX: Record<GameEvent, () => void> = {
 const MIN_GAP: Partial<Record<GameEvent, number>> = { gather: 0.045, click: 0.03, build: 0.06, error: 0.25 };
 
 export function playSfx(e: GameEvent) {
-  if (!prefs.sfx || !ensureCtx() || !ctx) return;
+  // Events fired before the first tap (achievements and signals while loading a save) stay silent:
+  // making the context then only gets it blocked by the autoplay policy
+  if (!prefs.sfx || !unlocked || !ensureCtx() || !ctx) return;
   const now = ctx.currentTime;
   if (now - (lastPlayed[e] ?? -1) < (MIN_GAP[e] ?? 0.02)) return;
   lastPlayed[e] = now;
@@ -269,6 +273,7 @@ function stopMusic() {
 export function initSound() {
   onGameEvent(playSfx);
   const unlock = () => {
+    unlocked = true;
     ensureCtx();
     startMusic();
     window.removeEventListener('pointerdown', unlock);

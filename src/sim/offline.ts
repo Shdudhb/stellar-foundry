@@ -21,13 +21,16 @@ export function simulateOffline(state: GameState, seconds: number, speed = 1, ca
   const simulated = Math.min(Math.max(0, seconds), cap);
   const before = { ...state.items };
   let last: TickResult | null = null;
+  const start = state.playTime;
   let left = simulated;
   while (left > 1e-9) {
     const dt = Math.min(OFFLINE_STEP, left);
     last = tick(state, dt * speed);
     left -= dt;
+    // Advance the clock every step, so a world event that was running when the player left ends on time
+    state.playTime += dt;
   }
-  state.playTime += simulated;
+  state.playTime = start + simulated;
 
   const changes: Record<string, number> = {};
   for (const item of new Set([...Object.keys(before), ...Object.keys(state.items)])) {

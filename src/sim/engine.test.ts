@@ -512,4 +512,14 @@ describe('simulateOffline', () => {
     expect(report.changes.gear).toBeGreaterThan(0);
     expect(s.playTime).toBe(12 * 3600);
   });
+
+  it('ends a world event on time instead of stretching it over the whole absence', () => {
+    // 60 s of double-speed mining left, then 540 s at normal speed: 0.5 stone/s → 60 + 270
+    const s = game({}, [{ machine: 'basic_drill', recipe: 'mine_stone', count: 1 }], ['storage_1']);
+    s.playTime = 1000;
+    s.incident = { id: 'rich_vein', until: 1060 };
+    simulateOffline(s, 600);
+    expect(s.items.stone).toBeCloseTo(330);
+    expect(s.playTime).toBe(1600);
+  });
 });
