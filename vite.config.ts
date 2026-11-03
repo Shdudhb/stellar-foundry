@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
+import { cjkFont } from './scripts/cjk-font';
 
 /**
  * Game data, simulation and the store hold module-level state and constants that
@@ -21,6 +22,6 @@ function fullReloadGameLogic(): Plugin {
 export default defineConfig({
   // Relative asset paths, so the build works under any sub-path (GitHub Pages serves it at /<repo>/)
   base: './',
-  plugins: [fullReloadGameLogic(), preact()],
+  plugins: [cjkFont(), fullReloadGameLogic(), preact()],
   server: { port: 5173 },
 });

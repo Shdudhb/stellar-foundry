@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.log
 .claude/settings.local.json
+# Built by scripts/cjk-font.ts on dev start and build
+src/generated/

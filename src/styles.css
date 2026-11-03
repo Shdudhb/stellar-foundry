@@ -26,7 +26,9 @@
 html, body {
   margin: 0;
   color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+  /* Latin and digits in Oxanium: squared, sci-fi, and tabular by default so ticking numbers hold still.
+     Chinese in Noto Sans TC, cut down to the game's own characters, so every device shows the same type */
+  font: 14px/1.5 'Oxanium Variable', 'Noto Sans TC Game', 'PingFang TC', 'Noto Sans CJK TC', 'Microsoft JhengHei', sans-serif;
   background:
     radial-gradient(1100px 560px at 85% -12%, rgb(240 160 75 / 0.10), transparent 62%),
     radial-gradient(900px 620px at -12% 112%, rgb(79 209 197 / 0.08), transparent 60%),
@@ -641,7 +643,8 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .galaxy-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .galaxy-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; color: var(--muted); border: 1px solid var(--line-soft); }
 .galaxy-pill.on { color: var(--text); border-color: rgb(143 122 230 / 0.7); }
-.lore { margin: 0 0 12px; padding: 8px 12px; border-left: 2px solid var(--line); color: #b9c4cf; font-style: italic; font-size: 13px; line-height: 1.6; }
+/* Upright: Chinese fonts have no italic, and a browser-slanted one looks broken */
+.lore { margin: 0 0 12px; padding: 8px 12px; border-left: 2px solid var(--accent); color: #a9b5c2; font-size: 13px; line-height: 1.7; letter-spacing: 0.02em; }
 .intro-steps { list-style: none; padding: 12px 14px; margin: 14px 0; display: flex; flex-direction: column; gap: 8px; background: var(--panel-2); border-radius: 10px; border: 1px solid var(--line-soft); }
 .intro-steps li { display: flex; align-items: center; gap: 10px; }
 
