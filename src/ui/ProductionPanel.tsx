@@ -303,7 +303,7 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
         <div class="flow-extra">
           {Object.entries(status?.power ?? {}).map(([p, v]) => (
             <span key={p} class={v > 0 ? 'tone-text-ok' : 'muted'}>
-              <ItemIcon id={p} /> {itemName(p)} {fmtRate(v)}
+              <ItemLink id={p} /> {fmtRate(v)}
             </span>
           ))}
           {status?.upkeep && (

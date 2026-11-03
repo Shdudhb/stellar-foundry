@@ -197,6 +197,9 @@ p { margin: 0 0 8px; }
 .colony-stats { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text); }
 .stat { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .link-stat { background: none; border: 0; padding: 0; font: inherit; color: var(--orbit); cursor: pointer; }
+/* Power figures open their item window but keep their ok/short colour */
+.stat-btn, .stat-btn:hover:not(:disabled) { background: none; border: 0; padding: 0; border-radius: 4px; }
+.stat-btn:hover:not(:disabled) { text-decoration: underline dotted; text-underline-offset: 3px; }
 
 .signal-btn {
   border-color: var(--orbit); color: var(--orbit); background: rgb(99 179 240 / 0.08);
@@ -631,6 +634,9 @@ body:has(.modal-backdrop) { overflow: hidden; }
   background: #0d1218; border: 1px solid var(--line-soft);
 }
 .ach p { margin: 2px 0 0; }
+.ach > div { min-width: 0; flex: 1; }
+.ach-progress { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-variant-numeric: tabular-nums; }
+.ach-progress .bar { height: 4px; }
 .ach:not(.done) .ach-icon { filter: grayscale(1) brightness(0.55); }
 .ach:not(.done) strong { color: var(--muted); }
 .ach.done { border-color: rgb(217 166 64 / 0.45); background: linear-gradient(110deg, rgb(217 166 64 / 0.1), transparent 60%), #0d1218; }

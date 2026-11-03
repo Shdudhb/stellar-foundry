@@ -69,12 +69,19 @@ function Achievements() {
             {ACHIEVEMENT_LIST.filter((a) => a.group === g).map((a) => {
               const done = got.has(a.id);
               const secret = a.hidden && !done;
+              const [cur, goal] = a.progress?.(s) ?? [0, 0];
               return (
                 <div key={a.id} class={`ach ${done ? 'done' : ''}`}>
                   <span class="ach-icon">{secret ? <span class="ach-q">?</span> : <ItemIcon id={a.icon} size={32} />}</span>
                   <div>
                     <strong>{secret ? '隱藏成就' : a.name}</strong>
                     <p class="small muted">{secret ? '達成某個特別的條件時解鎖。' : a.text}</p>
+                    {!done && goal > 1 && (
+                      <div class="ach-progress">
+                        <Bar value={cur / goal} tone="warn" />
+                        <span class="small muted">{Math.floor(cur).toLocaleString('en-US')} / {goal.toLocaleString('en-US')}</span>
+                      </div>
+                    )}
                   </div>
                   {done && <span class="ach-check" aria-label="已解鎖">✓</span>}
                 </div>

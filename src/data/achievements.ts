@@ -16,6 +16,8 @@ export interface AchievementDef {
   /** Kept secret until unlocked */
   hidden?: boolean;
   done: (s: GameState, last: TickResult) => boolean;
+  /** For counting goals: how far along the player is, and the target */
+  progress?: (s: GameState) => [number, number];
 }
 
 const produced = (s: GameState, id: string) => s.stats.produced[id] ?? 0;
@@ -27,22 +29,28 @@ const MILESTONE_ICONS: Record<string, string> = {
   colony_ship: 'rocket_fuel', dyson_segment: 'dyson_swarm', stargate: 'exotic_matter',
 };
 
+/** A goal of reaching `n` on some count: done and progress from the same number */
+const counter = (get: (s: GameState) => number, n: number) => ({
+  done: (s: GameState) => get(s) >= n,
+  progress: (s: GameState): [number, number] => [Math.min(n, get(s)), n],
+});
+
 const made = (id: string, item: string, n: number, name: string, text: string): AchievementDef => ({
-  id, name, text, icon: item, group: '生產', done: (s) => produced(s, item) >= n,
+  id, name, text, icon: item, group: '生產', ...counter((s) => produced(s, item), n),
 });
 
 export const ACHIEVEMENT_LIST: AchievementDef[] = [
   // 開拓
-  { id: 'gather_1', name: '第一塊石頭', text: '手動採集 1 次。', icon: 'stone', group: '開拓', done: (s) => s.stats.gathered >= 1 },
-  { id: 'gather_100', name: '勤勞的雙手', text: '手動採集 100 次。', icon: 'iron_ore', group: '開拓', done: (s) => s.stats.gathered >= 100 },
-  { id: 'gather_1000', name: '人力礦場', text: '手動採集 1,000 次。', icon: 'coal', group: '開拓', done: (s) => s.stats.gathered >= 1000 },
-  { id: 'build_1', name: '第一台機器', text: '建造 1 台機器。', icon: 'gear', group: '開拓', done: (s) => s.stats.built >= 1 },
-  { id: 'build_25', name: '小型工坊', text: '累計建造 25 台機器。', icon: 'iron_ingot', group: '開拓', done: (s) => s.stats.built >= 25 },
-  { id: 'build_100', name: '工業區', text: '累計建造 100 台機器。', icon: 'steel', group: '開拓', done: (s) => s.stats.built >= 100 },
-  { id: 'build_500', name: '機械之海', text: '累計建造 500 台機器。', icon: 'stainless', group: '開拓', done: (s) => s.stats.built >= 500 },
-  { id: 'lines_10', name: '生產網', text: '同時擁有 10 條生產線。', icon: 'copper_wire', group: '開拓', done: (s) => s.lines.length >= 10 },
-  { id: 'lines_25', name: '複雜系統', text: '同時擁有 25 條生產線。', icon: 'cable', group: '開拓', done: (s) => s.lines.length >= 25 },
-  { id: 'machines_100', name: '百機齊鳴', text: '同時運轉 100 台機器。', icon: 'circuit', group: '開拓', done: (s) => machines(s) >= 100 },
+  { id: 'gather_1', name: '第一塊石頭', text: '手動採集 1 次。', icon: 'stone', group: '開拓', ...counter((s) => s.stats.gathered, 1) },
+  { id: 'gather_100', name: '勤勞的雙手', text: '手動採集 100 次。', icon: 'iron_ore', group: '開拓', ...counter((s) => s.stats.gathered, 100) },
+  { id: 'gather_1000', name: '人力礦場', text: '手動採集 1,000 次。', icon: 'coal', group: '開拓', ...counter((s) => s.stats.gathered, 1000) },
+  { id: 'build_1', name: '第一台機器', text: '建造 1 台機器。', icon: 'gear', group: '開拓', ...counter((s) => s.stats.built, 1) },
+  { id: 'build_25', name: '小型工坊', text: '累計建造 25 台機器。', icon: 'iron_ingot', group: '開拓', ...counter((s) => s.stats.built, 25) },
+  { id: 'build_100', name: '工業區', text: '累計建造 100 台機器。', icon: 'steel', group: '開拓', ...counter((s) => s.stats.built, 100) },
+  { id: 'build_500', name: '機械之海', text: '累計建造 500 台機器。', icon: 'stainless', group: '開拓', ...counter((s) => s.stats.built, 500) },
+  { id: 'lines_10', name: '生產網', text: '同時擁有 10 條生產線。', icon: 'copper_wire', group: '開拓', ...counter((s) => s.lines.length, 10) },
+  { id: 'lines_25', name: '複雜系統', text: '同時擁有 25 條生產線。', icon: 'cable', group: '開拓', ...counter((s) => s.lines.length, 25) },
+  { id: 'machines_100', name: '百機齊鳴', text: '同時運轉 100 台機器。', icon: 'circuit', group: '開拓', ...counter((s) => machines(s), 100) },
 
   // 生產
   made('iron_1k', 'iron_ingot', 1000, '鐵器時代', '累計生產 1,000 鐵錠。'),
@@ -57,12 +65,12 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   made('exotic_100', 'stable_exotic', 100, '不該存在的物質', '累計生產 100 穩定奇異物質。'),
 
   // 科技
-  { id: 'research_1', name: '求知', text: '完成 1 項研究。', icon: 'red_pack', group: '科技', done: (s) => s.techs.length >= 1 },
-  { id: 'research_10', name: '實驗室日常', text: '完成 10 項研究。', icon: 'green_pack', group: '科技', done: (s) => s.techs.length >= 10 },
-  { id: 'research_40', name: '科技樹過半', text: '完成 40 項研究。', icon: 'blue_pack', group: '科技', done: (s) => s.techs.length >= 40 },
+  { id: 'research_1', name: '求知', text: '完成 1 項研究。', icon: 'red_pack', group: '科技', ...counter((s) => s.techs.length, 1) },
+  { id: 'research_10', name: '實驗室日常', text: '完成 10 項研究。', icon: 'green_pack', group: '科技', ...counter((s) => s.techs.length, 10) },
+  { id: 'research_40', name: '科技樹過半', text: '完成 40 項研究。', icon: 'blue_pack', group: '科技', ...counter((s) => s.techs.length, 40) },
   {
     id: 'research_all', name: '全知', text: '在同一輪完成所有研究。', icon: 'white_pack', group: '科技',
-    done: (s) => s.techs.length >= TECH_LIST.length,
+    ...counter((s) => s.techs.length, TECH_LIST.length),
   },
   {
     id: 'overclock', name: '超頻玩家', text: '讓一條生產線超頻 ×4 以上。', icon: 'eu', group: '科技',
@@ -92,13 +100,13 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   },
 
   // 星海
-  { id: 'signal_1', name: '第一次接觸', text: '回應 1 次遺物訊號。', icon: 'exotic_matter', group: '星海', done: (s) => s.stats.signals >= 1 },
-  { id: 'signal_10', name: '遺物獵人', text: '回應 10 次遺物訊號。', icon: 'stable_exotic', group: '星海', done: (s) => s.stats.signals >= 10 },
-  { id: 'incident_10', name: '見過世面', text: '經歷 10 次星球事件。', icon: 'meteor_ore', group: '星海', done: (s) => s.stats.incidents >= 10 },
-  { id: 'trade_5', name: '星際商人', text: '與商隊交易 5 次。', icon: 'rocket_part', group: '星海', done: (s) => s.stats.trades >= 5 },
-  { id: 'warp_1', name: '越過地平線', text: '躍遷 1 次。', icon: 'dyson_swarm', group: '星海', done: (s) => s.legacy.warps >= 1 },
-  { id: 'warp_5', name: '星系旅人', text: '躍遷 5 次。', icon: 'dyson_panel', group: '星海', done: (s) => s.legacy.warps >= 5 },
-  { id: 'warp_10', name: '銀河漫遊者', text: '躍遷 10 次。', icon: 'stable_exotic', group: '星海', done: (s) => s.legacy.warps >= 10 },
+  { id: 'signal_1', name: '第一次接觸', text: '回應 1 次遺物訊號。', icon: 'exotic_matter', group: '星海', ...counter((s) => s.stats.signals, 1) },
+  { id: 'signal_10', name: '遺物獵人', text: '回應 10 次遺物訊號。', icon: 'stable_exotic', group: '星海', ...counter((s) => s.stats.signals, 10) },
+  { id: 'incident_10', name: '見過世面', text: '經歷 10 次星球事件。', icon: 'meteor_ore', group: '星海', ...counter((s) => s.stats.incidents, 10) },
+  { id: 'trade_5', name: '星際商人', text: '與商隊交易 5 次。', icon: 'rocket_part', group: '星海', ...counter((s) => s.stats.trades, 5) },
+  { id: 'warp_1', name: '越過地平線', text: '躍遷 1 次。', icon: 'dyson_swarm', group: '星海', ...counter((s) => s.legacy.warps, 1) },
+  { id: 'warp_5', name: '星系旅人', text: '躍遷 5 次。', icon: 'dyson_panel', group: '星海', ...counter((s) => s.legacy.warps, 5) },
+  { id: 'warp_10', name: '銀河漫遊者', text: '躍遷 10 次。', icon: 'stable_exotic', group: '星海', ...counter((s) => s.legacy.warps, 10) },
   {
     id: 'legacy_max', name: '傳承大師', text: '把任一項星際遺產升到滿級。', icon: 'white_pack', group: '星海',
     done: (s) => LEGACY_LIST.some((l) => (s.legacy.upgrades[l.id] ?? 0) >= l.max),

@@ -106,11 +106,16 @@ export function TopBar() {
             if (!st || (st.capacity === 0 && st.demand === 0)) return null;
             const tone = st.demand === 0 ? 'muted' : st.satisfaction >= 0.999 ? 'ok' : 'warn';
             return (
-              <span key={p} class={`stat tone-text-${tone}`} title={`${itemName(p)}：需求 / 可供給`}>
+              <button
+                key={p}
+                class={`stat stat-btn tone-text-${tone}`}
+                title={`${itemName(p)}：需求 / 可供給。點開看誰在發、誰在用`}
+                onClick={() => openLookup(p)}
+              >
                 <ItemIcon id={p} />
                 {itemName(p)} {round1(st.demand)}/{round1(st.capacity)}
                 {st.demand > 0 && ` · ${Math.round(st.satisfaction * 100)}%`}
-              </span>
+              </button>
             );
           })}
           {swarm > 0 && (

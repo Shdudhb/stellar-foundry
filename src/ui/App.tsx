@@ -7,7 +7,7 @@ import { BOOST_TIME } from '../data/legacy';
 import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnlocked, offlineCap, techAvailable, techCost } from '../sim/rules';
 import type { GameState } from '../sim/types';
 import {
-  acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, getLast, getState, getUi,
+  acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, focusLine, getLast, getState, getUi,
   importSave, openSignal, openTrade, resetGame, signalData, toggleMaintenance,
 } from '../state/store';
 import { ItemLink, Modal, isStuck, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
@@ -21,7 +21,7 @@ import { RecordsPanel } from './RecordsPanel';
 import { ResearchPanel } from './ResearchPanel';
 import { StoragePanel } from './StoragePanel';
 import { Brand, TopBar } from './TopBar';
-import { ItemIcon, TIER_COLORS, UiIcon } from './pixel';
+import { ItemIcon, MachineIcon, TIER_COLORS, UiIcon } from './pixel';
 import { getAudioPrefs, onAudioPrefs, setAudioPrefs } from './sound';
 
 const TABS = [
@@ -207,13 +207,19 @@ function Toasts() {
   );
 }
 
+/** Rows of each list shown before "show all": the first ones tell the story */
+const REPORT_TOP = 12;
+
 function OfflineReportModal() {
   const report = getUi().offlineReport!;
+  const [all, setAll] = useState(false);
   const s = getState();
   const changes = Object.entries(report.changes).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
   const stalled = s.lines
     .map((l) => ({ l, st: report.last?.lines[l.id] }))
-    .filter(({ st }) => st && st.efficiency < 0.999 && !['idle', 'paused', 'load'].includes(st.reason.kind));
+    .filter(({ st }) => st && st.efficiency < 0.999 && !['idle', 'paused', 'load'].includes(st.reason.kind))
+    // The most stuck first
+    .sort((a, b) => a.st!.efficiency - b.st!.efficiency);
 
   return (
     <Modal title="離線報告" onClose={closeOfflineReport}>
@@ -226,23 +232,46 @@ function OfflineReportModal() {
         <p class="muted">沒有變化。</p>
       ) : (
         <ul class="changes">
-          {changes.map(([id, d]) => (
+          {(all ? changes : changes.slice(0, REPORT_TOP)).map(([id, d]) => (
             <li key={id}>
               <ItemLink id={id} /> <span class={d > 0 ? 'tone-text-ok' : 'tone-text-bad'}>{d > 0 ? '+' : '−'}{fmt(Math.abs(d))}</span>
             </li>
           ))}
+          {!all && changes.length > REPORT_TOP && (
+            <li>
+              <button class="small-btn" onClick={() => setAll(true)}>顯示全部 {changes.length} 項</button>
+            </li>
+          )}
         </ul>
       )}
       {stalled.length > 0 && (
         <>
           <h4>卡住的生產線</h4>
           <ul class="changes">
-            {stalled.map(({ l, st }) => (
+            {(all ? stalled : stalled.slice(0, REPORT_TOP)).map(({ l, st }) => (
               <li key={l.id}>
-                {MACHINES[l.machine].name} · {RECIPES[l.recipe].name}：
-                <span class={`tone-text-${reasonTone(st!.reason)}`}>{reasonText(st!.reason, st)}</span>
+                <button
+                  class="flow-line"
+                  title="到這條生產線"
+                  onClick={() => {
+                    closeOfflineReport();
+                    focusLine(l.id);
+                  }}
+                >
+                  <MachineIcon id={l.machine} size={20} />
+                  <span class="flow-line-name">
+                    {MACHINES[l.machine].name} ×{l.count}
+                    <span class="muted small"> · {RECIPES[l.recipe].name}</span>
+                  </span>
+                  <span class={`small tone-text-${reasonTone(st!.reason)}`}>{reasonText(st!.reason, st)}</span>
+                </button>
               </li>
             ))}
+            {!all && stalled.length > REPORT_TOP && (
+              <li>
+                <button class="small-btn" onClick={() => setAll(true)}>顯示全部 {stalled.length} 條</button>
+              </li>
+            )}
           </ul>
         </>
       )}

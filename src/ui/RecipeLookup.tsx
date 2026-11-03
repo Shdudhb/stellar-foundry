@@ -134,7 +134,9 @@ function FlowList({ title, rows, sign }: { title: string; rows: FlowRow[]; sign:
 
 /** Who makes it and who uses it right now: the answer to "why is this short?" */
 function ItemFlow({ item }: { item: string }) {
-  const rows = flowRows(item);
+  // Biggest first: with dozens of lines on the grid, the top few are the ones worth acting on
+  const size = (r: FlowRow) => Math.abs(r.full ?? r.now);
+  const rows = flowRows(item).sort((a, b) => size(b) - size(a));
   if (rows.length === 0) return null;
   // A line counts as a maker or a user by what it does at full speed, so a stalled one still shows up in the right list
   const sign = (r: FlowRow) => (r.full ?? r.now) || r.now;
