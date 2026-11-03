@@ -17,14 +17,22 @@ describe('objective rewards', () => {
       s.items.stone = 10;
     });
     expect(unclaimedObjectives(getState())).toEqual([0]);
-    const reward = objectiveReward(getState(), 1);
-    // T1 research spends red data: 2.5% of it, rounded to 5
-    expect(Object.keys(reward)).toEqual(['data']);
+    const reward = objectiveReward(getState(), [0]);
+    // A tutorial step: only a token of red data, the tier's research currency
+    expect(reward).toEqual({ data: 5 });
     claimObjectives();
     expect(getState().items.data).toBe(reward.data);
     expect(getState().claimed).toEqual([OBJECTIVES[0].text]);
     claimObjectives();
     expect(getState().items.data).toBe(reward.data);
+  });
+
+  it('keeps the tutorial steps short of the first research, so it needs a research station', () => {
+    const tutorial = OBJECTIVES.flatMap((o, i) => (o.minor ? [i] : []));
+    expect(tutorial).toEqual([0, 1, 2, 3, 4]);
+    expect(objectiveReward(getState(), tutorial).data).toBeLessThan(techCost(getState(), 'steam_power').data);
+    // Later steps pay 2.5% of the tier's research, rounded to 5
+    expect(objectiveReward(getState(), [5]).data).toBe(20);
   });
 
   it('counts objectives finished before rewards existed as already collected', () => {

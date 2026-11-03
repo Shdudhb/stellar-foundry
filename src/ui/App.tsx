@@ -10,7 +10,7 @@ import {
   acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, getLast, getState, getUi,
   importSave, openSignal, openTrade, resetGame, signalData, toggleMaintenance,
 } from '../state/store';
-import { ItemLink, Modal, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
+import { ItemLink, Modal, isStuck, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
 import { Embers } from './Embers';
 import { LegacyPanel } from './LegacyPanel';
 import { MilestonePanel } from './MilestonePanel';
@@ -306,10 +306,7 @@ function navBadges(s: GameState): Partial<Record<TabId, Badge>> {
     out.milestones = { text: '!', tone: 'go', title: '巨構可以建造了' };
   }
   const last = getLast();
-  const stuck = s.lines.filter((l) => {
-    const st = last.lines[l.id];
-    return st && l.count > 0 && st.efficiency < 0.999 && !['ok', 'idle', 'paused', 'load', 'igniting'].includes(st.reason.kind);
-  }).length;
+  const stuck = s.lines.filter((l) => isStuck(l, last.lines[l.id])).length;
   if (stuck > 0) out.production = { text: String(stuck), tone: 'warn', title: `${stuck} 條生產線卡住或變慢` };
   return out;
 }

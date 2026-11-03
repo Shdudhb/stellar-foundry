@@ -4,17 +4,19 @@ export interface Objective {
   /** Shown in the objective bar; also the key that marks it claimed in the save */
   text: string;
   done: (s: GameState) => boolean;
+  /** Tutorial steps before the research station pay only a token reward, so the first research still needs one */
+  minor?: boolean;
 }
 
 const has = (s: GameState, machine: string, recipe?: string) =>
   s.lines.some((l) => l.machine === machine && l.count > 0 && (!recipe || l.recipe === recipe));
 
 export const OBJECTIVES: Objective[] = [
-  { text: '手動採集 10 個石頭', done: (s) => (s.items.stone ?? 0) >= 10 || s.lines.length > 0 },
-  { text: '新增「石爐」生產線並建造一座', done: (s) => has(s, 'stone_furnace') },
-  { text: '採集鐵礦與煤，讓石爐冶煉出 5 個鐵錠', done: (s) => (s.items.iron_ingot ?? 0) >= 5 || has(s, 'basic_drill') },
-  { text: '建造簡易鑽機，讓採礦自動化', done: (s) => has(s, 'basic_drill') },
-  { text: '建造組裝台，生產齒輪與銅線', done: (s) => has(s, 'workbench') },
+  { text: '手動採集 10 個石頭', done: (s) => (s.items.stone ?? 0) >= 10 || s.lines.length > 0, minor: true },
+  { text: '新增「石爐」生產線並建造一座', done: (s) => has(s, 'stone_furnace'), minor: true },
+  { text: '採集鐵礦與煤，讓石爐冶煉出 5 個鐵錠', done: (s) => (s.items.iron_ingot ?? 0) >= 5 || has(s, 'basic_drill'), minor: true },
+  { text: '建造簡易鑽機，讓採礦自動化', done: (s) => has(s, 'basic_drill'), minor: true },
+  { text: '建造組裝台，生產齒輪與銅線', done: (s) => has(s, 'workbench'), minor: true },
   { text: '組裝紅色科研包，並建造研究站分析它', done: (s) => has(s, 'research_station') },
   { text: '在「研究」分頁研究「蒸汽動力」', done: (s) => s.techs.includes('steam_power') },
   { text: '建造蒸汽鍋爐，再用蒸汽鑽機加速採礦', done: (s) => has(s, 'steam_drill') },

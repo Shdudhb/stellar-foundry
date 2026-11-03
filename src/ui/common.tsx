@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEMS, itemName } from '../data/items';
-import type { LineStatus, Reason } from '../sim/types';
+import type { Line, LineStatus, Reason } from '../sim/types';
 import { getState, openLookup, subscribe } from '../state/store';
 import { ItemIcon } from './pixel';
 
@@ -107,6 +107,11 @@ export function reasonText(reason: Reason, status?: LineStatus): string {
     case 'wear': return '機器磨損，速度下降';
     case 'igniting': return '點火中';
   }
+}
+
+/** A line with machines that runs slow for a reason the player can fix (not idle, paused or waiting on demand) */
+export function isStuck(line: Line, status: LineStatus | undefined): boolean {
+  return !!status && line.count > 0 && status.efficiency < 0.999 && !['ok', 'idle', 'paused', 'load', 'igniting'].includes(status.reason.kind);
 }
 
 export function reasonTone(reason: Reason): 'ok' | 'warn' | 'bad' | 'muted' {

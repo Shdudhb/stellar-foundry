@@ -8,7 +8,7 @@ import type { Line, LineStatus } from '../sim/types';
 import {
   addLine, build, demolish, gather, getLast, getState, removeLine, setRecipe, toggleLine, upgradeLine,
 } from '../state/store';
-import { Bar, Cost, ItemLink, PageHeader, Side, fmt, fmtNum, fmtRate, reasonText, reasonTone } from './common';
+import { Bar, Cost, ItemLink, PageHeader, Side, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone } from './common';
 import { ItemIcon, MachineIcon } from './pixel';
 
 function GatherTile({ id }: { id: string }) {
@@ -283,9 +283,64 @@ function LineCard({ line, status }: { line: Line; status?: LineStatus }) {
   );
 }
 
+const FILTER_KEY = 'sf-line-filter';
+
+/** 'all', 'stuck', 'paused', or a machine tier like 't3' */
+function readFilter(): string {
+  try {
+    return localStorage.getItem(FILTER_KEY) ?? 'all';
+  } catch {
+    return 'all';
+  }
+}
+
+function LineFilter({ filter, setFilter, counts }: { filter: string; setFilter: (f: string) => void; counts: [string, string, number][] }) {
+  return (
+    <div class="line-filter" role="tablist" aria-label="篩選生產線">
+      {counts.map(([id, label, n]) => (
+        <button
+          key={id}
+          role="tab"
+          aria-selected={filter === id}
+          class={`filter-chip ${filter === id ? 'active' : ''} ${id === 'stuck' && n > 0 ? 'warn' : ''}`}
+          onClick={() => setFilter(id)}
+        >
+          {label} <span class="filter-count">{n}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ProductionPanel() {
   const s = getState();
   const last = getLast();
+  const [picked, setPicked] = useState(readFilter);
+  const setFilter = (f: string) => {
+    setPicked(f);
+    try {
+      localStorage.setItem(FILTER_KEY, f);
+    } catch {
+      // ignore
+    }
+  };
+  const tierOf = (l: Line) => `t${MACHINES[l.machine]?.tier ?? 0}`;
+  const tests: Record<string, (l: Line) => boolean> = {
+    all: () => true,
+    stuck: (l) => isStuck(l, last.lines[l.id]),
+    paused: (l) => !l.enabled,
+  };
+  const tiers = [...new Set(s.lines.map(tierOf))].sort((a, b) => +a.slice(1) - +b.slice(1));
+  for (const t of tiers) tests[t] = (l) => tierOf(l) === t;
+  const counts: [string, string, number][] = [
+    ['all', '全部', s.lines.length],
+    ['stuck', '有問題', s.lines.filter(tests.stuck).length],
+    ['paused', '已暫停', s.lines.filter(tests.paused).length],
+    ...tiers.map((t): [string, string, number] => [t, t.toUpperCase(), s.lines.filter(tests[t]).length]),
+  ];
+  // A tier filter from a run that no longer has that tier falls back to everything
+  const filter = tests[picked] ? picked : 'all';
+  const shown = s.lines.filter(tests[filter]);
   return (
     <div class="panel">
       <PageHeader kicker="FACTORY / PRODUCTION" title="生產線">
@@ -303,11 +358,16 @@ export function ProductionPanel() {
           <h2>生產線</h2>
           <span class="muted">{s.lines.length} 條 · {s.lines.reduce((n, l) => n + l.count, 0)} 台機器</span>
         </div>
-        <div class="lines">
-          {s.lines.map((l) => (
-            <LineCard key={l.id} line={l} status={last.lines[l.id]} />
-          ))}
-        </div>
+        {s.lines.length > 1 && <LineFilter filter={filter} setFilter={setFilter} counts={counts} />}
+        {shown.length === 0 ? (
+          <p class="empty">{filter === 'stuck' ? '沒有卡住的生產線，一切順暢。' : '這裡沒有生產線。'}</p>
+        ) : (
+          <div class="lines">
+            {shown.map((l) => (
+              <LineCard key={l.id} line={l} status={last.lines[l.id]} />
+            ))}
+          </div>
+        )}
         </>
       )}
     </div>

@@ -260,6 +260,20 @@ p { margin: 0 0 8px; }
   padding: 14px 16px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035), 0 10px 30px rgb(0 0 0 / 0.25);
 }
+.line-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; font-size: 13px; border-radius: 999px;
+  background: rgb(11 16 22 / 0.85); border: 1px solid var(--line-soft); color: var(--muted);
+}
+.filter-chip:hover:not(:disabled) { color: var(--text); }
+.filter-chip.active { background: var(--panel-3); border-color: var(--accent); color: var(--text); }
+.filter-chip.warn .filter-count { background: var(--warn); color: #1a1406; }
+.filter-count {
+  min-width: 18px; padding: 0 5px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums;
+  background: var(--line); color: var(--text);
+}
 .empty { color: var(--muted); padding: 28px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); background: rgb(11 16 22 / 0.5); }
 
 .item-link {
@@ -518,6 +532,7 @@ body:has(.modal-backdrop) { overflow: hidden; }
 }
 .toast:hover:not(:disabled) { background: rgb(20 27 36 / 0.98); color: var(--text); }
 @keyframes toast-in { from { transform: translateX(24px); opacity: 0; } }
+@keyframes toast-drop { from { transform: translateY(-16px); opacity: 0; } }
 .toast-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .toast-title { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
 .toast-good { border-left-color: var(--ok); }
@@ -682,16 +697,20 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -14px; padding: 0 14px; }
   .chips::-webkit-scrollbar { display: none; }
   .chip { flex-shrink: 0; }
+  .line-filter { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -14px 12px; padding: 0 14px; }
+  .line-filter::-webkit-scrollbar { display: none; }
+  .filter-chip { flex-shrink: 0; }
   .main { padding: 4px 14px 24px; }
   .page-head h1 { font-size: 24px; }
   .lines { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
   .hide-sm { display: none; }
   .milestone { grid-template-columns: 1fr; }
   .ms-art { width: 64px; height: 64px; }
-  .toasts { left: 12px; right: 12px; bottom: 80px; align-items: stretch; }
-  /* Full-width toasts sit over buttons: let taps go through to what is underneath */
+  /* At the top, away from the line buttons and the tab bar the thumb is working on */
+  .toasts { left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top)); bottom: auto; align-items: stretch; }
+  /* Full-width toasts still sit over content: let taps go through to what is underneath */
   .toast { pointer-events: none; }
-  .toast { max-width: none; }
+  .toast { max-width: none; animation-name: toast-drop; }
   .incident-chip { padding: 2px 8px; font-size: 11px; }
 }
 

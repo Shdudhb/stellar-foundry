@@ -6,7 +6,7 @@ import { Reward } from './common';
 export function Objective({ state }: { state: GameState }) {
   const pending = unclaimedObjectives(state);
   if (pending.length > 0) {
-    const reward = objectiveReward(state, pending.length);
+    const reward = objectiveReward(state, pending);
     return (
       <div class="objective claim">
         <span class="objective-step">✓ 目標完成</span>
@@ -23,7 +23,7 @@ export function Objective({ state }: { state: GameState }) {
     <div class="objective">
       <span class="objective-step">目標 {idx + 1}/{OBJECTIVES.length}</span>
       <span class="objective-text">{OBJECTIVES[idx].text}</span>
-      <span class="muted small objective-reward">獎勵：<Reward items={objectiveReward(state, 1)} /></span>
+      <span class="muted small objective-reward">獎勵：<Reward items={objectiveReward(state, [idx])} /></span>
     </div>
   );
 }

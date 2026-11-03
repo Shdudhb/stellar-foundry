@@ -118,7 +118,8 @@ function toast(text: string, { tone = 'info', icon, title, log, sound }: ToastOp
   if (log) addLog(title ? `${title}：${text}` : text, tone, icon);
   if (sound) emit(sound);
   else if (tone === 'bad') emit('error');
-  setTimeout(() => dismissToast(id), tone === 'achievement' ? 5000 : tone === 'bad' ? 2200 : 3200);
+  // Longer warnings (with a hint) stay up long enough to read
+  setTimeout(() => dismissToast(id), tone === 'achievement' ? 5000 : tone === 'bad' ? Math.max(2200, text.length * 110) : 3200);
   notify();
 }
 
@@ -252,8 +253,18 @@ function shortText(cost: Record<string, number>): string {
   return short.length ? `缺 ${short.slice(0, 3).join('、')}${short.length > 3 ? ' 等' : ''}` : '';
 }
 
-const lacking = (cost: Record<string, number>, what = '材料不足') =>
-  toast(shortText(cost), { tone: 'bad', title: what, icon: Object.keys(cost).find((i) => (state.items[i] ?? 0) < cost[i]) });
+/** A running line that eats this item, so the player knows what to pause to save some up */
+function consumerOf(item: string): string | null {
+  const line = state.lines.find((l) => l.enabled && l.count > 0 && item in (RECIPES[l.recipe]?.inputs ?? {}));
+  return line ? `${MACHINES[line.machine].name}·${RECIPES[line.recipe].name}` : null;
+}
+
+function lacking(cost: Record<string, number>, what = '材料不足') {
+  const short = Object.keys(cost).find((i) => (state.items[i] ?? 0) < cost[i]);
+  const user = short && consumerOf(short);
+  const hint = user ? `。「${user}」正在用掉${ITEMS[short].name}，可以先暫停它` : '';
+  toast(shortText(cost) + hint, { tone: 'bad', title: what, icon: short });
+}
 
 function pay(cost: Record<string, number>) {
   for (const [item, n] of Object.entries(cost)) state.items[item] = (state.items[item] ?? 0) - n;
@@ -443,16 +454,19 @@ const share = (s: GameState, fraction: number) => {
   return { item, n: Math.max(5, Math.round((total * fraction) / 5) * 5) };
 };
 
-/** Reward for `count` objectives: 2.5% of the tier's research each */
-export function objectiveReward(s: GameState, count: number): Record<string, number> {
+/** Token reward for the first tutorial steps: together they stay short of the first research */
+export const MINOR_REWARD = 5;
+
+/** Reward for these objectives: 2.5% of the tier's research each, a token for the tutorial steps */
+export function objectiveReward(s: GameState, steps: number[]): Record<string, number> {
   const { item, n } = share(s, 0.025);
-  return { [item]: n * count };
+  return { [item]: steps.reduce((sum, i) => sum + (OBJECTIVES[i]?.minor ? MINOR_REWARD : n), 0) };
 }
 
 export function claimObjectives() {
   const pending = unclaimedObjectives(state);
   if (pending.length === 0) return;
-  const reward = objectiveReward(state, pending.length);
+  const reward = objectiveReward(state, pending);
   for (const [item, n] of Object.entries(reward)) state.items[item] = Math.min(capOf(state, item), (state.items[item] ?? 0) + n);
   state.claimed.push(...pending.map((i) => OBJECTIVES[i].text));
   toast(Object.entries(reward).map(([i, n]) => `${ITEMS[i].name} +${n}`).join('、'), {
