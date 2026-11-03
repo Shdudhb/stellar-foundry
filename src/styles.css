@@ -28,7 +28,7 @@ html, body {
   color: var(--text);
   /* Latin and digits in Oxanium: squared, sci-fi, and tabular by default so ticking numbers hold still.
      Chinese in Noto Sans TC, cut down to the game's own characters, so every device shows the same type */
-  font: 14px/1.5 'Oxanium Variable', 'Noto Sans TC Game', 'PingFang TC', 'Noto Sans CJK TC', 'Microsoft JhengHei', sans-serif;
+  font: 14px/1.5 'Oxanium Game', 'Noto Sans TC Game', 'PingFang TC', 'Noto Sans CJK TC', 'Microsoft JhengHei', sans-serif;
   background:
     radial-gradient(1100px 560px at 85% -12%, rgb(240 160 75 / 0.10), transparent 62%),
     radial-gradient(900px 620px at -12% 112%, rgb(79 209 197 / 0.08), transparent 60%),
@@ -427,7 +427,9 @@ p { margin: 0 0 8px; }
 .line-fix { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: -4px; }
 
 .line-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.line-cost { margin: -4px 0 0; display: flex; align-items: baseline; gap: 4px; }
+/* Top-aligned, with the label on the same line height as the items, so "每台：" lines up with the first row */
+.line-cost { margin: -4px 0 0; display: flex; align-items: flex-start; gap: 4px; line-height: 20px; }
+.line-cost .cost > span { min-height: 20px; }
 .line-cost > .cost { flex: 1; min-width: 0; }
 .upgrade-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-top: 10px; border-top: 1px dashed var(--line); }
 .upgrade-row button { border-color: rgb(240 160 75 / 0.7); color: var(--accent); }
@@ -510,7 +512,6 @@ details.tier:not([open]) + details.tier:not([open]) { margin-top: -6px; }
 .milestone.compact { display: flex; align-items: center; gap: 12px; padding-top: 8px; padding-bottom: 8px; }
 .milestone.compact .kicker { margin: 0; }
 .milestone.compact .ms-art { width: 36px; height: 36px; }
-.milestone.compact .ms-art .px { width: 28px; height: 28px; }
 .milestone.compact strong { flex: 1; }
 .ms-progress { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; max-width: 420px; }
 .roadmap { margin: 0; padding-left: 20px; }

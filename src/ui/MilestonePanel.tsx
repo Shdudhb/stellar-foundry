@@ -5,16 +5,16 @@ import { Bar, Cost, PageHeader } from './common';
 import { ItemIcon, MachineIcon, UiIcon } from './pixel';
 
 /** The picture for each megastructure */
-function MilestoneArt({ id }: { id: string }) {
+function MilestoneArt({ id, size = 64 }: { id: string; size?: number }) {
   switch (id) {
-    case 'blast_furnace': return <MachineIcon id="blast_furnace" size={64} />;
-    case 'power_hub': return <ItemIcon id="eu" size={64} />;
-    case 'chem_plant': return <MachineIcon id="large_chem_plant" size={64} />;
-    case 'orbital_pad': return <MachineIcon id="launch_pad" size={64} />;
-    case 'colony_ship': return <ItemIcon id="rocket_part" size={64} />;
-    case 'dyson_segment': return <ItemIcon id="dyson_swarm" size={64} />;
-    case 'stargate': return <UiIcon id="legacy" size={64} />;
-    default: return <UiIcon id="milestones" size={64} />;
+    case 'blast_furnace': return <MachineIcon id="blast_furnace" size={size} />;
+    case 'power_hub': return <ItemIcon id="eu" size={size} />;
+    case 'chem_plant': return <MachineIcon id="large_chem_plant" size={size} />;
+    case 'orbital_pad': return <MachineIcon id="launch_pad" size={size} />;
+    case 'colony_ship': return <ItemIcon id="rocket_part" size={size} />;
+    case 'dyson_segment': return <ItemIcon id="dyson_swarm" size={size} />;
+    case 'stargate': return <UiIcon id="legacy" size={size} />;
+    default: return <UiIcon id="milestones" size={size} />;
   }
 }
 
@@ -40,7 +40,7 @@ export function MilestonePanel() {
         if (built) {
           return (
             <section key={ms.id} class="card milestone done compact">
-              <span class="ms-art"><MilestoneArt id={ms.id} /></span>
+              <span class="ms-art"><MilestoneArt id={ms.id} size={32} /></span>
               <span class="kicker">TIER {ms.tier}</span>
               <strong>{ms.name}</strong>
               <span class="tone-text-ok small">✓ 已建成</span>

@@ -1,9 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { ITEM_ORDER } from '../data/items';
 import { MACHINE_LIST } from '../data/machines';
-import { PIXEL_FIXED, PIXEL_GLYPHS, PIXEL_ITEM_ART, PIXEL_TEMPLATES } from './pixel';
+import { PIXEL_FIXED, PIXEL_GLYPHS, PIXEL_ITEM_ART, PIXEL_TEMPLATES, crispSize } from './pixel';
 
 const SHADES = 'odmlh';
+
+describe('crisp icon sizes', () => {
+  it('draws every cell as a whole number of screen pixels', () => {
+    for (const dpr of [1, 1.5, 2, 2.625, 2.75, 3]) {
+      for (const size of [16, 20, 24, 28, 32, 40, 44, 48, 64]) {
+        const cell = (crispSize(size, dpr) * dpr) / 16;
+        expect(Math.abs(cell - Math.round(cell)), `${size}px at ${dpr}x`).toBeLessThan(1e-9);
+        // and stays near what was asked for
+        expect(Math.abs(crispSize(size, dpr) - size)).toBeLessThanOrEqual(8 / dpr + 1e-9);
+      }
+    }
+  });
+
+  it('leaves sizes that are already whole cells alone', () => {
+    expect(crispSize(32, 1)).toBe(32);
+    expect(crispSize(24, 2)).toBe(24);
+    expect(crispSize(16, 3)).toBe(16);
+  });
+});
 
 describe('pixel art', () => {
   it('draws every template on a 16x16 grid with known letters', () => {

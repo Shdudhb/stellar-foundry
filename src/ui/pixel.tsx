@@ -1035,12 +1035,23 @@ function machinePaths(id: string): Map<string, string> {
   return p;
 }
 
+/**
+ * The size a 16-cell icon is actually drawn at: the nearest at which every cell is a whole number of screen
+ * pixels. At 24px on a 1x screen a cell is 1.5px, so cells came out 1px and 2px by turns and the art looked
+ * lopsided; phones at 2.75x did the same at other sizes. Rounding to whole cells keeps every edge even.
+ */
+export function crispSize(size: number, dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1): number {
+  const cells = Math.max(1, Math.round((size * dpr) / 16));
+  return (cells * 16) / dpr;
+}
+
 function Svg({ p, size, title, class: cls }: { p: Map<string, string>; size: number; title?: string; class?: string }) {
+  const drawn = crispSize(size);
   return (
     <svg
       class={`px ${cls ?? ''}`}
-      width={size}
-      height={size}
+      width={drawn}
+      height={drawn}
       viewBox="0 0 16 16"
       shape-rendering="crispEdges"
       role={title ? 'img' : undefined}
