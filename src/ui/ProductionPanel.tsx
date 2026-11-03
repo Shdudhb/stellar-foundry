@@ -1,3 +1,4 @@
+import { Component } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEM_ORDER, ITEMS, isPower, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
@@ -256,7 +257,7 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
   const upgrade = upgradeTarget(s, line);
 
   return (
-    <article id={`line-${line.id}`} class={`card line tone-border-${tone} ${line.enabled ? '' : 'paused'} ${fresh ? 'fresh' : ''}`}>
+    <article id={`line-${line.id}`} data-line={line.id} class={`card line tone-border-${tone} ${line.enabled ? '' : 'paused'} ${eff > 0.01 ? 'running' : ''} ${fresh ? 'fresh' : ''}`}>
       <header class="line-head">
         <span class={`line-icon ${eff > 0.01 ? 'running' : ''}`}>
           <MachineIcon id={m.id} size={44} title />
@@ -386,6 +387,73 @@ function LineFilter({ filter, setFilter, counts }: { filter: string; setFilter: 
   );
 }
 
+/**
+ * The panel redraws four times a second. A card scrolled out of view keeps its last picture instead,
+ * which in a big factory is most of them; it catches up the moment it scrolls back in.
+ */
+interface LiveProps { line: Line; status?: LineStatus; fresh?: boolean; onScreen: boolean }
+
+class LiveLineCard extends Component<LiveProps> {
+  shouldComponentUpdate(next: LiveProps) {
+    const p = this.props;
+    return p.onScreen || next.onScreen || p.fresh !== next.fresh || p.line !== next.line;
+  }
+
+  render(p: LiveProps) {
+    return <LineCard line={p.line} status={p.status} fresh={p.fresh} />;
+  }
+}
+
+/**
+ * Center a line card on screen. Cards out of view are drawn as fixed-height placeholders (content-visibility),
+ * so the ones near the target change height as they render: jump there, then correct until it settles.
+ */
+function scrollToLine(id: number) {
+  const el = document.getElementById(`line-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center' });
+  let tries = 0;
+  const settle = () => {
+    const r = el.getBoundingClientRect();
+    const off = r.top + r.height / 2 - window.innerHeight / 2;
+    if (Math.abs(off) > 4 && tries++ < 12) {
+      window.scrollBy(0, off);
+      requestAnimationFrame(settle);
+    }
+  };
+  requestAnimationFrame(settle);
+}
+
+/** Ids of the line cards near the viewport */
+function useOnScreen(ids: number[]): Set<number> {
+  const [seen, setSeen] = useState<Set<number>>(new Set());
+  const key = ids.join(',');
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') {
+      setSeen(new Set(ids));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => setSeen((prev) => {
+        const next = new Set(prev);
+        for (const e of entries) {
+          const id = Number((e.target as HTMLElement).dataset.line);
+          if (e.isIntersecting) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      }),
+      { rootMargin: '300px 0px' },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(`line-${id}`);
+      if (el) io.observe(el);
+    }
+    return () => io.disconnect();
+  }, [key]);
+  return seen;
+}
+
 export function ProductionPanel() {
   const s = getState();
   const last = getLast();
@@ -419,13 +487,14 @@ export function ProductionPanel() {
   if (focused && !tests[filter](focused)) filter = 'all';
   const shown = s.lines.filter(tests[filter]);
 
+  const onScreen = useOnScreen(shown.map((l) => l.id));
+
   // Bring it into view with a brief glow so the eye finds it after the scroll
   const [glow, setGlow] = useState<number | null>(null);
   useEffect(() => {
     if (focus === null) return;
     if (filter !== picked) setFilter(filter);
-    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    document.getElementById(`line-${focus}`)?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
+    scrollToLine(focus);
     setGlow(focus);
     focusLine(null);
   }, [focus]);
@@ -458,7 +527,7 @@ export function ProductionPanel() {
         ) : (
           <div class="lines">
             {shown.map((l) => (
-              <LineCard key={l.id} line={l} status={last.lines[l.id]} fresh={l.id === glow} />
+              <LiveLineCard key={l.id} line={l} status={last.lines[l.id]} fresh={l.id === glow} onScreen={onScreen.has(l.id)} />
             ))}
           </div>
         )}

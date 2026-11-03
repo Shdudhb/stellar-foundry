@@ -290,7 +290,7 @@ p { margin: 0 0 8px; }
 .cost .lack { color: var(--bad); }
 
 .bar { height: 6px; background: #0a0e13; border-radius: 3px; overflow: hidden; flex: 1; min-width: 60px; box-shadow: inset 0 0 0 1px var(--line-soft); }
-.bar-fill { height: 100%; transition: width 0.25s linear; }
+.bar-fill { height: 100%; transform-origin: left; transition: transform 0.25s linear; }
 .tone-ok { background: linear-gradient(90deg, #3fae74, var(--ok)); }
 .tone-warn { background: linear-gradient(90deg, #c99a33, var(--warn)); }
 .tone-bad { background: linear-gradient(90deg, #c94f40, var(--bad)); }
@@ -343,7 +343,11 @@ p { margin: 0 0 8px; }
 .new-preview p { margin: 0; }
 
 .lines { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
-.line { position: relative; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.line {
+  position: relative; display: flex; flex-direction: column; gap: 10px; overflow: hidden;
+  /* A late factory has a hundred cards: skip drawing the ones scrolled out of view */
+  content-visibility: auto; contain-intrinsic-size: auto 330px;
+}
 /* Just created: a brief glow so the eye finds it after the scroll */
 .line.fresh { animation: line-fresh 1.8s ease-out; }
 @keyframes line-fresh { from { box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgb(240 160 75 / 0.45); } }
@@ -355,8 +359,16 @@ p { margin: 0 0 8px; }
 .line.paused { opacity: 0.75; }
 .line-head { display: flex; gap: 12px; align-items: center; }
 .line-icon { position: relative; flex: none; }
-.line-icon.running .px-machine { animation: machine-hum 1.2s ease-in-out infinite; }
-@keyframes machine-hum { 50% { filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.5)) drop-shadow(0 0 6px rgb(240 160 75 / 0.35)); } }
+/* A running machine glows. Only the glow's opacity animates: animating a filter on every icon
+   repaints them all each frame, which a phone can't keep up with in a big factory */
+.line-icon .px-machine { position: relative; }
+.line-icon::before {
+  content: ''; position: absolute; inset: -8px; border-radius: 50%;
+  background: radial-gradient(circle, rgb(240 160 75 / 0.38), transparent 68%);
+  opacity: 0; pointer-events: none;
+}
+.line-icon.running::before { animation: machine-hum 1.2s ease-in-out infinite; }
+@keyframes machine-hum { 50% { opacity: 1; } }
 .line-count-badge {
   position: absolute; right: -6px; bottom: -6px;
   min-width: 20px; padding: 0 5px; border-radius: 999px;
@@ -670,14 +682,16 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .range-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
 .range-row input { flex: 1; max-width: 240px; accent-color: var(--accent); }
 
-/* A running line's bar shimmers, so a working factory looks alive */
-.line:has(.line-icon.running) .bar-fill.tone-ok {
-  background-image: linear-gradient(90deg, #3fae74, var(--ok)), linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.35) 50%, transparent 70%);
-  background-blend-mode: overlay;
-  background-size: 100% 100%, 200% 100%;
+/* A running line's bar shimmers, so a working factory looks alive. The streak is its own layer
+   that slides by transform, so the browser moves it without repainting the bar */
+.line.running .bar-fill.tone-ok { position: relative; overflow: hidden; }
+.line.running .bar-fill.tone-ok::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.28) 50%, transparent 70%);
+  transform: translateX(-100%);
   animation: shimmer 2.2s linear infinite;
 }
-@keyframes shimmer { from { background-position: 0 0, 150% 0; } to { background-position: 0 0, -50% 0; } }
+@keyframes shimmer { to { transform: translateX(100%); } }
 
 .art-sheet { position: relative; z-index: 1; padding: 16px; }
 .art-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-bottom: 24px; }
@@ -754,8 +768,8 @@ body:has(.modal-backdrop) { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .signal-btn, .line-icon.running .px-machine, .gather-pop, .modal, .modal-backdrop, .toast,
-  .line:has(.line-icon.running) .bar-fill.tone-ok { animation: none; }
+  .signal-btn, .line-icon.running::before, .gather-pop, .modal, .modal-backdrop, .toast,
+  .line.running .bar-fill.tone-ok::after { animation: none; }
 }
 
 .tier > summary { cursor: pointer; list-style: none; }

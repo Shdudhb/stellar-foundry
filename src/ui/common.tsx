@@ -127,7 +127,8 @@ export function reasonTone(reason: Reason): 'ok' | 'warn' | 'bad' | 'muted' {
 export function Bar({ value, tone = 'ok' }: { value: number; tone?: string }) {
   return (
     <div class="bar">
-      <div class={`bar-fill tone-${tone}`} style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />
+      {/* Scaled rather than sized: a transform animates without re-laying out the page, which matters with 100 lines */}
+      <div class={`bar-fill tone-${tone}`} style={{ transform: `scaleX(${Math.max(0, Math.min(1, value))})` }} />
     </div>
   );
 }
