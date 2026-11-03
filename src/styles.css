@@ -250,8 +250,12 @@ p { margin: 0 0 8px; }
   background: linear-gradient(90deg, rgb(240 160 75 / 0.13), rgb(240 160 75 / 0.03)), var(--panel);
 }
 .objective-step { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); white-space: nowrap; padding: 1px 8px; border-radius: 999px; border: 1px solid rgb(240 160 75 / 0.5); }
+.objective-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
 .objective-text { font-weight: 600; }
 .objective-reward { margin-left: auto; }
+/* The objective's shortcut: straight to the research, megastructure, line or recipe it needs */
+.objective-go { flex: none; padding: 5px 12px; color: var(--accent); border-color: rgb(240 160 75 / 0.6); background: rgb(240 160 75 / 0.1); font-weight: 700; white-space: nowrap; }
+.objective-go:hover:not(:disabled) { border-color: var(--accent); background: rgb(240 160 75 / 0.18); }
 .objective.claim { border-color: var(--ok); background: linear-gradient(90deg, rgb(87 201 138 / 0.16), rgb(87 201 138 / 0.03)), var(--panel); }
 .objective.claim .objective-step { color: var(--ok); border-color: rgb(87 201 138 / 0.6); }
 .objective.claim button { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
@@ -448,6 +452,7 @@ p { margin: 0 0 8px; }
 }
 /* Just created: a brief glow so the eye finds it after the scroll */
 .line.fresh { animation: line-fresh 1.8s ease-out; }
+.tech.fresh, .milestone.fresh { animation: line-fresh 1.8s ease-out; }
 @keyframes line-fresh { from { box-shadow: 0 0 0 2px var(--accent), 0 0 24px rgb(240 160 75 / 0.45); } }
 .line::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--line); }
 .tone-border-ok::before { background: var(--ok); }
@@ -683,6 +688,12 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .flow-lists { display: flex; flex-direction: column; gap: 10px; }
 .flow-list h5 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .flow-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.gather-li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.flow-item { display: flex; gap: 4px; align-items: stretch; }
+.flow-add { flex: none; width: 38px; padding: 0; font-size: 17px; font-weight: 800; color: var(--accent); border-color: rgb(240 160 75 / 0.55); background: rgb(240 160 75 / 0.08); }
+.build-chip.existing { cursor: default; padding: 3px 4px 3px 10px; border: 1px solid var(--line-soft); border-radius: 7px; background: var(--panel-3); font-size: 12px; }
+.build-chip.existing .small-btn { padding: 1px 9px; }
+.small-btn.add { color: var(--accent); border-color: rgb(240 160 75 / 0.55); font-weight: 800; }
 .flow-line {
   width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
   padding: 6px 9px; background: var(--panel-2); border-color: var(--line-soft); font-size: 13px;
@@ -904,8 +915,10 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .objective.claim .objective-step { display: none; }
   .objective.claim button { flex: none; padding: 6px 12px; }
   .objective-claim-reward { display: none; }
-  .objective:not(.claim) { flex-wrap: wrap; }
-  .objective-reward { margin-left: 0; flex-basis: 100%; }
+  .objective-step { align-self: flex-start; margin-top: 2px; }
+  .objective-reward { margin-left: 0; }
+  .objective-main { flex-direction: column; gap: 0; }
+  .objective-go { padding: 6px 10px; font-size: 13px; max-width: 42%; white-space: normal; line-height: 1.3; }
   .lines { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
   .hide-sm { display: none; }
   .milestone { grid-template-columns: 1fr; }
@@ -915,6 +928,8 @@ body:has(.modal-backdrop) { overflow: hidden; }
   /* Full-width toasts still sit over content: let taps go through to what is underneath */
   .toast { pointer-events: none; }
   .toast { max-width: none; animation-name: toast-drop; }
+  /* Two at a time on a phone, or a burst of them covers the objective and the top of the page */
+  .toast:nth-last-child(n + 3) { display: none; }
   .incident-chip { padding: 2px 8px; font-size: 11px; }
   /* Windows come up from the bottom as sheets, where the thumb already is */
   .modal-backdrop { align-items: flex-end; padding: 0; padding-top: calc(12px + env(safe-area-inset-top)); }

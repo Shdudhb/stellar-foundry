@@ -199,7 +199,8 @@ const groupOf = (r: RecipeDef) => GROUPS.find((g) => g.categories.includes(r.cat
 /** The new-line window: recipes by what they're for, or found by name; one tap builds the first machine */
 export function NewLinePicker() {
   const [group, setGroupState] = useState(readGroup);
-  const [query, setQuery] = useState('');
+  // The objective bar opens it already searching for what the step needs
+  const [query, setQuery] = useState(() => getUi().pickerQuery);
   const search = useRef<HTMLInputElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const setGroup = (g: string) => {
@@ -229,8 +230,11 @@ export function NewLinePicker() {
     return i < 0 ? Infinity : i;
   };
   // Newest tier first: what was just unlocked is usually what the player came for
+  // Searching for a machine by name: its tiles start on that machine
+  const named = q ? MACHINE_LIST.find((m) => m.name === q) : undefined;
   const shown = q
     ? ready
+      .map((x) => ({ ...x, ms: named && x.ms.includes(named) ? [named, ...x.ms.filter((m) => m !== named)] : x.ms }))
       .map((x) => ({ ...x, score: rank(x.r, x.ms) }))
       .filter((x) => x.score < Infinity)
       .sort((a, b) => a.score - b.score || b.r.tier - a.r.tier)

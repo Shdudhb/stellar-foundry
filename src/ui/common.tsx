@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEMS, canVent, itemName } from '../data/items';
 import type { Line, LineStatus, Reason } from '../sim/types';
 import { hasAmount } from '../sim/rules';
-import { getState, openLookup, subscribe } from '../state/store';
+import { getState, getUi, goTo, openLookup, subscribe } from '../state/store';
 import { ItemIcon } from './pixel';
 
 /** Re-render on every store notification */
@@ -265,4 +265,29 @@ export function HoldButton({ act, class: cls, title, disabled, label, children }
 }) {
   const hold = useHold(act);
   return <button class={cls} title={title} aria-label={label} disabled={disabled} {...hold}>{children}</button>;
+}
+
+/**
+ * On a tab the objective bar sent the player to: once it has drawn, centre the card with id `${prefix}-${id}`
+ * and return its id for a brief glow
+ */
+export function useGoto(tab: 'research' | 'milestones', prefix: string): string | null {
+  const target = getUi().goto;
+  const [glow, setGlow] = useState<string | null>(null);
+  useEffect(() => {
+    if (!target || target.tab !== tab) return;
+    const id = target.id;
+    setGlow(id);
+    // After the tab switch has restored its own scroll position
+    requestAnimationFrame(() => {
+      document.getElementById(`${prefix}-${id}`)?.scrollIntoView({ block: 'center' });
+      goTo(null);
+    });
+  }, [target]);
+  useEffect(() => {
+    if (glow === null) return;
+    const t = setTimeout(() => setGlow(null), 1800);
+    return () => clearTimeout(t);
+  }, [glow]);
+  return glow;
 }

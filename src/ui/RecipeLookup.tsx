@@ -2,10 +2,10 @@ import { ITEMS, isPower, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { MILESTONES } from '../data/tech';
-import { isMachineUnlocked, isRecipeUnlocked, machinesFor, overclock } from '../sim/rules';
+import { capOf, categoryBoost, isMachineUnlocked, isRecipeUnlocked, machinesFor, overclock } from '../sim/rules';
 import type { Line } from '../sim/types';
-import { createLine, focusLine, getLast, getState, openLookup } from '../state/store';
-import { Modal, Side, fmtNum, fmtRate, reasonText, reasonTone } from './common';
+import { build, createLine, focusLine, gather, getLast, getState, openLookup } from '../state/store';
+import { HoldButton, Modal, Side, fmtRate, reasonText, reasonTone, useHold } from './common';
 import { ItemIcon, MachineIcon } from './pixel';
 import { StoreControls } from './StoragePanel';
 
@@ -18,15 +18,19 @@ function ready(r: RecipeDef): boolean {
 /** Usable recipes first, then the locked ones as a peek at what's ahead */
 const byReady = (list: RecipeDef[]) => [...list.filter(ready), ...list.filter((r) => !ready(r))];
 
-function RecipeRow({ r }: { r: RecipeDef }) {
+function RecipeRow({ r, item }: { r: RecipeDef; item: string }) {
   const s = getState();
   const locked = !isRecipeUnlocked(s, r.id);
   const machines = machinesFor(r.id);
   const usable = machines.filter((m) => !locked && isMachineUnlocked(s, m.id));
   const rest = machines.filter((m) => !usable.includes(m));
-  const perMin = (m: (typeof machines)[number]) => {
+  // Per second, in this item, like everywhere else in the game
+  const perSec = (m: (typeof machines)[number]) => {
     const oc = overclock(m, r);
-    return `每台 ${fmtNum((60 * oc.speed * (m.speed ?? 1)) / r.time)} 次/分${oc.speed > 1 ? `，超頻 ×${oc.speed}` : ''}`;
+    const crafts = (oc.speed * (m.speed ?? 1) * categoryBoost(s, r.category)) / r.time;
+    const n = (r.outputs[item] ?? 0) - (r.inputs[item] ?? 0);
+    const amount = fmtRate(n * crafts);
+    return `每台 ${amount}${oc.speed > 1 ? `，超頻 ×${oc.speed}` : ''}`;
   };
   return (
     <li class={locked ? 'locked' : ''}>
@@ -41,13 +45,23 @@ function RecipeRow({ r }: { r: RecipeDef }) {
       </div>
       {usable.length > 0 && (
         <div class="build-row">
-          <span class="muted small">建立生產線：</span>
-          {usable.map((m) => (
-            <button key={m.id} class="small-btn build-chip" title={`用${m.name}建立「${r.name}」生產線`} onClick={() => createLine(m.id, r.id)}>
-              <MachineIcon id={m.id} size={16} /> {m.name}
-              <span class="muted">{perMin(m)}</span>
-            </button>
-          ))}
+          {usable.map((m) => {
+            // A line like this already exists: the answer is more machines in it, not a second line
+            const line = s.lines.find((l) => l.recipe === r.id && l.machine === m.id);
+            return line ? (
+              <span key={m.id} class="build-chip existing">
+                <MachineIcon id={m.id} size={16} /> {m.name} ×{line.count}
+                <span class="muted">{perSec(m)}</span>
+                <HoldButton class="small-btn add" act={() => build(line.id) > 0} title="加蓋一台，按住連續加蓋" label={`加蓋一台${m.name}`}>＋</HoldButton>
+                <button class="small-btn" onClick={() => focusLine(line.id)} title="到這條生產線">前往</button>
+              </span>
+            ) : (
+              <button key={m.id} class="small-btn build-chip" title={`用${m.name}建立「${r.name}」生產線`} onClick={() => createLine(m.id, r.id)}>
+                <MachineIcon id={m.id} size={16} /> 建立 {m.name}
+                <span class="muted">{perSec(m)}</span>
+              </button>
+            );
+          })}
         </div>
       )}
       {rest.length > 0 && (
@@ -56,11 +70,32 @@ function RecipeRow({ r }: { r: RecipeDef }) {
           {rest.map((m, i) => (
             <span key={m.id} class={isMachineUnlocked(s, m.id) ? '' : 'locked'}>
               {i > 0 && '、'}
-              {m.name}（{perMin(m)}）
+              {m.name}（{perSec(m)}）
             </span>
           ))}
         </div>
       )}
+    </li>
+  );
+}
+
+/** Short of a raw material early on: pick it up right here instead of going back to the gather tiles */
+function GatherRow({ item }: { item: string }) {
+  const one = () => {
+    const s = getState();
+    if ((s.items[item] ?? 0) >= capOf(s, item)) return false;
+    gather(item);
+    return true;
+  };
+  const hold = useHold(one, () => {
+    // A full store still says why nothing happened
+    if (!one()) gather(item);
+  });
+  return (
+    <li class="gather-li">
+      <span>手動採集</span>
+      <button class="small-btn add" {...hold}>撿一個</button>
+      <span class="muted small">按住連續採集</span>
     </li>
   );
 }
@@ -111,7 +146,7 @@ function FlowList({ title, rows, sign }: { title: string; rows: FlowRow[]; sign:
           const st = last.lines[line.id];
           const slow = full !== undefined && Math.abs(now) < Math.abs(full) * 0.999;
           return (
-            <li key={line.id}>
+            <li key={line.id} class="flow-item">
               <button class="flow-line" title="到這條生產線" onClick={() => focusLine(line.id)}>
                 <MachineIcon id={line.machine} size={20} />
                 <span class="flow-line-name">
@@ -126,6 +161,10 @@ function FlowList({ title, rows, sign }: { title: string; rows: FlowRow[]; sign:
                   {slow && <span class="muted small">滿速 {fmtRate(full!)}</span>}
                 </span>
               </button>
+              {/* Short of this item: add a machine to a line that makes it, right here */}
+              {sign > 0 && (
+                <HoldButton class="flow-add" act={() => build(line.id) > 0} title="加蓋一台，按住連續加蓋" label="加蓋一台">＋</HoldButton>
+              )}
             </li>
           );
         })}
@@ -174,13 +213,13 @@ export function RecipeLookup({ item }: { item: string }) {
       <ItemFlow item={item} />
       <h4>取得方式</h4>
       <ul class="recipe-list">
-        {def?.manual && <li>手動採集（生產線分頁）</li>}
-        {makes.map((r) => <RecipeRow key={r.id} r={r} />)}
+        {def?.manual && <GatherRow item={item} />}
+        {makes.map((r) => <RecipeRow key={r.id} r={r} item={item} />)}
         {!def?.manual && makes.length === 0 && <li class="muted">無</li>}
       </ul>
       <h4>用途</h4>
       <ul class="recipe-list">
-        {uses.map((r) => <RecipeRow key={r.id} r={r} />)}
+        {uses.map((r) => <RecipeRow key={r.id} r={r} item={item} />)}
         {builds.length > 0 && <li><span class="muted small">建造材料：</span>{builds.join('、')}</li>}
         {uses.length === 0 && builds.length === 0 && <li class="muted">無</li>}
       </ul>

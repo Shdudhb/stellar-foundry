@@ -69,8 +69,11 @@ export interface UiState {
   intro: boolean;
   /** A line to bring into view on the production tab (just created, or picked in the item window) */
   focusLine: number | null;
-  /** The new-line picker is open */
+  /** The new-line picker is open, starting with this search */
   picker: boolean;
+  pickerQuery: string;
+  /** A research or megastructure card to bring into view on its tab */
+  goto: { tab: 'research' | 'milestones'; id: string } | null;
   toasts: Toast[];
   /** Recent notable happenings, newest first */
   log: LogEntry[];
@@ -82,7 +85,7 @@ let state: GameState = newGame();
 let last: TickResult = emptyTick();
 const smoothRates: Record<string, number> = {};
 const ui: UiState = {
-  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false,
+  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null,
   toasts: [], log: [],
 };
 const listeners = new Set<() => void>();
@@ -124,7 +127,7 @@ function toast(text: string, { tone = 'info', icon, title, log, sound }: ToastOp
   if (sound) emit(sound);
   else if (tone === 'bad') emit('error');
   // Longer warnings (with a hint) stay up long enough to read
-  setTimeout(() => dismissToast(id), tone === 'achievement' ? 5000 : tone === 'bad' ? Math.max(2200, text.length * 110) : 3200);
+  setTimeout(() => dismissToast(id), tone === 'achievement' ? 5000 : tone === 'bad' ? Math.max(2200, text.length * 110) : Math.max(3200, text.length * 90));
   notify();
 }
 
@@ -338,8 +341,15 @@ export function focusLine(id: number | null) {
   notify();
 }
 
-export function openPicker(open: boolean) {
+export function openPicker(open: boolean, query = '') {
   ui.picker = open;
+  ui.pickerQuery = query;
+  notify();
+}
+
+/** Take the player to a research or megastructure card; null once it's been shown */
+export function goTo(target: UiState['goto']) {
+  ui.goto = target;
   notify();
 }
 
@@ -447,7 +457,16 @@ export function research(techId: string) {
   if (!canAfford(state, cost)) return lacking(cost, '研究數據不足');
   pay(cost);
   state.techs.push(techId);
-  toast(t.name, { tone: 'good', title: '研究完成', icon: Object.keys(cost)[0], log: true, sound: 'research' });
+  // Say what it opened up, so the player knows what to go and build
+  const opened = [
+    ...(t.unlockMachines ?? []).map((m) => MACHINES[m].name),
+    ...(t.unlockRecipes ?? []).map((r) => RECIPES[r].name),
+    ...(t.unlockMilestone ? [`巨構「${MILESTONES[t.unlockMilestone].name}」`] : []),
+  ];
+  const more = opened.length > 3 ? ` 等 ${opened.length} 項` : '';
+  toast(opened.length ? `${t.name} · 解鎖 ${opened.slice(0, 3).join('、')}${more}` : t.name, {
+    tone: 'good', title: '研究完成', icon: Object.keys(cost)[0], log: true, sound: 'research',
+  });
   checkAchievements();
 }
 

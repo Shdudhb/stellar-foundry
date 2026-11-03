@@ -4,7 +4,7 @@ import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS, TIER_NAMES } from '../data/tech';
 import { canAfford, currentTier, simSpeed, techAvailable, techCost } from '../sim/rules';
 import { getRates, getState, research } from '../state/store';
-import { Cost, PageHeader, fmt, fmtDuration, fmtRate } from './common';
+import { Cost, PageHeader, fmt, fmtDuration, fmtRate, useGoto } from './common';
 import { ItemIcon, MachineIcon, UiIcon } from './pixel';
 
 function unlockSummary(id: string): string {
@@ -69,6 +69,7 @@ export function ResearchPanel() {
   const s = getState();
   const rates = getRates();
   const tier = currentTier(s);
+  const glow = useGoto('research', 'tech');
   const order = (id: string) => (s.techs.includes(id) ? 2 : techAvailable(s, id) ? 0 : 1);
   // Show the tiers the player has reached, plus a peek at the next one (locked behind its megastructure),
   // so a finished tier never leaves the tab with nothing to look forward to
@@ -94,7 +95,7 @@ export function ResearchPanel() {
         const techs = TECH_LIST.filter((t) => t.tier === tr).sort((a, b) => order(a.id) - order(b.id));
         return (
           // A finished tier folds away so the open research stays at the top
-          <details key={tr} class="tier" open={!techs.every((t) => s.techs.includes(t.id))}>
+          <details key={tr} class="tier" open={!techs.every((t) => s.techs.includes(t.id)) || techs.some((t) => t.id === glow)}>
             <summary class="tier-head">
               <span class="tier-pill">T{tr}</span>{TIER_NAMES[tr] ?? ''}
               <span class="muted small">{techs.filter((t) => s.techs.includes(t.id)).length}/{techs.length}</span>
@@ -107,7 +108,7 @@ export function ResearchPanel() {
                 const needMilestone = t.requiresMilestone && !s.milestones.includes(t.requiresMilestone);
                 const unlocks = unlockSummary(t.id);
                 return (
-                  <article key={t.id} class={`card tech ${done ? 'done' : avail ? 'avail' : 'locked'}`}>
+                  <article key={t.id} id={`tech-${t.id}`} class={`card tech ${done ? 'done' : avail ? 'avail' : 'locked'} ${glow === t.id ? 'fresh' : ''}`}>
                     <div class="tech-top">
                       <span class="tech-art"><TechArt id={t.id} /></span>
                       <div>

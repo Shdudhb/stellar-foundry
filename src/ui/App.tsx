@@ -363,6 +363,11 @@ export function App() {
     if (ui.focusLine === null) window.scrollTo(0, scrollPlaces[shown] ?? 0);
   }, [shown]);
 
+  // The objective bar's shortcut to a research or megastructure card
+  useEffect(() => {
+    if (ui.goto && shown !== ui.goto.tab) setTab(ui.goto.tab);
+  }, [ui.goto]);
+
   // Picking a line elsewhere (the item window) takes the player to the production tab, which scrolls to it
   useEffect(() => {
     if (ui.focusLine !== null && shown !== 'production') setTab('production');

@@ -1,7 +1,7 @@
 import { MILESTONE_LIST, type MilestoneDef } from '../data/tech';
 import { canBuildMilestone, milestoneUnlocked } from '../sim/rules';
 import { buildMilestone, getState } from '../state/store';
-import { Bar, Cost, PageHeader } from './common';
+import { Bar, Cost, PageHeader, useGoto } from './common';
 import { ItemIcon, MachineIcon, UiIcon } from './pixel';
 
 /** The picture for each megastructure */
@@ -27,6 +27,7 @@ function progress(ms: MilestoneDef): number {
 
 export function MilestonePanel() {
   const s = getState();
+  const glow = useGoto('milestones', 'ms');
   return (
     <div class="panel">
       <PageHeader title="巨構">建成這個時代的巨構，才會解鎖下一個時代的研究。</PageHeader>
@@ -46,7 +47,7 @@ export function MilestonePanel() {
           );
         }
         return (
-          <section key={ms.id} class={`card milestone ${built ? 'done' : unlocked ? '' : 'locked'}`}>
+          <section key={ms.id} id={`ms-${ms.id}`} class={`card milestone ${built ? 'done' : unlocked ? '' : 'locked'} ${glow === ms.id ? 'fresh' : ''}`}>
             <span class="ms-art"><MilestoneArt id={ms.id} /></span>
             <div>
               <h2><span class="tier-pill">T{ms.tier}</span> {ms.name}</h2>
