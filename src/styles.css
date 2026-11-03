@@ -315,6 +315,7 @@ p { margin: 0 0 8px; }
 .badge.oc { color: var(--accent); border-color: rgb(240 160 75 / 0.6); }
 .badge.orbit { color: var(--orbit); border-color: rgb(99 179 240 / 0.6); }
 .badge.lit { color: var(--ok); border-color: rgb(87 201 138 / 0.6); }
+.badge.fuel { color: var(--warn); border-color: rgb(231 184 74 / 0.6); }
 .badge.tier { color: var(--text); }
 
 /* ---------- production ---------- */

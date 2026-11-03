@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEM_ORDER, ITEMS, canVent, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPES } from '../data/recipes';
-import { WORN_SPEED } from '../sim/engine';
+import { WORN_SPEED, fuelLines } from '../sim/engine';
 import { canAfford, capOf, categoryBoost, isMachineUnlocked, overclock, recipesFor, upgradeCost, upgradeTarget } from '../sim/rules';
 import type { Line, LineStatus } from '../sim/types';
 import {
@@ -228,7 +228,7 @@ function RemoveButton({ line }: { line: Line }) {
   );
 }
 
-function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fresh?: boolean }) {
+function LineCard({ line, status, fresh, fuel }: { line: Line; status?: LineStatus; fresh?: boolean; fuel?: boolean }) {
   const s = getState();
   const m = MACHINES[line.machine];
   const r = RECIPES[line.recipe];
@@ -270,6 +270,9 @@ function LineCard({ line, status, fresh }: { line: Line; status?: LineStatus; fr
           {(m.speed ?? 1) > 1 && <span class="badge oc" title="大型設施">大型 ×{m.speed}</span>}
           {m.upkeep && s.maintenance && <span class="badge" title="每台每分鐘全速運轉消耗的維護套件">維護 {m.upkeep}/分</span>}
           {m.orbital && <span class="badge orbit" title="佔軌道槽位，靠軌道運力運轉">軌道</span>}
+          {fuel && m.power && (
+            <span class="badge fuel" title="這條線在替發電機產燃料：缺電時先供給它，發電才不會跟著垮">供電優先</span>
+          )}
           {m.ignition && line.count > 0 && (line.heat ?? 0) >= 1 && <span class="badge lit">已點火</span>}
           </div>
           <select value={line.recipe} aria-label="配方" onChange={(e) => setRecipe(line.id, (e.target as HTMLSelectElement).value)}>
@@ -379,16 +382,16 @@ function LineFilter({ filter, setFilter, counts }: { filter: string; setFilter: 
  * The panel redraws four times a second. A card scrolled out of view keeps its last picture instead,
  * which in a big factory is most of them; it catches up the moment it scrolls back in.
  */
-interface LiveProps { line: Line; status?: LineStatus; fresh?: boolean; onScreen: boolean }
+interface LiveProps { line: Line; status?: LineStatus; fresh?: boolean; fuel: boolean; onScreen: boolean }
 
 class LiveLineCard extends Component<LiveProps> {
   shouldComponentUpdate(next: LiveProps) {
     const p = this.props;
-    return p.onScreen || next.onScreen || p.fresh !== next.fresh || p.line !== next.line;
+    return p.onScreen || next.onScreen || p.fresh !== next.fresh || p.fuel !== next.fuel || p.line !== next.line;
   }
 
   render(p: LiveProps) {
-    return <LineCard line={p.line} status={p.status} fresh={p.fresh} />;
+    return <LineCard line={p.line} status={p.status} fresh={p.fresh} fuel={p.fuel} />;
   }
 }
 
@@ -476,6 +479,7 @@ export function ProductionPanel() {
   const shown = s.lines.filter(tests[filter]);
 
   const onScreen = useOnScreen(shown.map((l) => l.id));
+  const fuel = fuelLines(s);
 
   // Bring it into view with a brief glow so the eye finds it after the scroll
   const [glow, setGlow] = useState<number | null>(null);
@@ -515,7 +519,7 @@ export function ProductionPanel() {
         ) : (
           <div class="lines">
             {shown.map((l) => (
-              <LiveLineCard key={l.id} line={l} status={last.lines[l.id]} fresh={l.id === glow} onScreen={onScreen.has(l.id)} />
+              <LiveLineCard key={l.id} line={l} status={last.lines[l.id]} fresh={l.id === glow} fuel={fuel.has(l.id)} onScreen={onScreen.has(l.id)} />
             ))}
           </div>
         )}

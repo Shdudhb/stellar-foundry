@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tick } from './engine';
+import { fuelLines, tick } from './engine';
 import { simulateOffline } from './offline';
 import { capOf } from './rules';
 import type { GameState, Line } from './types';
@@ -480,6 +480,45 @@ describe('tick', () => {
     const s = game({}, [{ machine: 'basic_drill', recipe: 'mine_stone', count: 10 }]);
     run(s, 200);
     expect(s.items.stone).toBeCloseTo(capOf(s, 'stone'));
+  });
+});
+
+describe('power priority for the fuel chain', () => {
+  // Oil power: the pump and tower run on the EU their own light oil makes, and drills ask for far more
+  function oilGrid(drills: number) {
+    // One pump keeps one tower fed exactly; everything else vents, so only power can slow a line
+    const s = game({ crude_oil: 50, light_oil: 5 }, [
+      { machine: 'oil_pump', recipe: 'pump_oil', count: 1 },
+      { machine: 'distillation_tower', recipe: 'distill_crude', count: 1 },
+      { machine: 'combustion_gen', recipe: 'burn_light_oil', count: 2 },
+      { machine: 'electric_drill', recipe: 'mine_stone', count: drills },
+    ]);
+    s.vent = ['heavy_oil', 'refinery_gas', 'sulfur', 'stone'];
+    return s;
+  }
+
+  it('finds the lines that feed a running generator, through every step of its fuel', () => {
+    const s = oilGrid(1);
+    expect([...fuelLines(s)].sort()).toEqual([1, 2]);
+  });
+
+  it('keeps the fuel chain at full power in a brownout, so generation does not collapse', () => {
+    const s = oilGrid(40);
+    const last = run(s, 300, 1);
+    // The pumps and the tower get their power first and run flat out...
+    expect(last.lines[1].efficiency).toBeCloseTo(1);
+    expect(last.lines[2].efficiency).toBeCloseTo(1);
+    // ...so the generators burn all the oil the tower makes (0.8/s → 80 EU), while the drills share what is left
+    expect(last.power.eu.supply).toBeGreaterThan(75);
+    expect(last.lines[4].efficiency).toBeLessThan(0.5);
+    expect(last.lines[4].reason.kind).toBe('power');
+  });
+
+  it('changes nothing while there is enough power', () => {
+    const s = oilGrid(0);
+    const last = run(s, 60, 1);
+    expect(last.power.eu.satisfaction).toBe(1);
+    expect(last.lines[2].efficiency).toBeCloseTo(1);
   });
 });
 

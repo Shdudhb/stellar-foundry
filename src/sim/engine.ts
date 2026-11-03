@@ -35,6 +35,44 @@ interface Active {
   free: boolean;
 }
 
+/** How many steps up from a generator the fuel chain is followed: light oil ← distillation ← crude pump */
+const FUEL_DEPTH = 2;
+
+/**
+ * Lines that keep the generators fed: those making an EU or steam generator's fuel, and what that fuel is
+ * made from. In a shortage they are powered first. Without this a brownout feeds on itself: every machine
+ * slows alike, fuel supply included, so generation falls further, settling at a fraction of the grid.
+ *
+ * Kept narrow on purpose, so the priority means something: launch pads are left out (rocket parts are
+ * cargo, and a lift shortage never slows the fuel), and a line whose byproduct happens to be burned
+ * (chlorination's carbon monoxide) is not on the chain unless the fuel is what it is mainly for.
+ */
+export function fuelLines(state: GameState): Set<number> {
+  const lit = state.lines.filter((l) => l.enabled && l.count > 0 && RECIPES[l.recipe] && MACHINES[l.machine]);
+  const makesPower = (r: (typeof RECIPES)[string], p?: string) => Object.keys(r.outputs).some((o) => (p ? o === p : isPower(o)));
+  let fuel = new Set<string>();
+  for (const l of lit) {
+    const r = RECIPES[l.recipe];
+    if (!makesPower(r, 'eu') && !makesPower(r, 'steam')) continue;
+    for (const i of Object.keys(r.inputs)) if (!isPower(i)) fuel.add(i);
+  }
+  const out = new Set<number>();
+  for (let depth = 0; depth < FUEL_DEPTH && fuel.size > 0; depth++) {
+    const next = new Set<string>();
+    for (const l of lit) {
+      const r = RECIPES[l.recipe];
+      if (out.has(l.id) || makesPower(r)) continue;
+      const outs = Object.keys(r.outputs);
+      const feeds = outs.some((o) => fuel.has(o) && (o === outs[0] || ITEMS[o]?.kind !== 'byproduct'));
+      if (!feeds) continue;
+      out.add(l.id);
+      for (const i of Object.keys(r.inputs)) if (!isPower(i)) next.add(i);
+    }
+    fuel = next;
+  }
+  return out;
+}
+
 /**
  * Advance the factory by dt seconds, mutating state.items.
  *
@@ -146,15 +184,20 @@ export function tick(state: GameState, dt: number): TickResult {
   }
 
   // ---- power, pass 1: demand flows down the chain and sets generator load ----
+  // Demand splits in two: the generators' own power inputs and their fuel chain come first in a shortage
+  const fuelChain = fuelLines(state);
+  const firstDemand: Record<string, number> = {};
   const demand: Record<string, number> = {};
   const freeSupply: Record<string, number> = {};
   const fuelCapacity: Record<string, number> = {};
   const load: Record<string, number> = {};
-  for (const p of POWER_ORDER) demand[p] = freeSupply[p] = fuelCapacity[p] = 0;
+  for (const p of POWER_ORDER) demand[p] = firstDemand[p] = freeSupply[p] = fuelCapacity[p] = 0;
   // The Dyson swarm is free EU, like solar that takes no slots
   freeSupply.eu += (state.items[SWARM_ITEM] ?? 0) * SWARM_EU;
   for (const a of active) {
-    if (a.powerItem) demand[a.powerItem] += a.powerDraw * a.f;
+    if (!a.powerItem) continue;
+    demand[a.powerItem] += a.powerDraw * a.f;
+    if (fuelChain.has(a.line.id)) firstDemand[a.powerItem] += a.powerDraw * a.f;
   }
   for (const g of igniting) demand.eu += g.draw;
   const genOut = (a: Active) => (a.potential * a.f * RECIPES[a.line.recipe].outputs[a.gen!]) / dt;
@@ -169,14 +212,21 @@ export function tick(state: GameState, dt: number): TickResult {
     load[p] = fuelCapacity[p] > 0 ? Math.min(1, residual / fuelCapacity[p]) : 0;
     for (const g of gens) {
       if (g.free) continue;
-      for (const [q, n] of g.powerIn) demand[q] += (g.potential * g.f * load[p] * n) / dt;
+      for (const [q, n] of g.powerIn) {
+        const draw = (g.potential * g.f * load[p] * n) / dt;
+        demand[q] += draw;
+        firstDemand[q] += draw;
+      }
     }
   }
 
   // ---- power, pass 2: supply flows back up and sets satisfaction ----
+  // `first` is what the generators and their fuel chain get, `rest` what everything else shares after them
   const sat: Record<string, number> = {};
+  const first: Record<string, number> = {};
+  const rest: Record<string, number> = {};
   const supply: Record<string, number> = {};
-  const inputSat = (a: Active) => a.powerIn.reduce((m, [q]) => Math.min(m, sat[q] ?? 1), 1);
+  const inputSat = (a: Active) => a.powerIn.reduce((m, [q]) => Math.min(m, first[q] ?? 1), 1);
   for (const p of [...POWER_ORDER].reverse()) {
     let s = freeSupply[p];
     for (const g of active) {
@@ -184,12 +234,16 @@ export function tick(state: GameState, dt: number): TickResult {
     }
     supply[p] = s;
     sat[p] = demand[p] > 0 ? Math.min(1, s / demand[p]) : 1;
+    first[p] = firstDemand[p] > 0 ? Math.min(1, s / firstDemand[p]) : 1;
+    const others = demand[p] - firstDemand[p];
+    rest[p] = others > 1e-12 ? Math.min(1, Math.max(0, s - firstDemand[p] * first[p]) / others) : 1;
   }
+  const satFor = (a: Active, p: string) => (fuelChain.has(a.line.id) ? first[p] : rest[p]);
 
   // ---- ignition: reactors heat up in proportion to the EU they actually got ----
   for (const g of igniting) {
-    lines[g.line.id].power = { eu: -g.draw * sat.eu };
-    const heat = (g.line.heat ?? 0) + (sat.eu * dt) / g.time;
+    lines[g.line.id].power = { eu: -g.draw * rest.eu };
+    const heat = (g.line.heat ?? 0) + (rest.eu * dt) / g.time;
     // Snap float drift so a reactor heated for exactly its ignition time is lit
     g.line.heat = heat > 1 - 1e-9 ? 1 : heat;
   }
@@ -205,14 +259,14 @@ export function tick(state: GameState, dt: number): TickResult {
       factor = load[a.gen] * inS;
       if (factor < a.f) {
         if (inS <= load[a.gen]) {
-          const starved = a.powerIn.reduce((lo, [q]) => ((sat[q] ?? 1) < (sat[lo] ?? 1) ? q : lo), a.powerIn[0]?.[0]);
+          const starved = a.powerIn.reduce((lo, [q]) => ((first[q] ?? 1) < (first[lo] ?? 1) ? q : lo), a.powerIn[0]?.[0]);
           reason = { kind: 'power', item: starved };
         } else {
           reason = { kind: 'load' };
         }
       }
     } else if (a.powerItem) {
-      factor = sat[a.powerItem];
+      factor = satFor(a, a.powerItem);
       if (factor < a.f) reason = { kind: 'power', item: a.powerItem };
     }
     const crafts = a.potential * a.f * factor;

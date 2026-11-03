@@ -8,17 +8,22 @@
 // short, and vents a byproduct once it fills up. It ignores relic signals and world events, so its
 // times are a no-bonus baseline.
 //
-// Limits: it is a heuristic, not an optimal player. In late tiers it misplans slots and power and can
-// pause lines it needs, so a stall it reports may be its own; inspect with `-- --item=<id>` before blaming
-// the game. `-- --explore` adds 100 slots to look past slot pressure at the later chains.
-// Found so far with it: float drift blocking builds at "10/10", and co-products (aluminium dust, sodium,
-// salt) that filled up and locked whole chains because only byproducts could vent.
+// Options (after `--`):
+//   --explore     100 extra ground slots, to look past slot pressure at the later chains
+//   --from=5      start at that tier with everything before it done and stores half full (implies --explore)
+//   --item=<id>   at the end, list every line making or using that item and why it is slow
+//   --verbose     log each decision; --shed  pause lines by hand in brownouts, as before the game did it
+//
+// Limits: it is a heuristic, not an optimal player. It misplans slots, power and basic supplies in later
+// tiers, so a stall it reports may be its own; inspect with --item before blaming the game.
+// Found with it: float drift blocking builds at "10/10"; co-products (aluminium dust, sodium, salt) locking
+// whole chains when only byproducts could vent; brownouts collapsing generation by starving the fuel chain.
 import { ITEMS, isPower } from '../src/data/items';
 import { MACHINES, MACHINE_LIST, MAINTENANCE_ITEM, type MachineDef } from '../src/data/machines';
 import { OBJECTIVES, currentObjective } from '../src/data/objectives';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../src/data/recipes';
 import { MILESTONE_LIST, TECH_LIST, TIER_NAMES } from '../src/data/tech';
-import { tick } from '../src/sim/engine';
+import { fuelLines, tick } from '../src/sim/engine';
 import { EU_PER, primaryRecipe, price } from '../src/sim/balance';
 import {
   canAfford, canRun, capOf, categoryBoost, currentTier, isMachineUnlocked, isRecipeUnlocked, milestoneUnlocked, overclock, simSpeed,
@@ -43,8 +48,26 @@ const TAPS_PER_SEC = 4;
 const STALL_LIMIT = 2 * 3600;
 
 const EXPLORE = process.argv.includes('--explore');
+/** `--from=5`: start at that tier, with everything before it researched and built and stores half full */
+const FROM = Number((process.argv.find((a) => a.startsWith('--from=')) ?? '--from=0').slice(7));
 // Explore mode: 100 extra ground slots, to see whether later chains work at all, apart from slot pressure
-importSave(exportString(newGame(EXPLORE ? { points: 0, warps: 0, upgrades: { slots: 10 } } : undefined)));
+const start = newGame(EXPLORE || FROM ? { points: 0, warps: 0, upgrades: { slots: 10 } } : undefined);
+if (FROM > 0) {
+  start.techs = TECH_LIST.filter((t) => t.tier < FROM).map((t) => t.id);
+  start.milestones = MILESTONE_LIST.filter((m) => m.tier < FROM).map((m) => m.id);
+  for (const m of MILESTONE_LIST.filter((x) => x.tier < FROM)) {
+    for (const [i, n] of Object.entries(m.grantsItems ?? {})) start.items[i] = (start.items[i] ?? 0) + n;
+  }
+  // Half a store of everything the earlier tiers could make; the new tier's own items start empty
+  for (const r of RECIPE_LIST) {
+    if (!isRecipeUnlocked(start, r.id) || r.tier >= FROM) continue;
+    for (const o of Object.keys(r.outputs)) {
+      if (!isPower(o) && ITEMS[o].kind !== 'structure') start.items[o] = Math.max(start.items[o] ?? 0, capOf(start, o) / 2);
+    }
+  }
+  start.claimed = OBJECTIVES.filter((o) => o.done(start)).map((o) => o.text);
+}
+importSave(exportString(start));
 const s = getState;
 const fmtT = (sec: number) => `${Math.floor(sec / 3600)}h${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}m`;
 const log = (msg: string) => console.log(`[${fmtT(s().playTime)}] ${msg}`);
@@ -234,10 +257,12 @@ function pauseIdle(crafts: Record<string, number>) {
   const unbuilt = new Set(
     Object.keys(crafts).filter((rid) => (lines.get(rid)?.count ?? 0) === 0).flatMap((rid) => Object.keys(RECIPES[rid].outputs)),
   );
+  const fuel = fuelLines(s());
   for (const l of s().lines) {
     const outs = Object.keys(RECIPES[l.recipe].outputs);
-    // Generators only burn what demand asks for; pausing them is never what a player wants
-    const wanted = (crafts[l.recipe] ?? 0) > 1e-6 || outs.some(isPower) || outs.some((o) => unbuilt.has(o));
+    // Generators only burn what demand asks for, and their fuel chain keeps them able to: pausing either is
+    // never what a player wants
+    const wanted = (crafts[l.recipe] ?? 0) > 1e-6 || outs.some(isPower) || fuel.has(l.id) || outs.some((o) => unbuilt.has(o));
     if (l.enabled !== wanted) toggleLine(l.id);
   }
 }
@@ -258,8 +283,8 @@ function powerChain(): Set<string> {
   return chain;
 }
 
-/** A brownout slows every machine alike, fuel supply included, so it feeds on itself: like a player,
- *  pause everything off the power chain until the grid recovers */
+/** Counts brownouts (under 60%); with `--shed`, also pauses everything off the power chain until the grid
+ *  recovers, as a player had to before the game powered the fuel chain first */
 let brownout = false;
 const brownouts: string[] = [];
 function shedLoad() {
@@ -269,7 +294,9 @@ function shedLoad() {
     brownout = true;
     brownouts.push(`T${currentTier(st)} ${fmtT(st.playTime)}`);
   } else if (brownout && sat >= 0.98) brownout = false;
-  if (!brownout) return;
+  // The game now powers the generators' fuel chain first, so a player no longer has to pause lines by hand;
+  // `--shed` restores the old manual load shedding for comparison
+  if (!brownout || !process.argv.includes('--shed')) return;
   const chain = powerChain();
   for (const l of st.lines) if (l.enabled && MACHINES[l.machine].power && !chain.has(l.recipe)) toggleLine(l.id);
 }
@@ -391,7 +418,7 @@ function handGather() {
 
 interface Mark { what: string; t: number }
 const marks: Mark[] = [];
-const tierStart: Record<number, number> = { 0: 0 };
+const tierStart: Record<number, number> = { [FROM]: 0 };
 let lastProgress = 0;
 let lastObjective = -1;
 let tappedSecs = 0;
@@ -445,7 +472,7 @@ for (let sec = 0; sec < MAX_HOURS * 3600; sec++) {
         lastProgress = st.playTime;
       }
     }
-    if (!tierStart[1] && currentTier(st) >= 1) {
+    if (tierStart[1] === undefined && currentTier(st) >= 1) {
       tierStart[1] = st.playTime;
       log(`★ 研究蒸汽動力 → ${TIER_NAMES[1]}`);
     }
@@ -475,7 +502,7 @@ for (let sec = 0; sec < MAX_HOURS * 3600; sec++) {
       break;
     }
   }
-  if (st.playTime < 3 * 3600 && handGather()) tappedSecs++;
+  if (FROM === 0 && st.playTime < 3 * 3600 && handGather()) tappedSecs++;
   last = tick(st, simSpeed(st));
   st.playTime += 1;
   for (const [p, ps] of Object.entries(last.power)) if (ps.demand > 0 && ps.satisfaction < 0.9) powerShort[p] = (powerShort[p] ?? 0) + 1;
@@ -496,7 +523,7 @@ console.log(`\n目標進度：${Math.max(0, currentObjective(st))}/${OBJECTIVES.
 console.log(`研究 ${st.techs.length}/${TECH_LIST.length}，生產線 ${st.lines.length} 條、機器 ${st.lines.reduce((n, l) => n + l.count, 0)} 台，槽位 ${slotsUsed(st)}/${slotsTotal(st)}`);
 console.log(`手動採集 ${st.stats.gathered} 次（約 ${Math.round(tappedSecs / 60)} 分鐘在點）`);
 console.log(`打開排放：${vented.join('、') || '無'}`);
-console.log(`停電被迫暫停用電線：${brownouts.length} 次${brownouts.length ? `（${brownouts.slice(0, 6).join('、')}${brownouts.length > 6 ? ' …' : ''}）` : ''}`);
+console.log(`電力跌破 60%：${brownouts.length} 次${brownouts.length ? `（${brownouts.slice(0, 6).join('、')}${brownouts.length > 6 ? ' …' : ''}）` : ''}`);
 console.log(`電力不足的時間：${Object.entries(powerShort).map(([p, n]) => `${ITEMS[p].name} ${fmtT(n)}`).join('、') || '無'}`);
 const inspect = (process.argv.find((a) => a.startsWith('--item=')) ?? '').slice(7);
 if (inspect) {
