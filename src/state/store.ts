@@ -297,13 +297,19 @@ function pay(cost: Record<string, number>) {
   for (const [item, n] of Object.entries(cost)) state.items[item] = Math.max(0, (state.items[item] ?? 0) - n);
 }
 
+/** Adds up to the storage cap; a pile already over it (a megastructure's grant) is never cut back. Returns what fit */
+function addItem(item: string, n: number): number {
+  const have = state.items[item] ?? 0;
+  const next = Math.max(have, Math.min(capOf(state, item), have + n));
+  state.items[item] = next;
+  return next - have;
+}
+
 /** Gives materials back up to storage capacity; returns the names of those that didn't all fit */
 function refund(cost: Record<string, number>, times: number): string[] {
   const lost: string[] = [];
   for (const [item, n] of Object.entries(cost)) {
-    const want = (state.items[item] ?? 0) + n * times;
-    state.items[item] = Math.min(capOf(state, item), want);
-    if (want > state.items[item] + 1e-9) lost.push(ITEMS[item].name);
+    if (addItem(item, n * times) < n * times - 1e-9) lost.push(ITEMS[item].name);
   }
   return lost;
 }
@@ -422,6 +428,9 @@ export function upgradeLine(lineId: number) {
   const lost = refund(Object.fromEntries(Object.entries(net).filter(([, n]) => n < 0).map(([i, n]) => [i, -n])), 1);
   const fromName = MACHINES[line.machine].name;
   line.machine = to.id;
+  // Every machine in the line is new: no wear carried over, and a reactor starts cold
+  line.wear = to.upkeep ? 0 : undefined;
+  line.heat = to.ignition ? 0 : undefined;
   toast(`${fromName} × ${line.count} 已升級為 ${to.name}`, { tone: 'good', sound: 'build', log: true });
   if (lost.length > 0) toast(`倉庫放不下，部分${lost.join('、')}沒退回`, { tone: 'bad' });
 }
@@ -542,7 +551,7 @@ export function claimObjectives() {
   const pending = unclaimedObjectives(state);
   if (pending.length === 0) return;
   const reward = objectiveReward(state, pending);
-  for (const [item, n] of Object.entries(reward)) state.items[item] = Math.min(capOf(state, item), (state.items[item] ?? 0) + n);
+  for (const [item, n] of Object.entries(reward)) addItem(item, n);
   state.claimed.push(...pending.map((i) => OBJECTIVES[i].text));
   toast(Object.entries(reward).map(([i, n]) => `${ITEMS[i].name} +${n}`).join('、'), {
     tone: 'good', title: '目標獎勵', icon: Object.keys(reward)[0], sound: 'reward',
@@ -581,7 +590,7 @@ export function answerSignal(choice: 'data' | 'boost') {
   if (state.signal === null) return;
   if (choice === 'data') {
     const reward = signalData(state);
-    for (const [item, n] of Object.entries(reward)) state.items[item] = Math.min(capOf(state, item), (state.items[item] ?? 0) + n);
+    for (const [item, n] of Object.entries(reward)) addItem(item, n);
     toast(Object.entries(reward).map(([i, n]) => `${ITEMS[i].name} +${n}`).join('、'), {
       tone: 'good', title: '解析遺物', icon: Object.keys(reward)[0], sound: 'reward', log: true,
     });
@@ -608,7 +617,7 @@ export function buyLegacy(id: string) {
   if (id === 'kit') {
     // The new kit level also arrives in the current run, so buying it right after a warp pays off at once
     for (const [item, n] of Object.entries(KIT_LEVELS[level])) {
-      state.items[item] = Math.min(capOf(state, item), (state.items[item] ?? 0) + n);
+      addItem(item, n);
     }
   }
   toast(`${def.name} 升到 ${level + 1} 級`, { tone: 'good', sound: 'reward' });
@@ -656,7 +665,9 @@ export function importSave(text: string): boolean {
   state = s;
   last = emptyTick();
   history.length = 0;
-  ui.intro = false;
+  acc = 0;
+  for (const k of Object.keys(smoothRates)) smoothRates[k] = 0;
+  Object.assign(ui, { intro: false, lookupItem: null, picker: false, focusLine: null, goto: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
   checkAchievements(true);
   saveLocal(state);
   toast('已匯入存檔', { tone: 'good' });
@@ -722,8 +733,7 @@ function startIncident() {
     const got: string[] = [];
     for (const [item, d] of Object.entries(ITEMS)) {
       if (d.kind !== 'raw' || !((state.items[item] ?? 0) > 0 || d.manual)) continue;
-      const cap = capOf(state, item);
-      state.items[item] = Math.min(cap, (state.items[item] ?? 0) + Math.ceil(cap * 0.25));
+      addItem(item, Math.ceil(capOf(state, item) * 0.25));
       got.push(d.name);
     }
     toast(`${got.slice(0, 4).join('、')}${got.length > 4 ? ' 等' : ''}各補進 25% 容量`, {
@@ -754,7 +764,7 @@ export function acceptTrade() {
   if (!offer || !activeIncident(state)) return;
   if ((state.items[offer.item] ?? 0) < offer.n) return toast(`${ITEMS[offer.item].name} 不夠了`, { tone: 'bad' });
   state.items[offer.item] -= offer.n;
-  for (const [item, n] of Object.entries(offer.pay)) state.items[item] = Math.min(capOf(state, item), (state.items[item] ?? 0) + n);
+  for (const [item, n] of Object.entries(offer.pay)) addItem(item, n);
   state.stats.trades++;
   state.incident = { ...state.incident!, until: state.playTime };
   ui.tradeOpen = false;

@@ -36,7 +36,7 @@ const list: TechDef[] = [
   },
   {
     id: 'steam_mining', name: '蒸汽採礦', tier: 1, cost: { data: 60 }, requires: ['steam_power'],
-    description: '解鎖蒸汽鑽機。',
+    description: '解鎖蒸汽鑽機。簡易鑽機的生產線可以一鍵升級。',
     unlockMachines: ['steam_drill'],
   },
   {
@@ -108,7 +108,7 @@ const list: TechDef[] = [
   },
   {
     id: 'electric_mining', name: '電動採礦', tier: 2, cost: { data: 100, data_green: 50 }, requires: ['circuits'],
-    description: '解鎖電動鑽機。',
+    description: '解鎖電動鑽機，開採 T0 礦是簡易鑽機的 4 倍快。舊鑽機的生產線可以一鍵升級。',
     unlockMachines: ['electric_drill'],
   },
   {
@@ -235,7 +235,7 @@ const list: TechDef[] = [
   },
   {
     id: 'large_combustion', name: '大型燃燒引擎', tier: 4, cost: { data_purple: 100 }, requires: ['precision'],
-    description: '一座抵八台燃燒發電機的大型設施。',
+    description: '一座抵八台燃燒發電機的大型設施。燃燒發電機的生產線可以一鍵升級。',
     unlockMachines: ['large_combustion_engine'],
   },
   {

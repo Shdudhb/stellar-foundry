@@ -240,7 +240,8 @@ export function NewLinePicker() {
       .sort((a, b) => a.score - b.score || b.r.tier - a.r.tier)
     : ready.filter(({ r }) => groupOf(r) === active).sort((a, b) => b.r.tier - a.r.tier);
   const enter = () => {
-    const first = shown[0];
+    // Only a search picks for the player; Enter on an empty box must not build whatever tile comes first
+    const first = q ? shown[0] : undefined;
     if (!first) return;
     const existing = getState().lines.find((l) => l.recipe === first.r.id && l.machine === first.ms[0].id);
     if (existing) focusLine(existing.id);

@@ -212,16 +212,24 @@ export function Modal({ title, icon, onClose, wide, bar, children }: {
 const HOLD_DELAY = 400;
 const HOLD_EVERY = 150;
 const HOLD_FASTEST = 50;
+/** A click this soon after a hold ends is that hold's own release */
+const HOLD_CLICK_WINDOW = 400;
 
 /**
  * Handlers for a button that acts once per tap and keeps acting while held. `act` returns false when
  * it couldn't (can't afford, nothing left), which ends the hold. `tap` is what a plain tap does.
  */
 export function useHold(act: () => boolean, tap: () => void = act) {
-  const t = useRef<{ timer?: ReturnType<typeof setTimeout>; held: boolean }>({ held: false });
+  const t = useRef<{ timer?: ReturnType<typeof setTimeout>; held: boolean; endedAt: number }>({ held: false, endedAt: 0 });
   const fns = useRef({ act, tap });
   fns.current = { act, tap };
-  const stop = () => clearTimeout(t.current.timer);
+  const stop = () => {
+    clearTimeout(t.current.timer);
+    if (t.current.held) {
+      t.current.held = false;
+      t.current.endedAt = performance.now();
+    }
+  };
   useEffect(() => stop, []);
   const repeat = (wait: number) => {
     t.current.timer = setTimeout(() => {
@@ -233,7 +241,7 @@ export function useHold(act: () => boolean, tap: () => void = act) {
     onPointerDown: (e: PointerEvent) => {
       if (e.button !== 0) return;
       stop();
-      t.current.held = false;
+      t.current.endedAt = 0;
       t.current.timer = setTimeout(() => {
         t.current.held = true;
         if (fns.current.act()) repeat(HOLD_EVERY);
@@ -244,9 +252,10 @@ export function useHold(act: () => boolean, tap: () => void = act) {
     onPointerCancel: stop,
     onContextMenu: (e: Event) => e.preventDefault(),
     onClick: () => {
-      // The click that ends a hold has already been paid for by the repeats
-      if (t.current.held) {
-        t.current.held = false;
+      // The click that ends a hold has already been paid for by the repeats. Matched by time, not a flag:
+      // a hold that slid off the button gets no click, and a flag would then swallow the next key press
+      if (performance.now() - t.current.endedAt < HOLD_CLICK_WINDOW) {
+        t.current.endedAt = 0;
         return;
       }
       fns.current.tap();

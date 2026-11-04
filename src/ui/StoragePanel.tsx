@@ -27,7 +27,7 @@ function Slot({ id }: { id: string }) {
       title={`${ITEMS[id].name}：${fmt(n)}/${fmt(cap)}${venting ? '（排放中）' : ''}`}
     >
       {venting && <span class="slot-flag tone-text-warn" aria-label="排放中">▼</span>}
-      {ITEMS[id].decay && <span class="slot-flag tone-text-warn" aria-label="會衰變">☢</span>}
+      {ITEMS[id].decay && <span class="slot-flag left tone-text-warn" aria-label="會衰變">☢</span>}
       <ItemIcon id={id} size={32} />
       <span class="slot-count">{fmt(n)}</span>
       <span class={`slot-rate ${rate > 0.005 ? 'pos' : rate < -0.005 ? 'neg' : ''}`}>{fmtRate(rate)}</span>
