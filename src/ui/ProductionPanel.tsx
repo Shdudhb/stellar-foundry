@@ -4,13 +4,14 @@ import { ITEM_ORDER, ITEMS, canVent, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { WORN_SPEED, fuelLines } from '../sim/engine';
+import { shortfall } from '../sim/supply';
 import {
-  canAfford, canRun, capOf, categoryBoost, isMachineUnlocked, isRecipeUnlocked, overclock, recipesFor, slotsTotal, slotsUsed, upgradeCost, upgradeTarget,
+  canAfford, canRun, capOf, categoryBoost, craftsPerMachine, isMachineUnlocked, isRecipeUnlocked, overclock, recipesFor, slotsTotal, slotsUsed, upgradeCost, upgradeTarget,
 } from '../sim/rules';
 import type { Line, LineStatus } from '../sim/types';
 import {
-  build, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, openPicker, removeLine, setRecipe, toggleLine,
-  toggleVent, upgradeLine,
+  build, buildUpTo, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, openPicker, openRecipeSwitch, removeLine,
+  setRecipe, toggleLine, toggleVent, upgradeLine,
 } from '../state/store';
 import {
   Bar, Chevron, Cost, HoldButton, ItemLink, Modal, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone, useHold,
@@ -182,7 +183,7 @@ function RecipeTile({ r, machines }: { r: RecipeDef; machines: MachineDef[] }) {
   );
 }
 
-const perMachineRate = (m: MachineDef, r: RecipeDef) => (overclock(m, r).speed * (m.speed ?? 1) * categoryBoost(getState(), r.category)) / r.time;
+const perMachineRate = (m: MachineDef, r: RecipeDef) => craftsPerMachine(getState(), m, r);
 
 /** Every recipe that can be built right now, with the machines that can run it (cheapest first) */
 function readyRecipes() {
@@ -272,7 +273,7 @@ export function NewLinePicker() {
     </>
   );
   return (
-    <Modal title="新增生產線" wide bar={bar} onClose={() => openPicker(false)}>
+    <Modal title="新增生產線" wide tall bar={bar} onClose={() => openPicker(false)}>
       <div ref={body}>
         {shown.length === 0 ? (
           <p class="muted">沒有符合「{q}」的配方。</p>
@@ -379,6 +380,110 @@ function RemoveButton({ line }: { line: Line }) {
   );
 }
 
+/**
+ * A line short of an input or of power: how many more machines on the line that makes it would cover
+ * everyone at full speed, built in one tap. Nothing shows when the makers could already keep up and are
+ * slow for their own reasons; their status says why.
+ */
+export function ShortfallFix({ item, depth = 0 }: { item: string; depth?: number }) {
+  const f = shortfall(getState(), getLast(), item);
+  if (!f) return null;
+  // The maker is short itself: send the player one link up the chain instead of selling them idle machines
+  if (f.line && f.blocked && f.blocked !== item && depth < 3) {
+    const maker = MACHINES[f.line.machine];
+    return (
+      <>
+        <div class="line-fix">
+          <span class="muted small">
+            做{itemName(item)}的{maker.name}本身缺{itemName(f.blocked)}，先補它：
+          </span>
+        </div>
+        {shortfall(getState(), getLast(), f.blocked) ? (
+          <ShortfallFix item={f.blocked} depth={depth + 1} />
+        ) : (
+          <div class="line-fix">
+            <button class="small-btn" onClick={() => openLookup(f.blocked!)}>查看{itemName(f.blocked)}</button>
+          </div>
+        )}
+      </>
+    );
+  }
+  const gap = <span class="muted small">全速還缺 {fmtNum(Math.round(f.gap * 100) / 100)}/s</span>;
+  if (!f.line) {
+    return (
+      <div class="line-fix">
+        <button class="small-btn add" onClick={() => openPicker(true, itemName(item))}>建立{itemName(item)}生產線</button>
+        {gap}
+      </div>
+    );
+  }
+  const maker = MACHINES[f.line.machine];
+  return (
+    <div class="line-fix">
+      <button
+        class="small-btn add"
+        onClick={() => buildUpTo(f.line!.id, f.machines)}
+        title={`在「${maker.name}·${RECIPES[f.line.recipe].name}」加蓋 ${f.machines} 台，每台 +${fmtNum(Math.round(f.perMachine * 100) / 100)}/s`}
+      >
+        補足：{maker.name} +{f.machines}
+      </button>
+      {gap}
+    </div>
+  );
+}
+
+/** The recipe a line runs, as a button that opens the choice of everything its machine can make */
+function RecipeButton({ line, options }: { line: Line; options: number }) {
+  const r = RECIPES[line.recipe];
+  if (options <= 1) return <span class="recipe-btn static">{r.name}</span>;
+  return (
+    <button class="recipe-btn" onClick={() => openRecipeSwitch(line.id)} title="更換配方">
+      <span>{r.name}</span>
+      <Chevron />
+    </button>
+  );
+}
+
+/** Pick another recipe for a line: tiles like the new-line window, with the one in use marked */
+export function RecipeSwitch({ lineId }: { lineId: number }) {
+  const s = getState();
+  const line = s.lines.find((l) => l.id === lineId);
+  if (!line) return null;
+  const m = MACHINES[line.machine];
+  const options = recipesFor(s, line.machine);
+  if (!options.some((rr) => rr.id === line.recipe)) options.unshift(RECIPES[line.recipe]);
+  return (
+    <Modal title={`更換配方：${m.name}`} icon={<MachineIcon id={m.id} size={24} />} wide onClose={() => openRecipeSwitch(null)}>
+      {line.count > 0 && <p class="muted small">換配方不用花材料，{line.count} 台機器會立刻改做新的東西。</p>}
+      <div class="recipe-grid">
+        {options.map((r) => {
+          const per = craftsPerMachine(s, m, r);
+          const on = r.id === line.recipe;
+          return (
+            <button key={r.id} class={`recipe-tile pick-tile ${on ? 'on' : ''}`} onClick={() => setRecipe(line.id, r.id)} aria-pressed={on}>
+              <div class="rt-head">
+                <ItemIcon id={Object.keys(r.outputs)[0]} size={32} />
+                <div class="rt-title">
+                  <span class="rt-name">{r.name}</span>
+                  {on && <span class="rt-machine tone-text-ok">使用中</span>}
+                </div>
+              </div>
+              <div class="rt-formula">
+                <span class="rt-unit">每台每秒</span>
+                <Rates items={r.inputs} perSec={per} sign="−" />
+                <span class="rt-side">
+                  {Object.keys(r.inputs).length > 0 && <span class="flow-arrow">→</span>}
+                  <Rates items={r.outputs} perSec={per} sign="+" />
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </Modal>
+  );
+}
+
 function LineCard({ line, status, fresh, fuel, onCollapse }: {
   line: Line;
   status?: LineStatus;
@@ -433,11 +538,7 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
           )}
           {m.ignition && line.count > 0 && (line.heat ?? 0) >= 1 && <span class="badge lit">已點火</span>}
           </div>
-          <select value={line.recipe} aria-label="配方" onChange={(e) => setRecipe(line.id, (e.target as HTMLSelectElement).value)}>
-            {recipeOptions.map((rr) => (
-              <option key={rr.id} value={rr.id}>{rr.name}</option>
-            ))}
-          </select>
+          <RecipeButton line={line} options={recipeOptions.length} />
         </div>
         {onCollapse && (
           <button class="icon-btn collapse-btn" onClick={onCollapse} aria-label="收合" title="收合">
@@ -497,6 +598,7 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
           <span class="muted small">滿了就銷毀多出來的量，這條線不會再停</span>
         </div>
       )}
+      {(reason.kind === 'input' || reason.kind === 'power') && line.count > 0 && line.enabled && <ShortfallFix item={reason.item} />}
 
       <footer class="line-actions">
         <HoldButton act={() => demolish(line.id) > 0} disabled={line.count === 0} title="拆除一台（全額退還材料），按住連續拆除" label="拆除一台">−</HoldButton>

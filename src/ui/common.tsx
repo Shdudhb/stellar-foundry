@@ -170,12 +170,14 @@ export function PageHeader({ title, children }: { title: string; children?: prea
 /** Open modals, innermost last: Escape closes only the top one */
 const modalStack: (() => void)[] = [];
 
-export function Modal({ title, icon, onClose, wide, bar, children }: {
+export function Modal({ title, icon, onClose, wide, tall, bar, children }: {
   title: string;
   icon?: preact.ComponentChildren;
   onClose: () => void;
-  /** A big window with a fixed height, for long lists */
+  /** A wide window, for grids of tiles */
   wide?: boolean;
+  /** A fixed height, so switching tabs in a long list doesn't make the window jump */
+  tall?: boolean;
   /** Controls that stay put above the scrolling body (search, tabs) */
   bar?: preact.ComponentChildren;
   children: preact.ComponentChildren;
@@ -196,7 +198,7 @@ export function Modal({ title, icon, onClose, wide, bar, children }: {
   }, []);
   return (
     <div class="modal-backdrop" onClick={onClose}>
-      <div class={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div class={`modal ${wide ? 'wide' : ''} ${tall ? 'tall' : ''}`} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <header class="modal-head">
           <h2>{icon}{title}</h2>
           <button class="icon-btn close-btn" onClick={onClose} aria-label="關閉">✕</button>

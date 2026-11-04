@@ -62,6 +62,11 @@ export function overclock(machine: MachineDef, recipe: RecipeDef): { speed: numb
   return { speed: (machine.perfectOC ? 4 : 2) ** steps, power: 4 ** steps };
 }
 
+/** Crafts per second one machine of this kind does of this recipe at full speed, with overclock and the current boosts */
+export function craftsPerMachine(state: GameState, machine: MachineDef, recipe: RecipeDef): number {
+  return (overclock(machine, recipe).speed * (machine.speed ?? 1) * categoryBoost(state, recipe.category)) / recipe.time;
+}
+
 export function isMachineUnlocked(state: GameState, id: string): boolean {
   const ms = MACHINES[id]?.requiresMilestone;
   if (ms && !state.milestones.includes(ms)) return false;

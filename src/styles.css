@@ -483,7 +483,7 @@ p { margin: 0 0 8px; }
 .line-name-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-height: 22px; }
 .line-name { font-weight: 800; margin-right: 2px; }
 .line-name-row .badge { margin-left: 0; }
-.line-title select { max-width: 100%; }
+.line-title .recipe-btn { align-self: flex-start; }
 
 /* Inputs, arrow, outputs as three columns: each side lists its items one per row, so a long
    recipe never strands the arrow at the end of a line */
@@ -519,6 +519,20 @@ p { margin: 0 0 8px; }
 }
 .reason-link:hover:not(:disabled) { background: none; filter: brightness(1.2); }
 .line-fix { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: -4px; }
+.supply-gap { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgb(231 184 74 / 0.4); background: rgb(231 184 74 / 0.06); }
+.supply-gap .line-fix { margin: 0; }
+/* The recipe a line runs: a button that opens the choice, not a dropdown */
+.recipe-btn {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+  max-width: 100%; padding: 5px 10px; text-align: left; font-weight: 600;
+  background: #0b1016; border-color: var(--line);
+}
+.recipe-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recipe-btn svg { flex: none; color: var(--muted); }
+.recipe-btn.static { border: 1px solid var(--line-soft); border-radius: 7px; color: var(--muted); align-self: flex-start; }
+.pick-tile { text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.pick-tile:hover:not(:disabled) { border-color: rgb(240 160 75 / 0.6); background: var(--panel-3); }
+.pick-tile.on { border-color: var(--ok); box-shadow: inset 0 0 0 1px rgb(87 201 138 / 0.4); }
 
 .line-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 /* Top-aligned, with the label on the same line height as the items, so "每台：" lines up with the first row */
@@ -658,7 +672,8 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .modal-bar .line-filter { margin: 0; }
 .modal-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 12px 16px 16px; }
 /* Long lists get a big window of fixed height, so switching tabs doesn't make it jump */
-.modal.wide { width: min(1120px, 100%); height: 86vh; height: 86dvh; }
+.modal.wide { width: min(1120px, 100%); }
+.modal.tall { height: 86vh; height: 86dvh; }
 .icon-btn { background: none; border: none; color: var(--muted); }
 .pause-btn { display: inline-grid; place-items: center; min-width: 30px; min-height: 26px; }
 .pause-btn.on { color: var(--accent); }
@@ -935,7 +950,7 @@ body:has(.modal-backdrop) { overflow: hidden; }
   /* Windows come up from the bottom as sheets, where the thumb already is */
   .modal-backdrop { align-items: flex-end; padding: 0; padding-top: calc(12px + env(safe-area-inset-top)); }
   .modal { width: 100%; max-height: 92vh; max-height: 92dvh; border-radius: 14px 14px 0 0; border-bottom: none; animation-name: sheet-up; }
-  .modal.wide { height: 92vh; height: 92dvh; }
+  .modal.tall { height: 92vh; height: 92dvh; }
   .modal-body { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
   .modal-bar { padding: 10px 14px 8px; }
   .modal-bar .line-filter { margin: 0 -14px; }

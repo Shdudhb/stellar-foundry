@@ -7,7 +7,9 @@ import type { Line } from '../sim/types';
 import { build, createLine, focusLine, gather, getLast, getState, openLookup } from '../state/store';
 import { HoldButton, Modal, Side, fmtRate, reasonText, reasonTone, useHold } from './common';
 import { ItemIcon, MachineIcon } from './pixel';
+import { ShortfallFix } from './ProductionPanel';
 import { StoreControls } from './StoragePanel';
+import { shortfall } from '../sim/supply';
 
 /** Can be built right now: the recipe and at least one machine for it are unlocked */
 function ready(r: RecipeDef): boolean {
@@ -181,9 +183,19 @@ function ItemFlow({ item }: { item: string }) {
   if (rows.length === 0) return null;
   // A line counts as a maker or a user by what it does at full speed, so a stalled one still shows up in the right list
   const sign = (r: FlowRow) => (r.full ?? r.now) || r.now;
+  const st = getState();
+  const f = shortfall(st, getLast(), item);
   return (
     <>
       <h4>目前流量</h4>
+      {f && (
+        <div class="supply-gap">
+          <span class="tone-text-warn small">
+            全速需要 {fmtRate(f.demand)} · 產能只有 {fmtRate(f.capacity)}
+          </span>
+          <ShortfallFix item={item} />
+        </div>
+      )}
       <div class="flow-lists">
         <FlowList title="生產" rows={rows.filter((r) => sign(r) > 0)} sign={1} />
         <FlowList title="消耗" rows={rows.filter((r) => sign(r) < 0)} sign={-1} />

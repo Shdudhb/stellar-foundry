@@ -15,7 +15,7 @@ import { Embers } from './Embers';
 import { LegacyPanel } from './LegacyPanel';
 import { MilestonePanel } from './MilestonePanel';
 import { Objective } from './Objective';
-import { NewLinePicker, ProductionPanel } from './ProductionPanel';
+import { NewLinePicker, ProductionPanel, RecipeSwitch } from './ProductionPanel';
 import { RecipeLookup } from './RecipeLookup';
 import { RecordsPanel } from './RecordsPanel';
 import { ResearchPanel } from './ResearchPanel';
@@ -449,6 +449,7 @@ export function App() {
       {ui.tradeOpen && activeIncident(s) && <IncidentModal />}
       {ui.intro && <IntroModal />}
       {ui.picker && <NewLinePicker />}
+      {ui.recipeLine !== null && <RecipeSwitch lineId={ui.recipeLine} />}
       {/* The item window opens from inside the others too, so it goes on top */}
       {ui.lookupItem && <RecipeLookup item={ui.lookupItem} />}
       <Toasts />

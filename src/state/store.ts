@@ -74,6 +74,8 @@ export interface UiState {
   pickerQuery: string;
   /** A research or megastructure card to bring into view on its tab */
   goto: { tab: 'research' | 'milestones'; id: string } | null;
+  /** The line whose recipe is being switched */
+  recipeLine: number | null;
   toasts: Toast[];
   /** Recent notable happenings, newest first */
   log: LogEntry[];
@@ -85,7 +87,7 @@ let state: GameState = newGame();
 let last: TickResult = emptyTick();
 const smoothRates: Record<string, number> = {};
 const ui: UiState = {
-  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null,
+  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null,
   toasts: [], log: [],
 };
 const listeners = new Set<() => void>();
@@ -369,8 +371,8 @@ export function createLine(machineId: string, recipeId: string) {
   focusLine(id);
 }
 
-/** Returns how many were built */
-export function build(lineId: number, times = 1): number {
+/** Returns how many were built; `quiet` leaves the explaining to the caller */
+export function build(lineId: number, times = 1, quiet = false): number {
   const line = state.lines.find((l) => l.id === lineId);
   if (!line) return 0;
   const m = MACHINES[line.machine];
@@ -378,7 +380,7 @@ export function build(lineId: number, times = 1): number {
   let built = 0;
   for (let i = 0; i < times; i++) {
     if (slotsUsed(state, orbit) + m.slots > slotsTotal(state, orbit)) {
-      toast(orbit ? '軌道槽位不足' : '區域槽位不足', { tone: 'bad' });
+      if (!quiet || built === 0) toast(orbit ? '軌道槽位不足' : '區域槽位不足', { tone: 'bad' });
       break;
     }
     if (!canAfford(state, m.cost)) {
@@ -395,6 +397,24 @@ export function build(lineId: number, times = 1): number {
   if (built > 0) emit('build');
   notify();
   return built;
+}
+
+/** Build up to `n` to close a shortage; when materials run out part way, say how far it got and what's missing */
+export function buildUpTo(lineId: number, n: number): number {
+  const line = state.lines.find((l) => l.id === lineId);
+  if (!line || n <= 0) return 0;
+  const built = build(lineId, n, true);
+  if (built > 0 && built < n) {
+    const m = MACHINES[line.machine];
+    const why = slotsUsed(state, !!m.orbital) + m.slots > slotsTotal(state, !!m.orbital) ? '槽位不夠' : shortText(m.cost);
+    toast(`${m.name} 蓋了 ${built}/${n} 台，${why}`, { tone: 'bad', title: '沒有全部補足', icon: Object.keys(RECIPES[line.recipe].outputs)[0] });
+  }
+  return built;
+}
+
+export function openRecipeSwitch(lineId: number | null) {
+  ui.recipeLine = lineId;
+  notify();
 }
 
 /** Returns how many were taken down */
@@ -448,6 +468,8 @@ export function setRecipe(lineId: number, recipeId: string) {
   const r = RECIPES[recipeId];
   if (!line || !r || !canRun(MACHINES[line.machine], r) || !isRecipeUnlocked(state, recipeId)) return;
   line.recipe = recipeId;
+  ui.recipeLine = null;
+  emit('click');
   notify();
 }
 
@@ -667,7 +689,7 @@ export function importSave(text: string): boolean {
   history.length = 0;
   acc = 0;
   for (const k of Object.keys(smoothRates)) smoothRates[k] = 0;
-  Object.assign(ui, { intro: false, lookupItem: null, picker: false, focusLine: null, goto: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
+  Object.assign(ui, { intro: false, lookupItem: null, picker: false, focusLine: null, goto: null, recipeLine: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
   checkAchievements(true);
   saveLocal(state);
   toast('已匯入存檔', { tone: 'good' });
