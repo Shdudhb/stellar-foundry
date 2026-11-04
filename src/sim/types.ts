@@ -8,6 +8,8 @@ export interface Line {
   wear?: number;
   /** 0 = cold, 1 = lit (machines with ignition only) */
   heat?: number;
+  /** Stop making the main output once its stock reaches this fraction of storage (0..1); unset = no limit */
+  limit?: number;
 }
 
 export interface GameState {
@@ -45,6 +47,8 @@ export interface GameState {
   playTime: number;
   /** Epoch ms of the last save */
   savedAt: number;
+  /** Techs lined up to research in order as data comes in */
+  queue?: string[];
   /** The player paused the game: no factory time passes, live or while away */
   paused?: boolean;
 }
@@ -78,6 +82,8 @@ export type Reason =
   | { kind: 'output'; item: string }
   | { kind: 'power'; item: string }
   | { kind: 'load' }
+  /** Held back by the line's own stock limit on its main output */
+  | { kind: 'limit'; item: string }
   | { kind: 'wear' }
   | { kind: 'igniting' };
 

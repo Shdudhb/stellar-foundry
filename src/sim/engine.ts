@@ -35,6 +35,19 @@ interface Active {
   free: boolean;
 }
 
+/** The item a line's stock limit applies to: its first output, when that is cargo and a limit is set */
+export function limitedItem(line: Line): string | undefined {
+  if (line.limit === undefined || !(line.limit < 1)) return undefined;
+  return limitableItem(line);
+}
+
+/** The item a stock limit would apply to on this line, set or not; power and the swarm can't be stocked */
+export function limitableItem(line: Line): string | undefined {
+  const r = RECIPES[line.recipe];
+  const main = r && Object.keys(r.outputs)[0];
+  return main && !isPower(main) && ITEMS[main]?.kind !== 'structure' ? main : undefined;
+}
+
 /** How many steps up from a generator the fuel chain is followed: light oil ← distillation ← crude pump */
 const FUEL_DEPTH = 2;
 
@@ -179,6 +192,16 @@ export function tick(state: GameState, dt: number): TickResult {
       if (ratio < a.f) {
         a.f = ratio;
         a.reason = { kind: 'output', item };
+      }
+    }
+    // The line's own stock limit: make only what brings the main output back up to it
+    const main = limitedItem(a.line);
+    if (main) {
+      const room = Math.max(0, a.line.limit! * capOf(state, main) - (state.items[main] ?? 0));
+      const ratio = Math.min(1, room / (a.potential * r.outputs[main]));
+      if (ratio < a.f) {
+        a.f = ratio;
+        a.reason = { kind: 'limit', item: main };
       }
     }
   }

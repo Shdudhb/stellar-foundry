@@ -562,3 +562,32 @@ describe('simulateOffline', () => {
     expect(s.playTime).toBe(1600);
   });
 });
+
+describe('stock limit', () => {
+  it('stops a line once its output reaches the limit, then makes what is used', () => {
+    const s = game({ iron_ore: 1000, coal: 1000 }, [{ machine: 'stone_furnace', recipe: 'smelt_iron', count: 4 }]);
+    s.lines[0].limit = 0.01;
+    const target = 0.01 * capOf(s, 'iron_ingot');
+    let last = run(s, 600);
+    expect(s.items.iron_ingot).toBeCloseTo(target, 0);
+    expect(last.lines[1].reason).toEqual({ kind: 'limit', item: 'iron_ingot' });
+    expect(last.lines[1].efficiency).toBeLessThan(0.01);
+    // Someone takes ingots: the line tops back up to the limit and holds there
+    s.items.iron_ingot = target - 5;
+    last = run(s, 30);
+    expect(s.items.iron_ingot).toBeCloseTo(target, 0);
+  });
+
+  it('keeps feeding a consumer downstream while holding the stock at the limit', () => {
+    const s = game({ iron_ore: 5000, coal: 5000 }, [
+      { machine: 'stone_furnace', recipe: 'smelt_iron', count: 4 },
+      { machine: 'workbench', recipe: 'craft_gear', count: 1 },
+    ]);
+    s.lines[0].limit = 0.01;
+    const last = run(s, 60);
+    expect(s.items.iron_ingot).toBeLessThanOrEqual(0.01 * capOf(s, 'iron_ingot') + 1e-6);
+    // The gear line is never starved: the furnaces make exactly what it takes
+    expect(last.lines[2].efficiency).toBeGreaterThan(0.99);
+    expect(last.lines[1].reason.kind).toBe('limit');
+  });
+});

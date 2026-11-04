@@ -9,6 +9,7 @@ import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS } from '../data/tech';
 import { tick } from '../sim/engine';
 import { simulateOffline, type OfflineReport } from '../sim/offline';
+import { learn, queueNext, toggleQueued } from '../sim/research';
 import {
   AMOUNT_EPSILON, activeIncident, canAfford, canBuildMilestone, hasAmount, canRun, capOf, currentTier, isMachineUnlocked, offlineCap, simSpeed, techCost, isRecipeUnlocked, milestoneUnlocked, slotsTotal, slotsUsed, techAvailable,
   upgradeCost, upgradeTarget,
@@ -146,6 +147,11 @@ function step(dt: number) {
   const simDt = dt * simSpeed(state);
   last = tick(state, simDt);
   state.playTime += dt;
+  for (let id = queueNext(state); id; id = queueNext(state)) {
+    const cost = techCost(state, id);
+    learn(state, id);
+    announceTech(id, cost, true);
+  }
   countProduced(last, simDt);
   updateSignal();
   updateIncident();
@@ -481,14 +487,29 @@ export function toggleLine(lineId: number) {
   notify();
 }
 
+/** Stock limit for a line's main output, as a fraction of storage; undefined lifts it */
+export function setLineLimit(lineId: number, limit: number | undefined) {
+  const line = state.lines.find((l) => l.id === lineId);
+  if (!line) return;
+  if (limit === undefined || !(limit > 0 && limit < 1)) delete line.limit;
+  else line.limit = limit;
+  emit('click');
+  notify();
+}
+
 export function research(techId: string) {
   const t = TECHS[techId];
   if (!t || !techAvailable(state, techId)) return;
   const cost = techCost(state, techId);
   if (!canAfford(state, cost)) return lacking(cost, '研究數據不足');
-  pay(cost);
-  state.techs.push(techId);
-  // Say what it opened up, so the player knows what to go and build
+  learn(state, techId);
+  announceTech(techId, cost);
+  checkAchievements();
+}
+
+/** Say what a finished tech opened up, so the player knows what to go and build */
+function announceTech(techId: string, cost: Record<string, number>, queued = false) {
+  const t = TECHS[techId];
   const opened = [
     ...(t.unlockMachines ?? []).map((m) => MACHINES[m].name),
     ...(t.unlockRecipes ?? []).map((r) => RECIPES[r].name),
@@ -496,9 +517,21 @@ export function research(techId: string) {
   ];
   const more = opened.length > 3 ? ` 等 ${opened.length} 項` : '';
   toast(opened.length ? `${t.name} · 解鎖 ${opened.slice(0, 3).join('、')}${more}` : t.name, {
-    tone: 'good', title: '研究完成', icon: Object.keys(cost)[0], log: true, sound: 'research',
+    tone: 'good', title: queued ? '排程研究完成' : '研究完成', icon: Object.keys(cost)[0], log: true, sound: 'research',
   });
-  checkAchievements();
+}
+
+/** Line a tech up for research (with what it needs first), or take it off the queue */
+export function queueTech(techId: string) {
+  toggleQueued(state, techId);
+  emit('click');
+  notify();
+}
+
+export function clearQueue() {
+  state.queue = [];
+  emit('click');
+  notify();
 }
 
 export function buildMilestone(id: string) {

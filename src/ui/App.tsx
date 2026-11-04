@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { ITEMS } from '../data/items';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
-import { MILESTONE_LIST, MILESTONES, TECH_LIST } from '../data/tech';
+import { MILESTONE_LIST, MILESTONES, TECH_LIST, TECHS } from '../data/tech';
 import { BOOST_TIME } from '../data/legacy';
 import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnlocked, offlineCap, techAvailable, techCost } from '../sim/rules';
 import type { GameState } from '../sim/types';
@@ -218,7 +218,7 @@ function OfflineReportModal() {
   const changes = Object.entries(report.changes).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
   const stalled = s.lines
     .map((l) => ({ l, st: report.last?.lines[l.id] }))
-    .filter(({ st }) => st && st.efficiency < 0.999 && !['idle', 'paused', 'load'].includes(st.reason.kind))
+    .filter(({ st }) => st && st.efficiency < 0.999 && !['idle', 'paused', 'load', 'limit'].includes(st.reason.kind))
     // The most stuck first
     .sort((a, b) => a.st!.efficiency - b.st!.efficiency);
 
@@ -228,6 +228,12 @@ function OfflineReportModal() {
         你離開了 {fmtDuration(report.away)}
         {report.simulated < report.away && <span class="muted">（只補算 {fmtDuration(report.simulated)}）</span>}。
       </p>
+      {(report.researched?.length ?? 0) > 0 && (
+        <>
+          <h4>排程研究完成</h4>
+          <p>{report.researched.map((id) => TECHS[id]?.name ?? id).join('、')}</p>
+        </>
+      )}
       <h4>物品變化</h4>
       {changes.length === 0 ? (
         <p class="muted">沒有變化。</p>

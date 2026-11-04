@@ -3,6 +3,7 @@ import { KIT_LEVELS, FIRST_SIGNAL } from '../data/legacy';
 import { OBJECTIVES } from '../data/objectives';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
+import { TECHS } from '../data/tech';
 import type { GameState, Stats } from '../sim/types';
 
 export const SAVE_KEY = 'stellar-foundry-save';
@@ -72,6 +73,8 @@ function migrate(raw: any): GameState {
   }
   // A line whose machine or recipe was renamed or removed would break the game; drop it
   s.lines = s.lines.filter((l) => MACHINES[l.machine] && RECIPES[l.recipe]);
+  for (const l of s.lines) if (l.limit !== undefined && !(l.limit > 0 && l.limit < 1)) delete l.limit;
+  if (s.queue !== undefined) s.queue = Array.isArray(s.queue) ? s.queue.filter((q) => typeof q === 'string' && TECHS[q]) : [];
   s.version = SAVE_VERSION;
   return s;
 }

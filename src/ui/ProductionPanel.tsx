@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEM_ORDER, ITEMS, canVent, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
-import { WORN_SPEED, fuelLines } from '../sim/engine';
+import { WORN_SPEED, fuelLines, limitableItem } from '../sim/engine';
 import { shortfall } from '../sim/supply';
 import {
   canAfford, canRun, capOf, categoryBoost, craftsPerMachine, isMachineUnlocked, isRecipeUnlocked, overclock, recipesFor, slotsTotal, slotsUsed, upgradeCost, upgradeTarget,
@@ -11,7 +11,7 @@ import {
 import type { Line, LineStatus } from '../sim/types';
 import {
   build, buildUpTo, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, openPicker, openRecipeSwitch, removeLine,
-  setRecipe, toggleLine, toggleVent, upgradeLine,
+  setLineLimit, setRecipe, toggleLine, toggleVent, upgradeLine,
 } from '../state/store';
 import {
   Bar, Chevron, Cost, HoldButton, ItemLink, Modal, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone, useHold,
@@ -361,6 +361,34 @@ function IgnitionRow({ heat, igniting, power, time }: { heat: number; igniting: 
   );
 }
 
+const LIMITS = [0.1, 0.25, 0.5, 0.75];
+
+/** Stop the line once its main output stocks up to a share of storage, so it leaves shared inputs to others */
+function LimitRow({ line, item }: { line: Line; item: string }) {
+  const s = getState();
+  const cap = capOf(s, item);
+  return (
+    <div class="limit-row">
+      <span class="small">
+        <ItemLink id={item} /> 存到倉庫的
+      </span>
+      <div class="limit-chips">
+        <button class={`filter-chip ${line.limit === undefined ? 'active' : ''}`} onClick={() => setLineLimit(line.id, undefined)}>不限</button>
+        {LIMITS.map((f) => (
+          <button key={f} class={`filter-chip ${line.limit === f ? 'active' : ''}`} title={`${fmt(f * cap)} 個`} onClick={() => setLineLimit(line.id, f)}>
+            {Math.round(f * 100)}%
+          </button>
+        ))}
+      </div>
+      <span class="muted small">
+        {line.limit === undefined
+          ? '就停，下游用掉多少再補多少'
+          : `＝${fmt(line.limit * cap)} 個就停，下游用掉多少再補多少`}
+      </span>
+    </div>
+  );
+}
+
 /** Removing a line with machines in it takes a second tap within a few seconds */
 function RemoveButton({ line }: { line: Line }) {
   const [armed, setArmed] = useState(false);
@@ -504,7 +532,7 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
   const empty = line.count === 0;
   const perSec = empty ? perMachine : status?.craftsPerSec ?? 0;
   const fullSpeed = status?.maxCraftsPerSec ?? 0;
-  const showFull = !empty && line.enabled && eff < 0.999 && fullSpeed > 0 && !['load', 'igniting', 'idle', 'paused'].includes(reason.kind);
+  const showFull = !empty && line.enabled && eff < 0.999 && fullSpeed > 0 && !['load', 'limit', 'igniting', 'idle', 'paused'].includes(reason.kind);
   const ventable = reason.kind === 'output' && canVent(reason.item) && !s.vent.includes(reason.item);
   const reasonItem = 'item' in reason ? reason.item : undefined;
   const reasonLabel = reasonText(reason, status, ventable);
@@ -515,6 +543,8 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
   const drawItem = m.power?.item;
   const recipeNet = drawItem ? (r.outputs[drawItem] ?? 0) - (r.inputs[drawItem] ?? 0) : 0;
   const draw = !drawItem ? 0 : empty ? m.power!.amount * oc.power : recipeNet * perSec - (status?.power[drawItem] ?? 0);
+  const limitItem = limitableItem(line);
+  const [limitOpen, setLimitOpen] = useState(false);
 
   return (
     <article id={`line-${line.id}`} data-line={line.id} class={`card line tone-border-${tone} ${line.enabled ? '' : 'paused'} ${eff > 0.01 ? 'running' : ''} ${fresh ? 'fresh' : ''}`}>
@@ -605,9 +635,20 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
         <HoldButton class="primary" act={() => build(line.id) > 0} title="建造一台，按住連續建造" label="建造一台">＋</HoldButton>
         <button onClick={() => build(line.id, 5)} title="建造五台">＋5</button>
         <button onClick={() => toggleLine(line.id)}>{line.enabled ? '暫停' : '繼續'}</button>
+        {limitItem && (
+          <button
+            class={`limit-btn ${line.limit !== undefined ? 'set' : ''}`}
+            aria-expanded={limitOpen}
+            title="存到一定數量就停"
+            onClick={() => setLimitOpen(!limitOpen)}
+          >
+            {line.limit !== undefined ? `上限${Math.round(line.limit * 100)}%` : '上限'}
+          </button>
+        )}
         <span class="spacer" />
         <RemoveButton line={line} />
       </footer>
+      {limitItem && limitOpen && <LimitRow line={line} item={limitItem} />}
       <p class="line-cost muted small">每台：<Cost cost={m.cost} /></p>
       {upgrade && <UpgradeRow line={line} to={upgrade} />}
     </article>
@@ -652,7 +693,7 @@ function LineRow({ line, status, onOpen }: { line: Line; status?: LineStatus; on
   const tone = reasonTone(reason);
   const main = Object.keys(r.outputs)[0];
   const rate = (r.outputs[main] ?? 0) * (status?.craftsPerSec ?? 0);
-  const fine = reason.kind === 'ok' || (reason.kind === 'load' && eff > 0);
+  const fine = reason.kind === 'ok' || ((reason.kind === 'load' || reason.kind === 'limit') && eff > 0);
   return (
     <div id={`line-${line.id}`} data-line={line.id} class={`lrow tone-border-${tone} ${line.enabled ? '' : 'paused'}`}>
       <button class="lrow-main" onClick={onOpen} title="展開這條生產線">

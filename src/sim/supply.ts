@@ -46,7 +46,9 @@ export function shortfall(s: GameState, last: TickResult, item: string): Shortfa
       if (line.count > 0) capacity += made * (st?.maxCraftsPerSec ?? 0);
     }
     if (line.count === 0 || !st) continue;
-    if (!isPower(item)) demand += (r.inputs[item] ?? 0) * st.maxCraftsPerSec;
+    // A line held back by its own stock limit only wants what keeps it topped up
+    const wants = st.reason.kind === 'limit' ? st.craftsPerSec : st.maxCraftsPerSec;
+    if (!isPower(item)) demand += (r.inputs[item] ?? 0) * wants;
     if (item === MAINTENANCE_ITEM && st.upkeep) demand += st.upkeep.need;
   }
   // Power: the grid already adds up what every machine draws to run

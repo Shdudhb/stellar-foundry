@@ -129,6 +129,7 @@ export function reasonText(reason: Reason, status?: LineStatus, brief = false): 
         : `${itemName(reason.item)}倉庫已滿`;
     case 'power': return `${itemName(reason.item)}不足`;
     case 'load': return status && status.efficiency > 0 ? '依需求運轉' : '待命（沒有需求）';
+    case 'limit': return `${itemName(reason.item)}已存到上限`;
     case 'wear': return '機器磨損，速度下降';
     case 'igniting': return '點火中';
   }
@@ -136,13 +137,13 @@ export function reasonText(reason: Reason, status?: LineStatus, brief = false): 
 
 /** A line with machines that runs slow for a reason the player can fix (not idle, paused or waiting on demand) */
 export function isStuck(line: Line, status: LineStatus | undefined): boolean {
-  return !!status && line.count > 0 && status.efficiency < 0.999 && !['ok', 'idle', 'paused', 'load', 'igniting'].includes(status.reason.kind);
+  return !!status && line.count > 0 && status.efficiency < 0.999 && !['ok', 'idle', 'paused', 'load', 'limit', 'igniting'].includes(status.reason.kind);
 }
 
 export function reasonTone(reason: Reason): 'ok' | 'warn' | 'bad' | 'muted' {
   switch (reason.kind) {
     case 'ok': return 'ok';
-    case 'idle': case 'paused': case 'load': return 'muted';
+    case 'idle': case 'paused': case 'load': case 'limit': return 'muted';
     case 'power': case 'input': case 'wear': case 'igniting': return 'warn';
     case 'output': return 'bad';
   }
