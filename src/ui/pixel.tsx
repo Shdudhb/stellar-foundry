@@ -947,6 +947,7 @@ const ITEM_ART: Record<string, Layer[]> = {
   nanotube: one('lattice', '#7d8ca0'),
   comet_ice: one('ice', '#bfe8f6'),
   magma: one('cell', '#f2703e'),
+  heat_ceramic: one('plate', '#e8d9c0'),
   deuterium: one('atom', '#6fb4f0'),
   helium: one('gascell', '#f0d98f'),
   liquid_helium: one('cell', '#a6e6ff'),

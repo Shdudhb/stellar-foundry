@@ -73,6 +73,7 @@ export const OBJECTIVES: Objective[] = [
   { text: '研究「聚變」，蓋聚變反應爐', done: (s) => has(s, 'fusion_reactor'), go: { machine: 'fusion_reactor' } },
   { text: '點燃聚變反應爐：點火要先灌入大量電力', done: (s) => allLines(s).some((l) => l.machine === 'fusion_reactor' && (l.heat ?? 0) >= 1), go: { machine: 'fusion_reactor' } },
   { text: '研究「熔岩星探勘」，到熔岩星蓋岩漿泵和熔鑄廠', done: (s) => has(s, 'foundry'), go: { machine: 'foundry' } },
+  { text: '在熔岩星燒結耐熱陶瓷，用貨運船運回母星', done: (s) => (homeItems(s).heat_ceramic ?? 0) >= 30 || has(s, 'neutronium_compressor'), go: { recipe: 'cast_ceramic' } },
   { text: '研究「中子素」，蓋中子素壓縮機', done: (s) => has(s, 'neutronium_compressor'), go: { machine: 'neutronium_compressor' } },
   { text: '研究「戴森群」，在軌道上製造戴森板', done: (s) => has(s, 'orbital_fab', 'fab_dyson_panel'), go: { machine: 'orbital_fab', recipe: 'fab_dyson_panel' } },
   { text: '在「巨構」分頁建成戴森群第一段', done: (s) => s.milestones.includes('dyson_segment'), go: { milestone: 'dyson_segment' } },

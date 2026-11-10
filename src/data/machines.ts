@@ -276,7 +276,7 @@ const list: MachineDef[] = [
   {
     id: 'foundry', name: '熔鑄廠', tier: 6, categories: ['casting'], power: { item: 'eu', amount: 60 }, slots: 1,
     cost: { tungsten: 60, stainless: 100, precision_circuit: 6 },
-    description: '把岩漿直接鑄成鐵錠、銅錠，或慢慢提煉出鎢錠和銥錠。只能蓋在熔岩星上。',
+    description: '把岩漿直接鑄成鐵錠、銅錠，燒結耐熱陶瓷，或慢慢提煉出鎢錠和銥錠。只能蓋在熔岩星上。',
   },
   // ---- T6: IV machines overclock perfectly: 4x speed per tier for 4x power ----
   {
@@ -300,8 +300,8 @@ const list: MachineDef[] = [
   {
     id: 'neutronium_compressor', name: '中子素壓縮機', tier: 6, categories: ['neutron'], power: { item: 'eu', amount: 512 }, slots: 1,
     upkeep: 2,
-    cost: { superconductor: 20, iridium: 40, tungsten: 100 },
-    description: '把銥壓縮成中子素，非常耗電。需要維護。',
+    cost: { superconductor: 20, iridium: 40, tungsten: 100, heat_ceramic: 30 },
+    description: '把銥壓縮成中子素，非常耗電。機體內襯要用熔岩星的耐熱陶瓷。需要維護。',
   },
   // ---- T7 ----
   {

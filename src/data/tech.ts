@@ -345,9 +345,9 @@ const list: TechDef[] = [
   },
   {
     id: 'lava_expedition', name: '熔岩星探勘', tier: 6, cost: { data_yellow: 500 }, requires: ['colony_expansion'],
-    description: '開放第二個殖民地「熔岩星」：岩漿泵抽岩漿，熔鑄廠直接鑄成鐵錠、銅錠和鎢錠，還能慢慢提煉出銥錠，地熱井在那裡每秒發 240 電力。',
+    description: '開放第二個殖民地「熔岩星」：岩漿泵抽岩漿，熔鑄廠燒結只有那裡做得出的耐熱陶瓷（中子素壓縮機、戴森群和星門都要用），也能把岩漿直接鑄成鐵、銅、鎢和銥錠，地熱井在那裡每秒發 240 電力。',
     unlockMachines: ['magma_pump', 'foundry'],
-    unlockRecipes: ['pump_magma', 'magma_power', 'cast_iron', 'cast_copper', 'cast_tungsten', 'cast_iridium'],
+    unlockRecipes: ['pump_magma', 'magma_power', 'cast_iron', 'cast_copper', 'cast_ceramic', 'cast_tungsten', 'cast_iridium'],
   },
   {
     id: 'fusion', name: '聚變', tier: 6, cost: { data_yellow: 750 }, requires: ['superconductors', 'deuterium_extraction'],
@@ -366,8 +366,8 @@ const list: TechDef[] = [
     orbitSlotBonus: 12,
   },
   {
-    id: 'neutron_compression', name: '中子素', tier: 6, cost: { data_yellow: 900 }, requires: ['fusion'],
-    description: '中子素壓縮機：4 銥 + 1 超導線 → 中子素，每台吃 512 電力/秒。',
+    id: 'neutron_compression', name: '中子素', tier: 6, cost: { data_yellow: 900 }, requires: ['fusion', 'lava_expedition'],
+    description: '中子素壓縮機：4 銥 + 1 超導線 → 中子素，每台吃 512 電力/秒。機體要用熔岩星的耐熱陶瓷。',
     unlockMachines: ['neutronium_compressor'],
     unlockRecipes: ['compress_neutronium'],
   },
@@ -513,7 +513,7 @@ export const MILESTONE_LIST: MilestoneDef[] = [
     name: '戴森群第一段',
     tier: 6,
     description: '建成後送 200 片戴森群，每片每秒提供 20 電力。',
-    cost: { dyson_panel: 200, neutronium: 60, superconductor: 200, rocket_part: 80 },
+    cost: { dyson_panel: 200, neutronium: 60, superconductor: 200, rocket_part: 80, heat_ceramic: 150 },
     grantsItems: { dyson_swarm: 200 },
     victory: {
       title: '戴森群展開',
@@ -525,7 +525,7 @@ export const MILESTONE_LIST: MilestoneDef[] = [
     name: '星門',
     tier: 7,
     description: '建成即通關，之後可以在「星系」分頁躍遷到新星系。',
-    cost: { stable_exotic: 100, neutronium: 100, superconductor: 300, dyson_panel: 100 },
+    cost: { stable_exotic: 100, neutronium: 100, superconductor: 300, dyson_panel: 100, heat_ceramic: 300 },
     holds: { dyson_swarm: 600 },
     victory: {
       title: '星門開啟',

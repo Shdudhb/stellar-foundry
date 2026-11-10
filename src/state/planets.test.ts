@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { MACHINES } from '../data/machines';
 import { SHIP_COST, SHIP_RATE } from '../data/planets';
-import { RECIPES } from '../data/recipes';
+import { RECIPE_LIST, RECIPES } from '../data/recipes';
+import { MILESTONES, TECHS } from '../data/tech';
 import { allLines, atHome, enterPlanet, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
-import { recipeFits, slotsTotal } from '../sim/rules';
+import { recipeFits, recipePlanet, slotsTotal } from '../sim/rules';
 import { tickAll } from '../sim/world';
 import { exportString, importString, newGame } from './save';
 import { addLine, addRoute, build, buildShip, getState, importSave, removeRoute, switchPlanet } from './store';
@@ -72,6 +73,22 @@ describe('planets', () => {
     for (let i = 0; i < 150; i++) tickAll(s, 1);
     expect(s.items.iridium / 150).toBeGreaterThan(0.9);
     expect(s.items.iridium / 150).toBeLessThan(1.05);
+  });
+
+  it('makes every world a required stop on the way to the stargate', () => {
+    // Each colony has something no other world can make...
+    for (const [planet, item] of [['ice', 'comet_ice'], ['lava', 'heat_ceramic']]) {
+      const makers = RECIPE_LIST.filter((r) => r.outputs[item]);
+      expect(makers.length).toBeGreaterThan(0);
+      expect(makers.every((r) => recipePlanet(r) === planet)).toBe(true);
+    }
+    // ...and the road runs through it: fusion needs the ice moon's deuterium, the stargate the lava world's ceramic
+    expect(RECIPES.fuse_dhe3.inputs.deuterium).toBeGreaterThan(0);
+    expect(RECIPE_LIST.filter((r) => r.outputs.deuterium).every((r) => r.inputs.comet_ice)).toBe(true);
+    expect(MILESTONES.dyson_segment.cost.heat_ceramic).toBeGreaterThan(0);
+    expect(MILESTONES.stargate.cost.heat_ceramic).toBeGreaterThan(0);
+    expect(MACHINES.neutronium_compressor.cost.heat_ceramic).toBeGreaterThan(0);
+    expect(TECHS.neutron_compression.requires).toContain('lava_expedition');
   });
 
   it('gives a colony its own slots and no orbit', () => {

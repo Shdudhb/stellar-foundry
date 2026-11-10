@@ -211,6 +211,8 @@ const list: RecipeDef[] = [
   { id: 'cast_iron', name: '岩漿鑄鐵', category: 'casting', tier: 6, time: 1, inputs: { magma: 4 }, outputs: { iron_ingot: 4 }, planet: 'lava' },
   { id: 'cast_copper', name: '岩漿鑄銅', category: 'casting', tier: 6, time: 1, inputs: { magma: 4 }, outputs: { copper_ingot: 4 }, planet: 'lava' },
   { id: 'cast_tungsten', name: '岩漿提鎢', category: 'casting', tier: 6, time: 4, inputs: { magma: 16 }, outputs: { tungsten: 1 }, planet: 'lava' },
+  // The one thing only the lava world makes: the compressor and both late megastructures are lined with it
+  { id: 'cast_ceramic', name: '燒結耐熱陶瓷', category: 'casting', tier: 6, time: 2, inputs: { magma: 8 }, outputs: { heat_ceramic: 1 }, planet: 'lava' },
   { id: 'cast_iridium', name: '岩漿提銥', category: 'casting', tier: 6, time: 8, inputs: { magma: 40 }, outputs: { iridium: 1 }, planet: 'lava' },
   { id: 'electrolyze_ice', name: '電解彗星冰', category: 'electrolysis', tier: 4, time: 4, inputs: { comet_ice: 2 }, outputs: { deuterium: 1, oxygen: 2 } },
   // Helium is a byproduct: if it backs up, fusion stops and the reactor goes cold.
