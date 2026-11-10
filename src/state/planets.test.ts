@@ -260,6 +260,20 @@ describe('planets', () => {
     expect(far.burned).toBeCloseTo(plain.burned * 2 * 1.5);
   });
 
+  it('carries the colony and freight legacies into a new run', () => {
+    const s = colony((g) => { g.legacy.upgrades = { colony: 2, freight: 2 }; g.items.rocket_fuel = 10; });
+    tickAll(s, 0.001);
+    const plain = { ...s, legacy: { ...s.legacy, upgrades: {} } };
+    enterPlanet(s, 'ice');
+    expect(slotsTotal(s)).toBe(slotsTotal({ ...plain, planet: 'ice' }) + 8);
+    enterPlanet(s, 'home');
+    expect(slotsTotal(s)).toBe(slotsTotal(plain));
+    storeOf(s, 'ice')!.items.comet_ice = 100;
+    s.routes = [{ id: 1, item: 'comet_ice', from: 'ice', to: 'home', ships: 1, enabled: true }];
+    tickAll(s, 1);
+    expect(s.items.comet_ice).toBeCloseTo(SHIP_RATE * 1.5);
+  });
+
   it('only gives galaxies traits for machines that exist', () => {
     const categories = new Set<string>(RECIPE_LIST.map((r) => r.category));
     for (const g of GALAXY_LIST) {

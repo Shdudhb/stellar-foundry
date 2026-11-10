@@ -37,7 +37,7 @@ export function categoryBoost(state: GameState, category: string): number {
 
 /** Items one cargo ship carries per second in this galaxy */
 export function shipRate(state: GameState): number {
-  return SHIP_RATE * ((state.galaxy && GALAXIES[state.galaxy]?.shipMult) || 1);
+  return SHIP_RATE * (1 + 0.25 * legacyLevel(state, 'freight')) * ((state.galaxy && GALAXIES[state.galaxy]?.shipMult) || 1);
 }
 
 /** Rocket fuel a route between these worlds burns for each item it moves, in this galaxy */
@@ -60,7 +60,7 @@ export function slotsTotal(state: GameState, orbit = false): number {
   if (planet !== HOME) {
     // Other worlds have ground only, and grow by their own research
     if (orbit) return 0;
-    return state.techs.reduce((s, id) => s + (TECHS[id]?.planetSlots?.[planet] ?? 0), PLANETS[planet]?.slots ?? 0);
+    return state.techs.reduce((s, id) => s + (TECHS[id]?.planetSlots?.[planet] ?? 0), (PLANETS[planet]?.slots ?? 0) + 4 * legacyLevel(state, 'colony'));
   }
   if (orbit) {
     const built = state.techs.reduce((s, id) => s + (TECHS[id]?.orbitSlotBonus ?? 0), 0);

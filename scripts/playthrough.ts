@@ -18,6 +18,7 @@
 //   --explore     100 extra ground slots, to look past slot pressure at the later chains
 //   --from=5      start at that tier with everything before it done and stores half full (implies --explore)
 //   --item=<id>   at the end, list every line making or using that item and why it is slow
+//   --galaxy=<id> play under that galaxy's trait, as after a warp
 //   --verbose     log each decision; --shed  pause lines by hand in brownouts, as before the game did it
 //
 // Limits: it is a heuristic, not an optimal player. It misplans slots, power and basic supplies in later
@@ -35,13 +36,13 @@ import { OBJECTIVES, currentObjective } from '../src/data/objectives';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../src/data/recipes';
 import { MILESTONE_LIST, TECH_LIST, TIER_NAMES } from '../src/data/tech';
 import { fuelLines } from '../src/sim/engine';
-import { SHIP_COST, SHIP_FUEL_ITEM, SHIP_RATE, routeFuel } from '../src/data/planets';
+import { SHIP_COST, SHIP_FUEL_ITEM } from '../src/data/planets';
 import { HOME, openPlanets, storeOf } from '../src/sim/planets';
 import { tickAll } from '../src/sim/world';
 import { EU_PER, primaryRecipe, price } from '../src/sim/balance';
 import {
   canAfford, canRun, capOf, categoryBoost, currentTier, isMachineUnlocked, isRecipeUnlocked, milestoneUnlocked, overclock, simSpeed,
-  recipePlanet, slotsTotal, slotsUsed, techAvailable, techCost, upgradeCost, upgradeTarget,
+  recipePlanet, shipFuel, shipRate, slotsTotal, slotsUsed, techAvailable, techCost, upgradeCost, upgradeTarget,
 } from '../src/sim/rules';
 import type { Line, TickResult } from '../src/sim/types';
 import {
@@ -81,6 +82,8 @@ if (FROM > 0) {
   }
   start.claimed = OBJECTIVES.filter((o) => o.done(start)).map((o) => o.text);
 }
+const GALAXY = (process.argv.find((a) => a.startsWith('--galaxy=')) ?? '').slice(9);
+if (GALAXY) start.galaxy = GALAXY;
 importSave(exportString(start));
 const s = getState;
 const fmtT = (sec: number) => `${Math.floor(sec / 3600)}h${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}m`;
@@ -274,7 +277,7 @@ function targets(): Record<string, number> {
   }
   add(buildWants, HORIZON / 3);
   // Ships burn rocket fuel at home for every item they carry
-  const shipping = (st.routes ?? []).reduce((n, r) => n + (r.enabled ? r.ships * SHIP_RATE * routeFuel(r.from, r.to) : 0), 0);
+  const shipping = (st.routes ?? []).reduce((n, r) => n + (r.enabled ? r.ships * shipRate(st) * shipFuel(st, r.from, r.to) : 0), 0);
   if (shipping > 0) want[SHIP_FUEL_ITEM] = (want[SHIP_FUEL_ITEM] ?? 0) + shipping * 1.25;
   add(saveFor, HORIZON);
   saveFor = {};
@@ -398,7 +401,7 @@ function runColonies() {
         const id = addRoute(item, planet, HOME);
         if (id === null) continue;
         const route = s().routes!.find((x) => x.id === id)!;
-        const ships = Math.max(1, Math.ceil((w.c * n * 1.2) / SHIP_RATE));
+        const ships = Math.max(1, Math.ceil((w.c * n * 1.2) / shipRate(s())));
         const before = route.ships;
         if (ships > before) buildShip(id, ships - before);
         if (route.ships > before) colonyLog.push(`${fmtT(s().playTime)} 航線 ${ITEMS[item].name} ${planet}→home 船 ${before}→${route.ships}`);
