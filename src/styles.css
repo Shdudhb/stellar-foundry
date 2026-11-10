@@ -772,7 +772,9 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .toast:hover:not(:disabled) { background: rgb(20 27 36 / 0.98); color: var(--text); }
 @keyframes toast-in { from { transform: translateX(24px); opacity: 0; } }
 @keyframes toast-drop { from { transform: translateY(-16px); opacity: 0; } }
-.toast-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.toast-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+/* A toast that leads somewhere says so */
+.toast-go { flex: none; color: var(--accent); font-weight: 800; white-space: nowrap; }
 .toast-title { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
 .toast-good { border-left-color: var(--ok); }
 .toast-good .toast-title { color: var(--ok); }
@@ -929,6 +931,8 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .signal-btn { padding: 2px 8px; font-size: 12px; white-space: nowrap; }
   .boost-chip { font-size: 11px; }
   .colony-stats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 14px; }
+  /* Slots decide whether anything can be built, so they lead the row instead of scrolling off its end */
+  .colony-stats > .stat-slots { order: -1; }
   .colony-stats::-webkit-scrollbar { display: none; }
   /* The tab bar and the colony title already say where you are: no logo row eating the screen */
   .mobile-brand { display: none; }
@@ -954,17 +958,18 @@ body:has(.modal-backdrop) { overflow: hidden; }
   .objective.claim button { flex: none; padding: 6px 12px; }
   .objective-claim-reward { display: none; }
   .objective-step { align-self: flex-start; margin-top: 2px; }
-  .objective-reward { margin-left: 0; }
+  .objective-reward { margin-left: 0; display: flex; align-items: center; gap: 2px; white-space: nowrap; max-width: 100%; overflow: hidden; }
+  .objective-reward .cost { flex-wrap: nowrap; }
   .objective-main { flex-direction: column; gap: 0; }
   .objective-go { padding: 6px 10px; font-size: 13px; max-width: 42%; white-space: normal; line-height: 1.3; }
   .lines { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
   .hide-sm { display: none; }
-  .milestone { grid-template-columns: 1fr; }
-  .ms-art { width: 64px; height: 64px; }
+  .milestone { gap: 12px; }
+  .ms-art { width: 56px; height: 56px; }
+  .milestone:not(.compact) .ms-art > * { width: 40px; height: 40px; }
+  .milestone h2 { font-size: 18px; }
   /* At the top, away from the line buttons and the tab bar the thumb is working on */
   .toasts { left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top)); bottom: auto; align-items: stretch; }
-  /* Full-width toasts still sit over content: let taps go through to what is underneath */
-  .toast { pointer-events: none; }
   .toast { max-width: none; animation-name: toast-drop; }
   /* Two at a time on a phone, or a burst of them covers the objective and the top of the page */
   .toast:nth-last-child(n + 3) { display: none; }

@@ -41,6 +41,8 @@ export interface Toast {
   icon?: string;
   /** Small heading above the text */
   title?: string;
+  /** Where tapping it leads: the relic choice, or the current world event's window */
+  action?: 'signal' | 'trade';
 }
 
 export interface LogEntry {
@@ -121,18 +123,20 @@ interface ToastOpts {
   /** Also keep it in the log */
   log?: boolean;
   sound?: GameEvent;
+  action?: Toast['action'];
 }
 
-function toast(text: string, { tone = 'info', icon, title, log, sound }: ToastOpts = {}) {
+function toast(text: string, { tone = 'info', icon, title, log, sound, action }: ToastOpts = {}) {
   const id = nextToastId++;
   // The same message again (tapping a button that can't work) refreshes it instead of stacking copies
   const others = ui.toasts.filter((x) => x.text !== text || x.title !== title);
-  ui.toasts = [...others.slice(-3), { id, text, tone, icon, title }];
+  ui.toasts = [...others.slice(-3), { id, text, tone, icon, title, action }];
   if (log) addLog(title ? `${title}：${text}` : text, tone, icon);
   if (sound) emit(sound);
   else if (tone === 'bad') emit('error');
   // Longer warnings (with a hint) stay up long enough to read
-  setTimeout(() => dismissToast(id), tone === 'achievement' ? 5000 : tone === 'bad' ? Math.max(2200, text.length * 110) : Math.max(3200, text.length * 90));
+  // One the player can act on waits a little longer for them
+  setTimeout(() => dismissToast(id), action ? 8000 : tone === 'achievement' ? 5000 : tone === 'bad' ? Math.max(2200, text.length * 110) : Math.max(3200, text.length * 90));
   notify();
 }
 
@@ -682,7 +686,7 @@ function updateSignal() {
   }
   if (state.signal === null && state.playTime >= state.nextSignal) {
     state.signal = state.playTime + SIGNAL_LIFETIME;
-    toast('點上方的「遺物訊號」回應它', { title: '偵測到遺物訊號', icon: 'exotic_matter', sound: 'signal', log: true });
+    toast('解析它換數據，或啟動它讓工廠加速', { title: '偵測到遺物訊號', icon: 'exotic_matter', sound: 'signal', log: true, action: 'signal' });
   }
 }
 
@@ -850,7 +854,7 @@ function startIncident() {
       tone: 'good', title: def.name, icon: def.icon, sound: 'incident', log: true,
     });
   } else {
-    toast(def.text, { tone: def.tone === 'bad' ? 'bad' : 'info', title: def.name, icon: def.icon, sound: 'incident', log: true });
+    toast(def.text, { tone: def.tone === 'bad' ? 'bad' : 'info', title: def.name, icon: def.icon, sound: 'incident', log: true, action: state.incident.offer ? 'trade' : undefined });
   }
 }
 

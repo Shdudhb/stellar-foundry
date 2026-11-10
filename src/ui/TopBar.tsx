@@ -133,9 +133,9 @@ export function TopBar() {
               {fmt(swarm)} 片 · +{fmt(swarm * SWARM_EU)} 電力
             </button>
           )}
-          <span class={`stat ${used >= total ? 'tone-text-warn' : ''}`} title="地面區域槽位">▦ 槽位 {used}/{total}</span>
+          <span class={`stat stat-slots ${used >= total ? 'tone-text-warn' : ''}`} title="地面區域槽位">▦ 槽位 {used}/{total}</span>
           {orbitTotal > 0 && (
-            <span class={`stat ${orbitUsed >= orbitTotal ? 'tone-text-warn' : ''}`} title="軌道站槽位">◎ 軌道 {orbitUsed}/{orbitTotal}</span>
+            <span class={`stat stat-slots ${orbitUsed >= orbitTotal ? 'tone-text-warn' : ''}`} title="軌道站槽位">◎ 軌道 {orbitUsed}/{orbitTotal}</span>
           )}
           <span class="stat muted" title="遊玩時間">⏱ {fmtDuration(s.playTime)}</span>
         </div>

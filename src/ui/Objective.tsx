@@ -35,7 +35,7 @@ export function Objective({ state }: { state: GameState }) {
       <span class="objective-step">目標 {idx + 1}/{OBJECTIVES.length}</span>
       <span class="objective-main">
         <span class="objective-text">{OBJECTIVES[idx].text}</span>
-        <span class="muted small objective-reward">獎勵：<Reward items={objectiveReward(state, [idx])} /></span>
+        <span class="muted small objective-reward"><span class="hide-sm">獎勵：</span><Reward items={objectiveReward(state, [idx])} /></span>
       </span>
       {step && <button class="objective-go" onClick={() => go(step)}>{stepLabel(step)} ›</button>}
     </div>

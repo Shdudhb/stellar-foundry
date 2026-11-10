@@ -196,12 +196,21 @@ function Toasts() {
   return (
     <div class="toasts" role="status" aria-live="polite">
       {toasts.map((x) => (
-        <button key={x.id} class={`toast toast-${x.tone}`} onClick={() => dismissToast(x.id)}>
+        <button
+          key={x.id}
+          class={`toast toast-${x.tone}`}
+          onClick={() => {
+            dismissToast(x.id);
+            if (x.action === 'signal') openSignal(true);
+            if (x.action === 'trade') openTrade(true);
+          }}
+        >
           {x.icon && <ItemIcon id={x.icon} size={x.tone === 'achievement' ? 32 : 24} />}
           <span class="toast-body">
             {x.title && <span class="toast-title">{x.title}</span>}
             <span>{x.text}</span>
           </span>
+          {x.action && <span class="toast-go">{x.action === 'signal' ? '回應' : '看報價'} ›</span>}
         </button>
       ))}
     </div>
