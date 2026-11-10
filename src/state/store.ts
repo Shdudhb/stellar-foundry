@@ -83,6 +83,7 @@ export interface UiState {
   recipeLine: number | null;
   /** The new-route window is open */
   routePicker: boolean;
+  overview: boolean;
   /** The game was opened in another tab after this one: this tab has stopped, so the two don't overwrite each other */
   superseded: boolean;
   toasts: Toast[];
@@ -107,7 +108,7 @@ const clearRates = () => {
   routeStatus = {};
 };
 const ui: UiState = {
-  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null, routePicker: false, superseded: false,
+  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null, routePicker: false, overview: false, superseded: false,
   toasts: [], log: [],
 };
 const listeners = new Set<() => void>();
@@ -259,7 +260,7 @@ function catchUp(seconds: number) {
 
 /** Windows and shortcuts that point into a run that is no longer there */
 function resetUi() {
-  Object.assign(ui, { lookupItem: null, picker: false, pickerQuery: '', focusLine: null, goto: null, recipeLine: null, routePicker: false, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
+  Object.assign(ui, { lookupItem: null, picker: false, pickerQuery: '', focusLine: null, goto: null, recipeLine: null, routePicker: false, overview: false, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
   acc = 0;
   historyAcc = 0;
 }
@@ -454,6 +455,11 @@ export function focusLine(id: number | null) {
     ui.lookupItem = null;
     ui.picker = false;
   }
+  notify();
+}
+
+export function openOverview(open: boolean) {
+  ui.overview = open && openPlanets(state).length > 1;
   notify();
 }
 

@@ -4,7 +4,7 @@ import { PLANETS } from '../data/planets';
 import { HOME, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
 import { TIER_NAMES } from '../data/tech';
 import { activeIncident, currentTier, slotsTotal, slotsUsed } from '../sim/rules';
-import { getLast, getRates, getRouteStatus, getState, getWorld, openLookup, openSignal, openTrade, switchPlanet, togglePause } from '../state/store';
+import { getLast, getRates, getRouteStatus, getState, getWorld, openLookup, openOverview, openSignal, openTrade, switchPlanet, togglePause } from '../state/store';
 import { PauseIcon, isStuck, fmt, fmtDuration, fmtNum, fmtRate } from './common';
 import { ItemIcon } from './pixel';
 import { getAudioPrefs, setAudioPrefs } from './sound';
@@ -96,6 +96,7 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
                   {trouble(p) > 0 && <span class="planet-flag" title={`${trouble(p)} 條生產線或航線卡住`} aria-label={`${trouble(p)} 處卡住`}>{trouble(p)}</span>}
                 </button>
               ))}
+              <button class="planet-all" title="星球總覽：每顆星球的槽位、電力、卡住的生產線與航線（O）" aria-label="星球總覽" onClick={() => openOverview(true)}>☰ 總覽</button>
             </div>
           )}
           <span class="spacer" />

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MACHINES } from '../data/machines';
 import { PLANET_LIST, SHIP_COST, SHIP_FUEL, SHIP_RATE, routeFuel } from '../data/planets';
+import { GALAXY_LIST } from '../data/galaxies';
 import { RECIPE_LIST, RECIPES } from '../data/recipes';
 import { MILESTONES, TECHS } from '../data/tech';
 import { allLines, atHome, enterPlanet, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
@@ -239,6 +240,31 @@ describe('planets', () => {
     expect(res.last.lines[1].reason).toEqual({ kind: 'reserve', item: 'iron_ore' });
     res = tickAll(s, 10);
     expect(s.items.iron_ore).toBeCloseTo(cap * 0.5);
+  });
+
+  it('lets a galaxy change what ships carry and what they burn', () => {
+    const run = (galaxy: string | null) => {
+      const s = colony((g) => { g.galaxy = galaxy; g.items.rocket_fuel = 10; });
+      tickAll(s, 0.001);
+      storeOf(s, 'ice')!.items.comet_ice = 100;
+      s.routes = [{ id: 1, item: 'comet_ice', from: 'ice', to: 'home', ships: 1, enabled: true }];
+      tickAll(s, 1);
+      return { moved: s.items.comet_ice, burned: 10 - s.items.rocket_fuel };
+    };
+    const plain = run(null);
+    expect(plain.moved).toBeCloseTo(SHIP_RATE);
+    expect(run('low_gravity').moved).toBeCloseTo(SHIP_RATE * 1.5);
+    expect(run('tight_cluster').burned).toBeCloseTo(plain.burned * 0.5);
+    const far = run('far_flung');
+    expect(far.moved).toBeCloseTo(SHIP_RATE * 2);
+    expect(far.burned).toBeCloseTo(plain.burned * 2 * 1.5);
+  });
+
+  it('only gives galaxies traits for machines that exist', () => {
+    const categories = new Set<string>(RECIPE_LIST.map((r) => r.category));
+    for (const g of GALAXY_LIST) {
+      for (const cat of Object.keys(g.boost)) expect(categories.has(cat), `${g.id}: ${cat}`).toBe(true);
+    }
   });
 
   it('pays for ships at home and refunds them when the route goes', () => {

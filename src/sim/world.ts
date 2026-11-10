@@ -1,8 +1,8 @@
 // One step of the whole colony: every world's factory, then the cargo ships between them
-import { SHIP_FUEL_ITEM, SHIP_RATE, routeFuel } from '../data/planets';
+import { SHIP_FUEL_ITEM } from '../data/planets';
 import { tick } from './engine';
 import { HOME, ensurePlanets, openPlanets, planetOf, storeOf, viewOf } from './planets';
-import { capOf } from './rules';
+import { capOf, shipFuel, shipRate } from './rules';
 import type { GameState, RouteStatus, TickResult } from './types';
 
 export interface WorldResult {
@@ -27,7 +27,7 @@ export function tickAll(state: GameState, dt: number): WorldResult {
   const routes: Record<number, RouteStatus> = {};
   const home = storeOf(state, HOME);
   for (const r of state.routes ?? []) {
-    const capacity = r.ships * SHIP_RATE;
+    const capacity = r.ships * shipRate(state);
     const from = storeOf(state, r.from);
     const to = storeOf(state, r.to);
     if (!r.enabled || r.ships <= 0 || !from || !to || !home || !byPlanet[r.from] || !byPlanet[r.to]) {
@@ -38,7 +38,7 @@ export function tickAll(state: GameState, dt: number): WorldResult {
     const stock = from.items[r.item] ?? 0;
     const have = Math.max(0, stock - (r.keep ?? 0) * cap);
     const room = Math.max(0, (r.upTo ?? 1) * cap - (to.items[r.item] ?? 0));
-    const per = routeFuel(r.from, r.to);
+    const per = shipFuel(state, r.from, r.to);
     const fuelled = (home.items[SHIP_FUEL_ITEM] ?? 0) / per;
     const want = capacity * dt;
     const n = Math.max(0, Math.min(want, have, room, fuelled));

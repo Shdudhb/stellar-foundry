@@ -1,8 +1,8 @@
 // Cargo routes: ships that carry one item from one world's storage to another's
 import { itemName } from '../data/items';
-import { PLANETS, SHIP_COST, SHIP_FUEL, SHIP_FUEL_ITEM, SHIP_RATE, routeFuel, shippable } from '../data/planets';
+import { PLANETS, SHIP_COST, SHIP_FUEL_ITEM, shippable } from '../data/planets';
 import { homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
-import { capOf } from '../sim/rules';
+import { capOf, shipFuel, shipRate } from '../sim/rules';
 import type { Route } from '../sim/types';
 import {
   buildShip, createRoute, getRouteStatus, getState, openLookup, openRoutePicker, removeRoute, routesOf, scrapShip, setRouteRule, toggleRoute,
@@ -12,7 +12,7 @@ import { ItemIcon } from './pixel';
 
 const perSec = (n: number) => fmtNum(Math.round(n * 100) / 100);
 
-const WHY: Record<string, string> = {
+export const WHY: Record<string, string> = {
   paused: '已暫停',
   idle: '還沒有船',
   empty: '來源沒貨了',
@@ -33,7 +33,7 @@ function RouteRules({ r }: { r: Route }) {
   };
   return (
     <div class="route-rules small">
-      <span class="muted" title="運費依距離計，從母星倉庫扣">運費 {Math.round(1 / routeFuel(r.from, r.to))} 個／1 燃料</span>
+      <span class="muted" title="運費依距離計，從母星倉庫扣">運費 {Math.round(1 / shipFuel(getState(), r.from, r.to))} 個／1 燃料</span>
       <label>
         <span class="muted">{PLANETS[r.from].name}保留</span>
         <select value={String(r.keep ?? 0)} onChange={pick('keep')} aria-label="來源保留多少">
@@ -67,14 +67,14 @@ function RouteRow({ r }: { r: Route }) {
         <span class="route-rate">
           <span class={bad ? 'tone-text-bad' : slow ? 'tone-text-warn' : 'tone-text-ok'}>{perSec(st?.perSec ?? 0)}/s</span>
           <span class="small muted">
-            {slow ? WHY[st!.reason] : `滿載 ${perSec(r.ships * SHIP_RATE)}/s`}
+            {slow ? WHY[st!.reason] : `滿載 ${perSec(r.ships * shipRate(getState()))}/s`}
           </span>
         </span>
       </button>
       <span class="route-ctl">
       <span class="route-ships" title="這條航線上的貨運船">{r.ships} 艘</span>
       <HoldButton class="lrow-btn" act={() => scrapShip(r.id) > 0} disabled={r.ships === 0} title="拆掉一艘船（全額退還材料）" label="拆掉一艘貨運船">−</HoldButton>
-      <HoldButton class="lrow-btn add" act={() => buildShip(r.id) > 0} title={`加一艘船，每艘每秒運 ${SHIP_RATE} 個`} label="加一艘貨運船">＋</HoldButton>
+      <HoldButton class="lrow-btn add" act={() => buildShip(r.id) > 0} title={`加一艘船，每艘每秒運 ${perSec(shipRate(getState()))} 個`} label="加一艘貨運船">＋</HoldButton>
       <button class="small-btn" onClick={() => toggleRoute(r.id)}>{r.enabled ? '暫停' : '繼續'}</button>
       <button class="small-btn danger" onClick={() => removeRoute(r.id)} title="拆掉船並取消這條航線">取消</button>
       </span>
@@ -105,9 +105,9 @@ export function RoutesCard() {
           {routes.map((r) => <RouteRow key={r.id} r={r} />)}
         </div>
       )}
-      <p class="line-cost muted small">每艘船（每秒運 {SHIP_RATE} 個）：<Cost cost={SHIP_COST} /></p>
+      <p class="line-cost muted small">每艘船（每秒運 {perSec(shipRate(s))} 個）：<Cost cost={SHIP_COST} /></p>
       <p class="line-cost muted small">
-        運費：離母星每一段航程，每運 {Math.round(1 / SHIP_FUEL)} 個耗 1 <ItemLink id={SHIP_FUEL_ITEM} />，從母星倉庫扣（現有 {fmt(homeItems(s)[SHIP_FUEL_ITEM] ?? 0)}
+        運費：離母星每一段航程，每運 {Math.round(1 / shipFuel(s, 'home', 'ice'))} 個耗 1 <ItemLink id={SHIP_FUEL_ITEM} />，從母星倉庫扣（現有 {fmt(homeItems(s)[SHIP_FUEL_ITEM] ?? 0)}
         {burn > 0 ? `，航線每秒共燒 ${perSec(burn)}` : ''}）
       </p>
     </section>

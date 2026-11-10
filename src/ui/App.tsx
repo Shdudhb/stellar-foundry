@@ -9,9 +9,10 @@ import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnl
 import { allLines, homeItems, homeView } from '../sim/planets';
 import type { GameState } from '../sim/types';
 import {
-  acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, focusLine, getLast, getState, getUi,
+  acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, focusLine, getLast, getState, getUi, openOverview,
   importSave, openPicker, openSignal, openTrade, resetGame, signalData, toggleMaintenance, togglePause,
 } from '../state/store';
+import { OverviewModal } from './Overview';
 import { ItemLink, Modal, PauseIcon, isStuck, PageHeader, Reward, fmt, fmtDuration, reasonText, reasonTone, useGame } from './common';
 import { Embers } from './Embers';
 import { LegacyPanel } from './LegacyPanel';
@@ -458,6 +459,7 @@ export function App() {
         setTab('production');
         return openPicker(true);
       }
+      if (e.key === 'o' || e.key === 'O') return openOverview(true);
       const i = Number(e.key) - 1;
       if (i >= 0 && i < visibleTabs.length) setTab(visibleTabs[i].id);
     };
@@ -534,6 +536,7 @@ export function App() {
       {ui.picker && <NewLinePicker />}
       {ui.recipeLine !== null && <RecipeSwitch lineId={ui.recipeLine} />}
       {ui.routePicker && <RoutePicker />}
+      {ui.overview && <OverviewModal toProduction={() => setTab('production')} />}
       {/* The item window opens from inside the others too, so it goes on top */}
       {ui.lookupItem && <RecipeLookup item={ui.lookupItem} />}
       <Toasts />

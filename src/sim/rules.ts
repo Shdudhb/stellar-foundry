@@ -2,7 +2,7 @@ import { GALAXIES } from '../data/galaxies';
 import { INCIDENTS } from '../data/incidents';
 import { DEFAULT_CAP, ITEMS } from '../data/items';
 import { MACHINES, type MachineDef } from '../data/machines';
-import { HOME, PLANETS } from '../data/planets';
+import { HOME, PLANETS, SHIP_RATE, routeFuel } from '../data/planets';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { MILESTONE_LIST, TECHS, TECH_LOCKED_MACHINES, TECH_LOCKED_RECIPES } from '../data/tech';
 import type { GameState, Line } from './types';
@@ -33,6 +33,16 @@ export function activeIncident(state: GameState) {
 export function categoryBoost(state: GameState, category: string): number {
   const galaxy = state.galaxy ? GALAXIES[state.galaxy]?.boost[category] ?? 1 : 1;
   return (activeIncident(state)?.boost?.[category] ?? 1) * galaxy;
+}
+
+/** Items one cargo ship carries per second in this galaxy */
+export function shipRate(state: GameState): number {
+  return SHIP_RATE * ((state.galaxy && GALAXIES[state.galaxy]?.shipMult) || 1);
+}
+
+/** Rocket fuel a route between these worlds burns for each item it moves, in this galaxy */
+export function shipFuel(state: GameState, from: string, to: string): number {
+  return routeFuel(from, to) * ((state.galaxy && GALAXIES[state.galaxy]?.fuelMult) || 1);
 }
 
 /** Longest absence that is caught up on return */
