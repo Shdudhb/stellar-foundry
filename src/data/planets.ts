@@ -34,7 +34,7 @@ export const PLANET_LIST: PlanetDef[] = [
   },
   {
     id: 'lava', name: '熔岩星', icon: 'magma', unlockTech: 'lava_expedition', slots: 16,
-    keyItems: ['magma', 'iron_ingot', 'copper_ingot', 'tungsten'],
+    keyItems: ['magma', 'iron_ingot', 'tungsten', 'iridium'],
     text: '地殼還沒冷卻的行星。岩漿抽上來就能直接鑄成鐵、銅和鎢，省掉母星整條冶煉線；岩漿也拿來發電。',
   },
 ];

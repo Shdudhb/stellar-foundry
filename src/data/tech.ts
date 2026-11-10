@@ -345,9 +345,9 @@ const list: TechDef[] = [
   },
   {
     id: 'lava_expedition', name: '熔岩星探勘', tier: 6, cost: { data_yellow: 500 }, requires: ['colony_expansion'],
-    description: '開放第二個殖民地「熔岩星」：岩漿泵抽岩漿，熔鑄廠直接鑄成鐵錠、銅錠和鎢錠，地熱井在那裡每秒發 240 電力。',
+    description: '開放第二個殖民地「熔岩星」：岩漿泵抽岩漿，熔鑄廠直接鑄成鐵錠、銅錠和鎢錠，還能慢慢提煉出銥錠，地熱井在那裡每秒發 240 電力。',
     unlockMachines: ['magma_pump', 'foundry'],
-    unlockRecipes: ['pump_magma', 'magma_power', 'cast_iron', 'cast_copper', 'cast_tungsten'],
+    unlockRecipes: ['pump_magma', 'magma_power', 'cast_iron', 'cast_copper', 'cast_tungsten', 'cast_iridium'],
   },
   {
     id: 'fusion', name: '聚變', tier: 6, cost: { data_yellow: 750 }, requires: ['superconductors', 'deuterium_extraction'],

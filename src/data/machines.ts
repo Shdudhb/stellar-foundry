@@ -276,7 +276,7 @@ const list: MachineDef[] = [
   {
     id: 'foundry', name: '熔鑄廠', tier: 6, categories: ['casting'], power: { item: 'eu', amount: 60 }, slots: 1,
     cost: { tungsten: 60, stainless: 100, precision_circuit: 6 },
-    description: '把岩漿直接鑄成鐵錠、銅錠，或慢慢提煉出鎢錠。只能蓋在熔岩星上。',
+    description: '把岩漿直接鑄成鐵錠、銅錠，或慢慢提煉出鎢錠和銥錠。只能蓋在熔岩星上。',
   },
   // ---- T6: IV machines overclock perfectly: 4x speed per tier for 4x power ----
   {

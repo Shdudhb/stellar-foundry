@@ -57,6 +57,23 @@ describe('planets', () => {
     expect(s.items.iron_ingot ?? 0).toBe(0);
   });
 
+  it('turns a whole lava colony into about one iridium a second, shipped home', () => {
+    const s = colony((g) => { g.techs.push('colony_expansion', 'lava_expedition'); });
+    enterPlanet(s, 'lava');
+    s.lines = [
+      { id: 1, machine: 'geothermal_well', recipe: 'magma_power', count: 4, enabled: true },
+      { id: 2, machine: 'magma_pump', recipe: 'pump_magma', count: 10, enabled: true },
+      { id: 3, machine: 'foundry', recipe: 'cast_iridium', count: 8, enabled: true },
+    ];
+    expect(s.lines.reduce((n, l) => n + l.count, 0)).toBeLessThanOrEqual(slotsTotal(s, false));
+    enterPlanet(s, 'home');
+    s.routes = [{ id: 1, item: 'iridium', from: 'lava', to: 'home', ships: 1, enabled: true }];
+    // 150 s: a fresh game's store holds 200
+    for (let i = 0; i < 150; i++) tickAll(s, 1);
+    expect(s.items.iridium / 150).toBeGreaterThan(0.9);
+    expect(s.items.iridium / 150).toBeLessThan(1.05);
+  });
+
   it('gives a colony its own slots and no orbit', () => {
     const s = colony();
     enterPlanet(s, 'ice');

@@ -14,6 +14,7 @@
 //
 // Options (after `--`):
 //   --no-lava     ignore the lava world, to compare
+//   --lava-iridium  also cast iridium there (off by default: the bot stalls itself at T6 with it)
 //   --explore     100 extra ground slots, to look past slot pressure at the later chains
 //   --from=5      start at that tier with everything before it done and stores half full (implies --explore)
 //   --item=<id>   at the end, list every line making or using that item and why it is slow
@@ -108,8 +109,12 @@ function score(r: RecipeDef, item: string): number {
 
 /** The recipe the bot uses for an item: the mature route when it's unlocked, else the cheapest ready one */
 const USE_LAVA = !process.argv.includes('--no-lava');
+/** Iridium from magma only tops up what orbit mines. The bot plans it badly (it thrashes the home lines it
+ *  thinks it can drop), so it leaves it alone unless asked with `--lava-iridium` */
+const NO_EXTRA = !process.argv.includes('--lava-iridium');
+const LAVA_EXTRA = new Set(['iridium']);
 const lavaRecipe = (item: string) =>
-  USE_LAVA && !isPower(item) && openPlanets(s()).includes('lava')
+  USE_LAVA && !isPower(item) && openPlanets(s()).includes('lava') && !(NO_EXTRA && LAVA_EXTRA.has(item))
     ? RECIPE_LIST.find((r) => r.outputs[item] && recipePlanet(r) === 'lava' && Object.keys(r.inputs).length > 0 && unlocked(r))
     : undefined;
 const lavaStanding = (r: RecipeDef) => {
@@ -122,7 +127,7 @@ function recipeFor(item: string): RecipeDef | undefined {
   // Ingots the lava world pours straight from magma: once it is open, the bot moves them there
   // ...but only once the foundry there is standing and delivering; until then home keeps making them
   const lr = lavaRecipe(item);
-  if (lr && lavaStanding(lr)) return undefined;
+  if (lr && lavaStanding(lr) && !LAVA_EXTRA.has(item)) return undefined;
   const ready = RECIPE_LIST.filter((r) => r.outputs[item] && recipeReady(r));
   // A route whose power network has no generators yet can't bootstrap itself (the blast furnace needs EU,
   // the turbine that makes EU needs steel): keep the old route until the network exists
@@ -209,7 +214,7 @@ function plan(targets: Record<string, number>): Record<string, number> {
     if (depth > 0 && !isPower(item) && (s().items[item] ?? 0) > rate * HORIZON * 1.5) return;
     // A lava route still being set up: ask the colony for it too, while home carries on
     const seed = lavaRecipe(item);
-    if (seed && !lavaStanding(seed)) {
+    if (seed && (!lavaStanding(seed) || LAVA_EXTRA.has(item))) {
       const on = (awayCrafts.lava ??= {});
       on[seed.id] = (on[seed.id] ?? 0) + rate / seed.outputs[item];
     }
@@ -349,32 +354,36 @@ function runColonies() {
       return line;
     };
     // What the asked-for recipes need that is made on the spot (magma for the foundries)
-    const all: Record<string, number> = {};
-    const expand = (rid: string, c: number, depth: number) => {
-      all[rid] = (all[rid] ?? 0) + c;
-      if (depth > 6) return;
-      for (const [i, n] of Object.entries(RECIPES[rid].inputs)) {
-        const src = RECIPE_LIST.find((r) => r.outputs[i] && unlocked(r) && recipePlanet(r) === planet);
-        if (src) expand(src.id, (c * n) / src.outputs[i], depth + 1);
-      }
-    };
-    for (const [rid, c] of Object.entries(crafts)) expand(rid, c, 0);
     const gen = RECIPE_LIST.find((r) => r.outputs.eu && recipePlanet(r) === planet && unlocked(r));
-    const sized = (scale: number) => {
+    const isExtra = (rid: string) => Object.keys(RECIPES[rid].outputs).some((o) => LAVA_EXTRA.has(o));
+    const sized = (base: number, extra: number) => {
+      const all: Record<string, number> = {};
+      const expand = (rid: string, c: number, depth: number) => {
+        if (c <= 0) return;
+        all[rid] = (all[rid] ?? 0) + c;
+        if (depth > 6) return;
+        for (const [i, n] of Object.entries(RECIPES[rid].inputs)) {
+          const src = RECIPE_LIST.find((r) => r.outputs[i] && unlocked(r) && recipePlanet(r) === planet);
+          if (src) expand(src.id, (c * n) / src.outputs[i], depth + 1);
+        }
+      };
+      for (const [rid, c] of Object.entries(crafts)) expand(rid, c * (isExtra(rid) ? extra : base), 0);
       const ws = Object.entries(all).map(([rid, c]) => {
         const r = RECIPES[rid];
         const m = best(r);
-        return { r, m, count: Math.max(1, Math.ceil((c * scale * 1.2) / perMachine(m, r))), c: c * scale };
+        return { r, m, count: Math.max(1, Math.ceil((c * 1.2) / perMachine(m, r))), c };
       });
       const draw = ws.reduce((n, w) => n + (w.m.power ? w.count * w.m.power.amount * overclock(w.m, w.r).power : 0), 0);
       const gens = gen && draw > 0 ? Math.ceil((draw * 1.25) / gen.outputs.eu) : 0;
       return { ws, gens, slots: gens + ws.reduce((n, w) => n + w.count * w.m.slots, 0) };
     };
-    // The colony's slots are what limits it: shrink the whole plan until it fits
-    let scale = 1;
-    let fit = sized(scale);
-    while (fit.slots > slotsTotal(st) && scale > 0.02) fit = sized((scale *= 0.85));
-    if (scale < 1) colonyShort[planet] = Math.min(colonyShort[planet] ?? 1, scale);
+    // The colony's slots are what limits it: what only tops up home (iridium) gives way first, then the rest shrinks
+    let base = 1;
+    let extra = 1;
+    let fit = sized(base, extra);
+    while (fit.slots > slotsTotal(st) && extra > 0) fit = sized(base, (extra = extra < 0.05 ? 0 : extra * 0.8));
+    while (fit.slots > slotsTotal(st) && base > 0.02) fit = sized((base *= 0.85), extra);
+    if (base < 1) colonyShort[planet] = Math.min(colonyShort[planet] ?? 1, base);
     const wants = fit.ws.filter((w) => crafts[w.r.id] !== undefined);
     // Power first, and nothing that draws it until a generator stands; then pumps before what they feed
     const lit = !gen || fit.gens === 0 || grow(gen, fit.gens).count > 0;
