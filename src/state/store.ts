@@ -1,5 +1,5 @@
 import { ACHIEVEMENT_LIST } from '../data/achievements';
-import { GALAXIES, rollGalaxy } from '../data/galaxies';
+import { GALAXIES, STARS, rollSystems, type StarSystem } from '../data/galaxies';
 import { INCIDENT_INTERVAL, eligibleIncidents } from '../data/incidents';
 import { ITEMS, SWARM_ITEM, canVent, isPower } from '../data/items';
 import { KIT_LEVELS, boostTime, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
@@ -831,22 +831,36 @@ export function buyLegacy(id: string) {
   checkAchievements();
 }
 
-/** Through the stargate: a fresh run that keeps the legacy, plus points for this one */
-export function warp() {
+/** Where the stargate can go; rolled once and kept with the save */
+export function warpChoices(): StarSystem[] {
+  if (!state.milestones.includes('stargate')) return [];
+  if (!state.warpChoices?.length) state.warpChoices = rollSystems(state.galaxy);
+  return state.warpChoices;
+}
+
+/** Legacy points for warping now: the gate and swarm, plus what this star is worth for being hard */
+export function warpEarnings(): number {
+  return warpPoints(homeItems(state)[SWARM_ITEM] ?? 0) + (STARS[state.system?.star ?? '']?.bonus ?? 0);
+}
+
+/** Through the stargate to one of the systems in reach: a fresh run that keeps the legacy, plus points for this one */
+export function warp(choice = 0) {
   if (!state.milestones.includes('stargate')) return;
-  const earned = warpPoints(homeItems(state)[SWARM_ITEM] ?? 0);
+  const system = warpChoices()[choice];
+  if (!system) return;
+  const earned = warpEarnings();
   const legacy = { ...state.legacy, points: state.legacy.points + earned, warps: state.legacy.warps + 1 };
   const maintenance = state.maintenance;
-  const galaxy = rollGalaxy(state.galaxy);
   state = newGame(legacy, state);
   state.maintenance = maintenance;
-  state.galaxy = galaxy;
+  state.system = system;
+  state.galaxy = system.trait;
   history.length = 0;
   last = emptyTick();
   clearRates();
   resetUi();
   persist();
-  toast(`抵達第 ${legacy.warps + 1} 個星系「${GALAXIES[galaxy].name}」，獲得 ${earned} 遺產點`, { tone: 'good', title: '躍遷完成', icon: 'dyson_swarm', sound: 'warp', log: true });
+  toast(`抵達第 ${legacy.warps + 1} 個星系「${system.name}」（${STARS[system.star].name}），獲得 ${earned} 遺產點`, { tone: 'good', title: '躍遷完成', icon: 'dyson_swarm', sound: 'warp', log: true });
   checkAchievements();
 }
 
@@ -882,9 +896,10 @@ export function importSave(text: string): boolean {
 /** Start this run over; the legacy from earlier warps is kept */
 export function resetGame() {
   clearLocal();
-  const galaxy = state.galaxy;
+  const { galaxy, system } = state;
   state = newGame(state.legacy, state);
   state.galaxy = galaxy;
+  state.system = system;
   last = emptyTick();
   history.length = 0;
   clearRates();

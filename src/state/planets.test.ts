@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { MACHINES } from '../data/machines';
 import { PLANET_LIST, SHIP_COST, SHIP_FUEL, SHIP_RATE, routeFuel } from '../data/planets';
-import { GALAXY_LIST } from '../data/galaxies';
+import { GALAXY_LIST, STAR_LIST, rollSystems, type StarSystem } from '../data/galaxies';
+import { SWARM_EU } from '../data/items';
 import { RECIPE_LIST, RECIPES } from '../data/recipes';
 import { MILESTONES, TECHS } from '../data/tech';
 import { allLines, atHome, enterPlanet, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
-import { capOf, recipeFits, recipePlanet, slotsTotal } from '../sim/rules';
+import { capOf, categoryBoost, recipeFits, recipePlanet, slotsTotal } from '../sim/rules';
 import { simulateOffline } from '../sim/offline';
 import { tickAll } from '../sim/world';
 import { exportString, importString, newGame } from './save';
-import { addLine, addRoute, build, buildShip, getState, importSave, removeRoute, switchPlanet } from './store';
+import { addLine, addRoute, build, buildShip, getState, importSave, exportSave, removeRoute, switchPlanet, warp, warpChoices, warpEarnings } from './store';
 
 function colony(patch: (s: ReturnType<typeof newGame>) => void = () => {}) {
   const s = newGame();
@@ -307,5 +308,55 @@ describe('planets', () => {
     expect(back.lines[0].count).toBe(2);
     expect(homeItems(back).stone).toBe(9);
     expect(back.routes).toEqual(s.routes);
+  });
+
+  it('only gives stars effects on machines that exist', () => {
+    const categories = new Set<string>(RECIPE_LIST.map((r) => r.category));
+    for (const star of STAR_LIST) {
+      for (const cat of Object.keys(star.boost ?? {})) expect(categories.has(cat), `${star.id}: ${cat}`).toBe(true);
+    }
+  });
+});
+
+describe('star systems', () => {
+  const sys = (patch: Partial<StarSystem> = {}): StarSystem => ({ name: '測試 α-100', star: 'yellow_dwarf', trait: null, rich: {}, ...patch });
+
+  it('rolls systems with different traits, none of them the current one', () => {
+    for (let i = 0; i < 50; i++) {
+      const three = rollSystems('frozen');
+      expect(three).toHaveLength(3);
+      expect(new Set(three.map((x) => x.trait)).size).toBe(3);
+      expect(new Set(three.map((x) => x.name)).size).toBe(3);
+      expect(three.some((x) => x.trait === 'frozen')).toBe(false);
+    }
+  });
+
+  it('scales sunlight and the swarm by the star, and extraction by each world', () => {
+    const s = colony((g) => { g.system = sys({ star: 'black_hole', rich: { ice: 1.5, home: 0.7 } }); g.items.dyson_swarm = 10; });
+    expect(categoryBoost(s, 'solar')).toBeCloseTo(0.4);
+    expect(categoryBoost(s, 'collider')).toBeCloseTo(1.5);
+    expect(categoryBoost(s, 'ice_mining')).toBeCloseTo(1.5);
+    expect(categoryBoost(s, 'mining')).toBeCloseTo(0.7);
+    expect(categoryBoost(s, 'smelting')).toBe(1);
+    // Nothing draws power, so read what the panels could give
+    s.lines.push({ id: s.nextLineId++, machine: 'basic_drill', recipe: 'mine_stone', count: 1, enabled: true });
+    const res = tickAll(s, 1);
+    expect(res.last.power.eu?.capacity ?? 0).toBeCloseTo(10 * SWARM_EU * 0.4);
+  });
+
+  it('keeps the map through a reload, goes where it is told, and pays for a hard star', () => {
+    importSave(exportString(colony((g) => { g.milestones.push('stargate'); g.system = sys({ star: 'black_hole' }); })));
+    const map = warpChoices();
+    expect(map).toHaveLength(3);
+    importSave(exportSave());
+    expect(warpChoices()).toEqual(map);
+    const plain = warpEarnings();
+    getState().system = null;
+    expect(plain).toBe(warpEarnings() + 3);
+    warp(2);
+    expect(getState().system).toEqual(map[2]);
+    expect(getState().galaxy).toBe(map[2].trait);
+    expect(getState().warpChoices).toBeUndefined();
+    expect(warpChoices()).toEqual([]);
   });
 });

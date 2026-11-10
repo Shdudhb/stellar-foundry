@@ -1,7 +1,7 @@
 import { DECAYING_ITEMS, ITEMS, POWER_ORDER, SWARM_EU, SWARM_ITEM, isPower } from '../data/items';
 import { MACHINES, MAINTENANCE_ITEM } from '../data/machines';
 import { RECIPES } from '../data/recipes';
-import { capOf, categoryBoost, overclock } from './rules';
+import { capOf, categoryBoost, overclock, starLum } from './rules';
 import type { GameState, Line, LineStatus, PowerStatus, Reason, TickResult } from './types';
 
 /** A fully worn machine runs at this fraction of its speed */
@@ -228,7 +228,7 @@ export function tick(state: GameState, dt: number): TickResult {
   const load: Record<string, number> = {};
   for (const p of POWER_ORDER) demand[p] = firstDemand[p] = freeSupply[p] = fuelCapacity[p] = 0;
   // The Dyson swarm is free EU, like solar that takes no slots
-  freeSupply.eu += (state.items[SWARM_ITEM] ?? 0) * SWARM_EU;
+  freeSupply.eu += (state.items[SWARM_ITEM] ?? 0) * SWARM_EU * starLum(state);
   for (const a of active) {
     if (!a.powerItem) continue;
     demand[a.powerItem] += a.powerDraw * a.f;

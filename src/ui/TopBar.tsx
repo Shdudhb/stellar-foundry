@@ -1,9 +1,9 @@
 import { POWER_ORDER, SWARM_EU, SWARM_ITEM, itemName } from '../data/items';
-import { GALAXIES } from '../data/galaxies';
+import { GALAXIES, STARS } from '../data/galaxies';
 import { PLANETS } from '../data/planets';
 import { HOME, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
 import { TIER_NAMES } from '../data/tech';
-import { activeIncident, currentTier, slotsTotal, slotsUsed } from '../sim/rules';
+import { activeIncident, currentTier, slotsTotal, slotsUsed, starLum } from '../sim/rules';
 import { getLast, getRates, getRouteStatus, getState, getWorld, openLookup, openOverview, openSignal, openTrade, switchPlanet, togglePause } from '../state/store';
 import { PauseIcon, isStuck, fmt, fmtDuration, fmtNum, fmtRate } from './common';
 import { ItemIcon } from './pixel';
@@ -80,8 +80,8 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
         <div class="colony-head">
           <span class="colony-title">✦ 殖民第 {day} 天 · {TIER_NAMES[tier]}</span>
           {s.legacy.warps > 0 && (
-            <span class="colony-tag" title={s.galaxy ? `${GALAXIES[s.galaxy]?.name}：${GALAXIES[s.galaxy]?.text}` : '已躍遷的星系數'}>
-              星系 {s.legacy.warps + 1}{s.galaxy && GALAXIES[s.galaxy] ? ` · ${GALAXIES[s.galaxy].name}` : ''}
+            <span class="colony-tag" title={[s.system ? `${s.system.name}：${STARS[s.system.star]?.name}，光度 ×${STARS[s.system.star]?.lum}` : '', s.galaxy ? `${GALAXIES[s.galaxy]?.name}：${GALAXIES[s.galaxy]?.text}` : ''].filter(Boolean).join('\n') || '已躍遷的星系數'}>
+              星系 {s.legacy.warps + 1}{s.system ? ` · ${s.system.name}` : s.galaxy && GALAXIES[s.galaxy] ? ` · ${GALAXIES[s.galaxy].name}` : ''}
             </span>
           )}
           {planets.length > 1 && (
@@ -158,7 +158,7 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
           {swarm > 0 && (
             <button class="stat link-stat" title="每片戴森板提供的免費電力" onClick={() => openLookup(SWARM_ITEM)}>
               <ItemIcon id={SWARM_ITEM} />
-              {fmt(swarm)} 片 · +{fmt(swarm * SWARM_EU)} 電力
+              {fmt(swarm)} 片 · +{fmt(swarm * SWARM_EU * starLum(s))} 電力
             </button>
           )}
           <span class={`stat stat-slots ${used >= total ? 'tone-text-warn' : ''}`} title={here === HOME ? '地面區域槽位' : `${PLANETS[here].name}的槽位`}>▦ 槽位 {used}/{total}</span>

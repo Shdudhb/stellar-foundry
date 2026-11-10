@@ -1,4 +1,4 @@
-import { GALAXIES } from '../data/galaxies';
+import { GALAXIES, STARS, systemBoost } from '../data/galaxies';
 import { INCIDENTS } from '../data/incidents';
 import { DEFAULT_CAP, ITEMS } from '../data/items';
 import { MACHINES, type MachineDef } from '../data/machines';
@@ -32,7 +32,12 @@ export function activeIncident(state: GameState) {
 /** Speed multiplier the current world event and galaxy trait give lines of this recipe category */
 export function categoryBoost(state: GameState, category: string): number {
   const galaxy = state.galaxy ? GALAXIES[state.galaxy]?.boost[category] ?? 1 : 1;
-  return (activeIncident(state)?.boost?.[category] ?? 1) * galaxy;
+  return (activeIncident(state)?.boost?.[category] ?? 1) * galaxy * systemBoost(state.system, category);
+}
+
+/** How bright this system's star is next to the first one: what a Dyson panel gives is multiplied by it */
+export function starLum(state: GameState): number {
+  return STARS[state.system?.star ?? '']?.lum ?? 1;
 }
 
 /** Items one cargo ship carries per second in this galaxy */

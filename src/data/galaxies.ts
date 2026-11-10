@@ -91,3 +91,106 @@ export function rollGalaxy(current: string | null, rand = Math.random): string {
   const pool = GALAXY_LIST.filter((g) => g.id !== current);
   return pool[Math.floor(rand() * pool.length)].id;
 }
+
+// ---------- star systems ----------
+// Past the first gate, the next stop is chosen from a star map: each system has a star whose light sets what
+// solar power and the Dyson swarm are worth, a trait from the list above, and worlds richer or poorer than usual.
+
+export interface StarDef {
+  id: string;
+  name: string;
+  /** Spectral class, for the label */
+  cls: string;
+  /** Multiplies solar panels, solar wind, light arrays and what each Dyson panel gives */
+  lum: number;
+  /** Machines this kind of star speeds up */
+  boost?: Record<string, number>;
+  /** The same, in words */
+  effect?: string;
+  /** Extra legacy points for building a stargate under it and warping on */
+  bonus: number;
+  /** How often it turns up on the map */
+  weight: number;
+  color: string;
+  text: string;
+}
+
+export const STAR_LIST: StarDef[] = [
+  { id: 'red_dwarf', name: '紅矮星', cls: 'M', lum: 0.7, bonus: 1, weight: 5, color: '#e0664a', text: '又小又暗，到處都是。' },
+  { id: 'orange_dwarf', name: '橙矮星', cls: 'K', lum: 0.85, bonus: 0, weight: 4, color: '#f0a04b', text: '比母星的太陽暗一點。' },
+  { id: 'yellow_dwarf', name: '黃矮星', cls: 'G', lum: 1, bonus: 0, weight: 4, color: '#f5d76e', text: '和出發時的太陽一樣。' },
+  { id: 'white_star', name: '白主序星', cls: 'A', lum: 1.3, bonus: 0, weight: 3, color: '#e8f0ff', text: '明亮穩定，適合鋪太陽能。' },
+  { id: 'red_giant', name: '紅巨星', cls: 'M 巨星', lum: 1.5, bonus: 0, weight: 1, color: '#ff7a59', text: '垂死的恆星，膨脹得很大。' },
+  { id: 'blue_giant', name: '藍巨星', cls: 'O', lum: 2, bonus: 0, weight: 1, color: '#7fb4ff', text: '星域裡最亮的恆星，戴森群的首選。' },
+  {
+    id: 'white_dwarf', name: '白矮星', cls: 'D', lum: 0.8, bonus: 1, weight: 1, color: '#cfd8e6',
+    text: '恆星的餘燼，周圍的氦與氘特別純。', boost: { fusion: 1.3 }, effect: '聚變反應 ×1.3',
+  },
+  {
+    id: 'neutron_star', name: '中子星', cls: 'N', lum: 0.6, bonus: 2, weight: 1, color: '#9fe8ff',
+    text: '幾乎不發光，但中子物質隨手可得。', boost: { neutron: 1.5 }, effect: '中子壓縮 ×1.5',
+  },
+  {
+    id: 'black_hole', name: '黑洞', cls: 'X', lum: 0.4, bonus: 3, weight: 1, color: '#8f7ae6',
+    text: '只有吸積盤的微光。扭曲的時空讓對撞機和穩定器事半功倍。', boost: { collider: 1.5, stabilizer: 1.5 }, effect: '粒子對撞機、時空穩定器 ×1.5',
+  },
+];
+export const STARS: Record<string, StarDef> = Object.fromEntries(STAR_LIST.map((s) => [s.id, s]));
+
+/** What starlight drives */
+export const LIGHT_CATEGORIES = ['solar', 'solar_wind', 'stellar'];
+
+/** What each world's richness speeds up: the machines that take its resource out of the ground or the sky */
+export const VEINS: Record<string, { category: string; what: string }> = {
+  home: { category: 'mining', what: '礦脈' },
+  ice: { category: 'ice_mining', what: '冰層' },
+  lava: { category: 'magma', what: '岩漿' },
+  gas: { category: 'atmo', what: '大氣' },
+  crystal: { category: 'crystal_mining', what: '晶簇' },
+};
+const RICHNESS = [0.7, 0.85, 1, 1, 1.25, 1.5];
+
+export interface StarSystem {
+  name: string;
+  star: string;
+  /** A galaxy trait id */
+  trait: string | null;
+  /** Richness by world; 1 when not listed */
+  rich: Record<string, number>;
+}
+
+const NAMES = ['織女', '天狼', '參宿', '心宿', '北落', '河鼓', '角宿', '畢宿', '軒轅', '南門', '大陵', '天津', '五車', '老人', '婁宿', '昴宿'];
+const GREEK = ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ'];
+
+function pickWeighted<T extends { weight: number }>(list: T[], rand: () => number): T {
+  let r = rand() * list.reduce((n, x) => n + x.weight, 0);
+  for (const x of list) {
+    r -= x.weight;
+    if (r < 0) return x;
+  }
+  return list[list.length - 1];
+}
+
+/** Systems in reach of the gate: different traits, none the current one, and different names */
+export function rollSystems(current: string | null, n = 3, rand = Math.random): StarSystem[] {
+  const traits = GALAXY_LIST.filter((g) => g.id !== current).map((g) => g.id);
+  const names = [...NAMES];
+  const out: StarSystem[] = [];
+  for (let i = 0; i < n && traits.length > 0; i++) {
+    const trait = traits.splice(Math.floor(rand() * traits.length), 1)[0];
+    const name = `${names.splice(Math.floor(rand() * names.length), 1)[0]} ${GREEK[Math.floor(rand() * GREEK.length)]}-${100 + Math.floor(rand() * 900)}`;
+    const rich: Record<string, number> = {};
+    for (const p of Object.keys(VEINS)) rich[p] = RICHNESS[Math.floor(rand() * RICHNESS.length)];
+    out.push({ name, star: pickWeighted(STAR_LIST, rand).id, trait, rich });
+  }
+  return out;
+}
+
+/** Speed the star and the worlds of a system give a recipe category, before its trait */
+export function systemBoost(sys: StarSystem | null | undefined, category: string): number {
+  if (!sys) return 1;
+  const star = STARS[sys.star];
+  let k = (LIGHT_CATEGORIES.includes(category) ? star?.lum ?? 1 : 1) * (star?.boost?.[category] ?? 1);
+  for (const [p, v] of Object.entries(VEINS)) if (v.category === category) k *= sys.rich[p] ?? 1;
+  return k;
+}

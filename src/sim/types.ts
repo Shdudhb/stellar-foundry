@@ -1,3 +1,4 @@
+import type { StarSystem } from '../data/galaxies';
 export interface Line {
   id: number;
   machine: string;
@@ -62,6 +63,10 @@ export interface GameState {
   stats: Stats;
   /** Trait of the current galaxy (none in the first) */
   galaxy: string | null;
+  /** The star system this run is in (none in the first): its star and how rich its worlds are */
+  system?: StarSystem | null;
+  /** Systems the stargate can reach, rolled once it stands so reloading can't reroll them */
+  warpChoices?: StarSystem[];
   /** The world event happening now, if any */
   incident: Incident | null;
   /** playTime when the next world event starts */

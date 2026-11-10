@@ -19,6 +19,7 @@
 //   --from=5      start at that tier with everything before it done and stores half full (implies --explore)
 //   --item=<id>   at the end, list every line making or using that item and why it is slow
 //   --galaxy=<id> play under that galaxy's trait, as after a warp
+//   --star=<id>   play around that kind of star; --rich=0.7 sets every world's richness
 //   --verbose     log each decision; --shed  pause lines by hand in brownouts, as before the game did it
 //
 // Limits: it is a heuristic, not an optimal player. It misplans slots, power and basic supplies in later
@@ -84,6 +85,9 @@ if (FROM > 0) {
 }
 const GALAXY = (process.argv.find((a) => a.startsWith('--galaxy=')) ?? '').slice(9);
 if (GALAXY) start.galaxy = GALAXY;
+const STAR = (process.argv.find((a) => a.startsWith('--star=')) ?? '').slice(7);
+const RICH = Number((process.argv.find((a) => a.startsWith('--rich=')) ?? '--rich=1').slice(7));
+if (STAR) start.system = { name: '測試', star: STAR, trait: GALAXY || null, rich: { home: RICH, ice: RICH, lava: RICH, gas: RICH, crystal: RICH } };
 importSave(exportString(start));
 const s = getState;
 const fmtT = (sec: number) => `${Math.floor(sec / 3600)}h${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}m`;
