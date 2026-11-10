@@ -84,8 +84,8 @@ function ManualCard() {
 
 /** What a recipe group is for, in the player's terms; every recipe category belongs to one */
 const GROUPS: { id: string; label: string; categories: string[] }[] = [
-  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind', 'ice_mining'] },
-  { id: 'metal', label: '冶煉', categories: ['smelting', 'blasting', 'arc', 'vacuum', 'freezing', 'cooling', 'coking'] },
+  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind', 'ice_mining', 'magma'] },
+  { id: 'metal', label: '冶煉', categories: ['smelting', 'casting', 'blasting', 'arc', 'vacuum', 'freezing', 'cooling', 'coking'] },
   { id: 'parts', label: '零件', categories: ['crafting', 'compressing', 'assembling'] },
   { id: 'chem', label: '化工', categories: ['crushing', 'electrolysis', 'mixing', 'distilling', 'chemistry'] },
   { id: 'power', label: '電力', categories: ['burning', 'turbine', 'solar', 'combustion', 'fusion', 'launch', 'elevator', 'geothermal'] },

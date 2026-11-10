@@ -69,8 +69,8 @@ export function nextStep(s: GameState, o: Objective): Step | null {
     const where = go.recipe
       ? recipePlanet(RECIPES[go.recipe])
       : [...new Set(RECIPE_LIST.filter((r) => canRun(m!, r)).map(recipePlanet))].find((p, _i, all) => all.length === 1 && p);
-    const gate = where && PLANETS[where]?.unlockMilestone;
-    const first = gate && milestoneStep(s, gate);
+    const world = where ? PLANETS[where] : undefined;
+    const first = (world?.unlockMilestone && milestoneStep(s, world.unlockMilestone)) || (world?.unlockTech && pathTo(s, world.unlockTech));
     if (first) return first;
     return {
       kind: 'picker', query: go.recipe ? RECIPES[go.recipe].name : m!.name,

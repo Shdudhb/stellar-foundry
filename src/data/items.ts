@@ -97,6 +97,7 @@ const list: ItemDef[] = [
   { id: 'superconductor', name: '超導線', kind: 'intermediate' },
   { id: 'neutronium', name: '中子素', kind: 'intermediate' },
   { id: 'dyson_panel', name: '戴森板', kind: 'intermediate' },
+  { id: 'magma', name: '岩漿', kind: 'raw' },
   // T7
   { id: 'dyson_swarm', name: '戴森群', kind: 'structure', capBase: 1e9 },
   // Decays by 2% of the stored amount per second (half-life ~35 s): stabilize it as it is made.

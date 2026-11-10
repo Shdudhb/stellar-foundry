@@ -12,6 +12,8 @@ export interface PlanetDef {
   text: string;
   /** Megastructure that opens it; the home world needs none */
   unlockMilestone?: string;
+  /** Or the research that opens it */
+  unlockTech?: string;
   /** Slots it starts with (the home world has its own rule) */
   slots: number;
   /** What the top bar shows there; the home world picks by tier instead */
@@ -29,6 +31,11 @@ export const PLANET_LIST: PlanetDef[] = [
     id: 'ice', name: '冰衛星', icon: 'comet_ice', unlockMilestone: 'colony_ship', slots: 12,
     keyItems: ['comet_ice', 'deuterium', 'oxygen', 'maintenance_kit'],
     text: '殖民船抵達的冰封衛星。冰層底下全是彗星冰，地熱是唯一的電力來源。它有自己的倉庫和電網，東西要靠貨運船來回。',
+  },
+  {
+    id: 'lava', name: '熔岩星', icon: 'magma', unlockTech: 'lava_expedition', slots: 16,
+    keyItems: ['magma', 'iron_ingot', 'copper_ingot', 'tungsten'],
+    text: '地殼還沒冷卻的行星。岩漿抽上來就能直接鑄成鐵、銅和鎢，省掉母星整條冶煉線；岩漿也拿來發電。',
   },
 ];
 

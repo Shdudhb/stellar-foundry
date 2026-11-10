@@ -36,6 +36,27 @@ describe('planets', () => {
     expect(storeOf(s, 'ice')!.items.comet_ice).toBe(3);
   });
 
+  it('opens the lava world by research, with its own recipes and power', () => {
+    const s = colony();
+    expect(openPlanets(s)).not.toContain('lava');
+    s.techs.push('lava_expedition');
+    expect(openPlanets(s)).toEqual(['home', 'ice', 'lava']);
+    enterPlanet(s, 'lava');
+    expect(slotsTotal(s, false)).toBe(16);
+    expect(recipeFits(s, RECIPES.cast_tungsten)).toBe(true);
+    expect(recipeFits(s, RECIPES.geothermal_power)).toBe(false);
+    expect(recipeFits(s, RECIPES.magma_power)).toBe(true);
+    s.lines = [
+      { id: 1, machine: 'geothermal_well', recipe: 'magma_power', count: 1, enabled: true },
+      { id: 2, machine: 'magma_pump', recipe: 'pump_magma', count: 1, enabled: true },
+      { id: 3, machine: 'foundry', recipe: 'cast_iron', count: 1, enabled: true },
+    ];
+    enterPlanet(s, 'home');
+    for (let i = 0; i < 20; i++) tickAll(s, 1);
+    expect(storeOf(s, 'lava')!.items.iron_ingot).toBeGreaterThan(40);
+    expect(s.items.iron_ingot ?? 0).toBe(0);
+  });
+
   it('gives a colony its own slots and no orbit', () => {
     const s = colony();
     enterPlanet(s, 'ice');

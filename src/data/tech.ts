@@ -340,8 +340,14 @@ const list: TechDef[] = [
   },
   {
     id: 'colony_expansion', name: '殖民地擴建', tier: 6, cost: { data_yellow: 400 }, requires: ['deuterium_extraction'],
-    description: '冰衛星槽位 +8。',
-    planetSlots: { ice: 8 },
+    description: '每個殖民地槽位 +8。',
+    planetSlots: { ice: 8, lava: 8 },
+  },
+  {
+    id: 'lava_expedition', name: '熔岩星探勘', tier: 6, cost: { data_yellow: 500 }, requires: ['colony_expansion'],
+    description: '開放第二個殖民地「熔岩星」：岩漿泵抽岩漿，熔鑄廠直接鑄成鐵錠、銅錠和鎢錠，地熱井在那裡每秒發 240 電力。',
+    unlockMachines: ['magma_pump', 'foundry'],
+    unlockRecipes: ['pump_magma', 'magma_power', 'cast_iron', 'cast_copper', 'cast_tungsten'],
   },
   {
     id: 'fusion', name: '聚變', tier: 6, cost: { data_yellow: 750 }, requires: ['superconductors', 'deuterium_extraction'],
@@ -407,8 +413,8 @@ const list: TechDef[] = [
   },
   {
     id: 'colony_expansion_2', name: '殖民地擴建 II', tier: 7, cost: { data_white: 200 }, requires: ['white_science', 'colony_expansion'],
-    description: '冰衛星槽位再 +12。',
-    planetSlots: { ice: 12 },
+    description: '每個殖民地槽位再 +12。',
+    planetSlots: { ice: 12, lava: 12 },
   },
   {
     id: 'storage_8', name: '倉儲擴充 VIII', tier: 7, cost: { data_white: 200 }, requires: ['white_science', 'storage_7'],

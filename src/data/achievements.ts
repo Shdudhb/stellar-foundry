@@ -114,6 +114,10 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   { id: 'swarm_1000', name: '恆星的冠冕', text: '把戴森群擴大到 1,000 片。', icon: 'dyson_swarm', group: '星海', ...counter((s) => homeItems(s).dyson_swarm ?? 0, 1000) },
   { id: 'trade_5', name: '星際商人', text: '與商隊交易 5 次。', icon: 'rocket_part', group: '星海', ...counter((s) => s.stats.trades, 5) },
   { id: 'colony_10', name: '第二個家', text: '在母星以外的星球上蓋起 10 台機器。', icon: 'comet_ice', group: '星海', ...counter(awayMachines, 10) },
+  {
+    id: 'worlds_3', name: '三星工業', text: '母星、冰衛星和熔岩星同時都有機器在運轉。', icon: 'magma', group: '星海',
+    done: (s) => ['home', 'ice', 'lava'].every((p) => (storeOf(s, p)?.lines ?? []).some((l) => l.count > 0)),
+  },
   { id: 'ships_10', name: '星際航運', text: '同時擁有 10 艘貨運船。', icon: 'rocket_part', group: '星海', ...counter((s) => (s.routes ?? []).reduce((n, r) => n + r.ships, 0), 10) },
   { id: 'warp_1', name: '越過地平線', text: '躍遷 1 次。', icon: 'dyson_swarm', group: '星海', ...counter((s) => s.legacy.warps, 1) },
   { id: 'warp_5', name: '星系旅人', text: '躍遷 5 次。', icon: 'dyson_panel', group: '星海', ...counter((s) => s.legacy.warps, 5) },

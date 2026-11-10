@@ -266,7 +266,17 @@ const list: MachineDef[] = [
   {
     id: 'geothermal_well', name: '地熱井', tier: 5, categories: ['geothermal'], slots: 1,
     cost: { titanium: 40, stainless: 80, precision_circuit: 2 },
-    description: '冰衛星的地熱：每秒 160 電力，不用燃料。只能蓋在冰衛星上。',
+    description: '不用燃料的電力：冰衛星的地熱每秒 160，熔岩星的岩漿每秒 240。只能蓋在殖民地上。',
+  },
+  {
+    id: 'magma_pump', name: '岩漿泵', tier: 6, categories: ['magma'], power: { item: 'eu', amount: 40 }, slots: 1,
+    cost: { tungsten: 40, titanium: 40, precision_circuit: 4 },
+    description: '把熔岩星地殼下的岩漿抽上來，每秒 4 單位。只能蓋在熔岩星上。',
+  },
+  {
+    id: 'foundry', name: '熔鑄廠', tier: 6, categories: ['casting'], power: { item: 'eu', amount: 60 }, slots: 1,
+    cost: { tungsten: 60, stainless: 100, precision_circuit: 6 },
+    description: '把岩漿直接鑄成鐵錠、銅錠，或慢慢提煉出鎢錠。只能蓋在熔岩星上。',
   },
   // ---- T6: IV machines overclock perfectly: 4x speed per tier for 4x power ----
   {

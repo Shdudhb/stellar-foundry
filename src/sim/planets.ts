@@ -8,7 +8,9 @@ export const planetOf = (s: GameState) => s.planet ?? HOME;
 
 /** Worlds the player can go to, the home world first */
 export function openPlanets(s: GameState): string[] {
-  return PLANET_LIST.filter((p) => !p.unlockMilestone || s.milestones.includes(p.unlockMilestone)).map((p) => p.id);
+  return PLANET_LIST
+    .filter((p) => (!p.unlockMilestone || s.milestones.includes(p.unlockMilestone)) && (!p.unlockTech || s.techs.includes(p.unlockTech)))
+    .map((p) => p.id);
 }
 
 const emptyStore = (): PlanetStore => ({ items: {}, lines: [], vent: [] });
