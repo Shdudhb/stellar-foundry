@@ -42,7 +42,7 @@ export function Brand({ compact }: { compact?: boolean }) {
   );
 }
 
-export function TopBar() {
+export function TopBar({ chips = true }: { chips?: boolean }) {
   const s = getState();
   const last = getLast();
   const rates = getRates();
@@ -140,15 +140,18 @@ export function TopBar() {
           <span class="stat muted" title="遊玩時間">⏱ {fmtDuration(s.playTime)}</span>
         </div>
       </section>
-      <div class="chips" role="list" aria-label="關鍵物資">
+      <div class={`chips ${chips ? '' : 'chips-away'}`} role="list" aria-label="關鍵物資">
         {keyItems.map((id) => (
           <button key={id} class="chip" role="listitem" onClick={() => openLookup(id)} title={itemName(id)}>
             <ItemIcon id={id} size={24} />
             <span class="sr-only">{itemName(id)}</span>
             <span class="chip-body">
-              <span class="chip-value">{fmt(s.items[id] ?? 0)}</span>
-              <span class={`chip-rate ${(rates[id] ?? 0) < -0.005 ? 'neg' : (rates[id] ?? 0) > 0.005 ? 'pos' : ''}`}>
-                {fmtRate(rates[id] ?? 0)}
+              <span class="chip-name" aria-hidden="true">{itemName(id)}</span>
+              <span class="chip-nums">
+                <span class="chip-value">{fmt(s.items[id] ?? 0)}</span>
+                <span class={`chip-rate ${(rates[id] ?? 0) < -0.005 ? 'neg' : (rates[id] ?? 0) > 0.005 ? 'pos' : 'still'}`}>
+                  {fmtRate(rates[id] ?? 0).replace('/s', '')}<span class="chip-per">/s</span>
+                </span>
               </span>
             </span>
           </button>

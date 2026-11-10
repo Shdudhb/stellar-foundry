@@ -462,7 +462,7 @@ export function App() {
         <p class="side-foot muted small">遊玩 {fmtDuration(s.playTime)}</p>
       </aside>
       <div class="content">
-        <TopBar />
+        <TopBar chips={shown === 'production'} />
         <main class="main">
           {s.paused && (
             <div class="paused-banner" role="status">
