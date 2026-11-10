@@ -1,4 +1,5 @@
 import { MILESTONE_LIST, type MilestoneDef } from '../data/tech';
+import { homeItems, homeView } from '../sim/planets';
 import { canBuildMilestone, milestoneUnlocked } from '../sim/rules';
 import { buildMilestone, getState } from '../state/store';
 import { Bar, Cost, PageHeader, useGoto } from './common';
@@ -20,7 +21,7 @@ function MilestoneArt({ id, size = 64 }: { id: string; size?: number }) {
 
 /** How much of the materials is already in storage, 0..1 */
 function progress(ms: MilestoneDef): number {
-  const items = getState().items;
+  const items = homeItems(getState());
   const need = Object.entries({ ...ms.cost, ...ms.holds });
   return need.reduce((sum, [id, n]) => sum + Math.min(1, (items[id] ?? 0) / n), 0) / need.length;
 }
@@ -64,7 +65,7 @@ export function MilestonePanel() {
                   </div>
                   <p class="small">材料：<Cost cost={ms.cost} /></p>
                   {ms.holds && <p class="small">需要擁有（不會消耗）：<Cost cost={ms.holds} /></p>}
-                  <button class="primary big" disabled={!canBuildMilestone(s, ms.id)} onClick={() => buildMilestone(ms.id)}>
+                  <button class="primary big" disabled={!canBuildMilestone(homeView(s), ms.id)} onClick={() => buildMilestone(ms.id)}>
                     建造{ms.name}
                   </button>
                 </>

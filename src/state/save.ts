@@ -3,9 +3,10 @@ import { FIRST_INCIDENT, INCIDENTS } from '../data/incidents';
 import { KIT_LEVELS, FIRST_SIGNAL, LEGACY } from '../data/legacy';
 import { OBJECTIVES } from '../data/objectives';
 import { MACHINES } from '../data/machines';
+import { HOME, PLANETS } from '../data/planets';
 import { RECIPES } from '../data/recipes';
 import { TECHS } from '../data/tech';
-import type { GameState, Line, Stats } from '../sim/types';
+import type { GameState, Line, PlanetStore, Route, Stats } from '../sim/types';
 
 export const SAVE_KEY = 'stellar-foundry-save';
 export const SAVE_VERSION = 5;
@@ -101,20 +102,57 @@ function sanitize(s: GameState, base: GameState): void {
     ...(isNum(stats.bestGate) && stats.bestGate > 0 ? { bestGate: stats.bestGate } : {}),
   };
 
-  // Lines: whole machines only, and every id its own, or building on one line would act on another
+  // Lines: whole machines only, and every id its own across every world, or building on one line would act on another
   const seen = new Set<number>();
-  const lines: Line[] = [];
-  for (const l of Array.isArray(s.lines) ? s.lines : []) {
-    if (!l || typeof l !== 'object' || !Number.isInteger(l.id) || seen.has(l.id)) continue;
-    seen.add(l.id);
-    l.count = Math.floor(num(l.count, 0));
-    l.enabled = l.enabled !== false;
-    if (l.wear !== undefined) l.wear = Math.min(1, num(l.wear, 0));
-    if (l.heat !== undefined) l.heat = Math.min(1, num(l.heat, 0));
-    lines.push(l);
+  const cleanLines = (raw: unknown): Line[] => {
+    const lines: Line[] = [];
+    for (const l of Array.isArray(raw) ? (raw as Line[]) : []) {
+      if (!l || typeof l !== 'object' || !Number.isInteger(l.id) || seen.has(l.id)) continue;
+      seen.add(l.id);
+      l.count = Math.floor(num(l.count, 0));
+      l.enabled = l.enabled !== false;
+      if (l.wear !== undefined) l.wear = Math.min(1, num(l.wear, 0));
+      if (l.heat !== undefined) l.heat = Math.min(1, num(l.heat, 0));
+      lines.push(l);
+    }
+    return lines;
+  };
+  s.lines = cleanLines(s.lines);
+
+  // Other worlds: the one in view is never also in storage, and a world that no longer exists is dropped
+  const here = typeof s.planet === 'string' && PLANETS[s.planet] ? s.planet : HOME;
+  const others: Record<string, PlanetStore> = {};
+  for (const [id, o] of Object.entries(record(s.others))) {
+    if (!PLANETS[id] || id === here) continue;
+    const store = record(o);
+    others[id] = { items: amounts(store.items), lines: cleanLines(store.lines), vent: strings(store.vent) };
   }
-  s.lines = lines;
-  s.nextLineId = Math.max(Math.floor(num(s.nextLineId, 1, 1)), ...lines.map((l) => l.id + 1));
+  if (here !== HOME && !others[HOME]) {
+    // Away from home with no home world on file: the save is torn, so the world in view becomes home
+    delete s.planet;
+    delete s.others;
+    delete s.routes;
+  } else if (here !== HOME || Object.keys(others).length > 0) {
+    if (here === HOME) delete s.planet;
+    else s.planet = here;
+    s.others = others;
+  } else {
+    delete s.planet;
+    delete s.others;
+  }
+  if (s.routes !== undefined) {
+    const ids = new Set<number>();
+    const routes: Route[] = [];
+    for (const r of Array.isArray(s.routes) ? s.routes : []) {
+      if (!r || typeof r !== 'object' || !Number.isInteger(r.id) || ids.has(r.id)) continue;
+      if (typeof r.item !== 'string' || !PLANETS[r.from] || !PLANETS[r.to] || r.from === r.to) continue;
+      ids.add(r.id);
+      routes.push({ id: r.id, item: r.item, from: r.from, to: r.to, ships: Math.floor(num(r.ships, 0)), enabled: r.enabled !== false });
+    }
+    s.routes = routes;
+    s.nextRouteId = Math.max(Math.floor(num(s.nextRouteId, 1, 1)), ...routes.map((r) => r.id + 1));
+  }
+  s.nextLineId = Math.max(Math.floor(num(s.nextLineId, 1, 1)), ...[...seen].map((id) => id + 1));
   if (s.paused !== undefined) s.paused = s.paused === true;
 }
 
@@ -143,8 +181,12 @@ function migrate(raw: any): GameState {
     s.nextIncident = s.playTime + FIRST_INCIDENT;
   }
   // A line whose machine or recipe was renamed or removed would break the game; drop it
-  s.lines = s.lines.filter((l) => MACHINES[l.machine] && RECIPES[l.recipe]);
-  for (const l of s.lines) if (l.limit !== undefined && !(l.limit > 0 && l.limit < 1)) delete l.limit;
+  const keep = (lines: Line[]) => lines.filter((l) => MACHINES[l.machine] && RECIPES[l.recipe]);
+  s.lines = keep(s.lines);
+  for (const o of Object.values(s.others ?? {})) o.lines = keep(o.lines);
+  for (const l of [s.lines, ...Object.values(s.others ?? {}).map((o) => o.lines)].flat()) {
+    if (l.limit !== undefined && !(l.limit > 0 && l.limit < 1)) delete l.limit;
+  }
   if (s.queue !== undefined) s.queue = Array.isArray(s.queue) ? s.queue.filter((q) => typeof q === 'string' && TECHS[q]) : [];
   s.version = SAVE_VERSION;
   return s;

@@ -6,6 +6,7 @@ import { RECIPES } from '../data/recipes';
 import { MILESTONE_LIST, MILESTONES, TECH_LIST, TECHS } from '../data/tech';
 import { boostTime } from '../data/legacy';
 import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnlocked, offlineCap, techAvailable, techCost } from '../sim/rules';
+import { allLines, homeItems, homeView } from '../sim/planets';
 import type { GameState } from '../sim/types';
 import {
   acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, focusLine, getLast, getState, getUi,
@@ -17,6 +18,7 @@ import { LegacyPanel } from './LegacyPanel';
 import { MilestonePanel } from './MilestonePanel';
 import { Objective } from './Objective';
 import { NewLinePicker, ProductionPanel, RecipeSwitch } from './ProductionPanel';
+import { RoutePicker } from './Shipping';
 import { RecipeLookup } from './RecipeLookup';
 import { RecordsPanel } from './RecordsPanel';
 import { ResearchPanel } from './ResearchPanel';
@@ -201,7 +203,7 @@ function IncidentModal() {
             <span class="trade-side">
               <ItemIcon id={offer.item} size={40} />
               <strong>−{fmt(offer.n)}</strong>
-              <span class="small muted">{ITEMS[offer.item].name}（庫存 {fmt(s.items[offer.item] ?? 0)}）</span>
+              <span class="small muted">{ITEMS[offer.item].name}（庫存 {fmt(homeItems(s)[offer.item] ?? 0)}）</span>
             </span>
             <span class="trade-arrow">→</span>
             <span class="trade-side">
@@ -211,7 +213,7 @@ function IncidentModal() {
             </span>
           </div>
           <div class="row">
-            <button class="primary" disabled={(s.items[offer.item] ?? 0) < offer.n} onClick={acceptTrade}>成交</button>
+            <button class="primary" disabled={(homeItems(s)[offer.item] ?? 0) < offer.n} onClick={acceptTrade}>成交</button>
             <button onClick={() => openTrade(false)}>再想想</button>
           </div>
         </>
@@ -256,7 +258,7 @@ function OfflineReportModal() {
   const [all, setAll] = useState(false);
   const s = getState();
   const changes = Object.entries(report.changes).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-  const stalled = s.lines
+  const stalled = allLines(s)
     .map((l) => ({ l, st: report.last?.lines[l.id] }))
     .filter(({ st }) => st && st.efficiency < 0.999 && !['idle', 'paused', 'load', 'limit'].includes(st.reason.kind))
     // The most stuck first
@@ -390,9 +392,10 @@ interface Badge { text: string; tone: 'go' | 'warn'; title: string }
 /** Little counters on the tabs: something to research or build, or lines that are stuck */
 function navBadges(s: GameState): Partial<Record<TabId, Badge>> {
   const out: Partial<Record<TabId, Badge>> = {};
-  const research = TECH_LIST.filter((t) => techAvailable(s, t.id) && canAfford(s, techCost(s, t.id))).length;
+  const home = homeView(s);
+  const research = TECH_LIST.filter((t) => techAvailable(s, t.id) && canAfford(home, techCost(s, t.id))).length;
   if (research > 0) out.research = { text: String(research), tone: 'go', title: `${research} 項研究可以進行` };
-  if (MILESTONE_LIST.some((m) => !s.milestones.includes(m.id) && milestoneUnlocked(s, m.id) && canBuildMilestone(s, m.id))) {
+  if (MILESTONE_LIST.some((m) => !s.milestones.includes(m.id) && milestoneUnlocked(s, m.id) && canBuildMilestone(home, m.id))) {
     out.milestones = { text: '!', tone: 'go', title: '巨構可以建造了' };
   }
   const last = getLast();
@@ -530,6 +533,7 @@ export function App() {
       {ui.intro && <IntroModal />}
       {ui.picker && <NewLinePicker />}
       {ui.recipeLine !== null && <RecipeSwitch lineId={ui.recipeLine} />}
+      {ui.routePicker && <RoutePicker />}
       {/* The item window opens from inside the others too, so it goes on top */}
       {ui.lookupItem && <RecipeLookup item={ui.lookupItem} />}
       <Toasts />

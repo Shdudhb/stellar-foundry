@@ -1,6 +1,6 @@
 import { OBJECTIVES, currentObjective, unclaimedObjectives } from '../data/objectives';
 import type { GameState } from '../sim/types';
-import { claimObjectives, focusLine, goTo, objectiveReward, openPicker } from '../state/store';
+import { claimObjectives, focusLine, goTo, objectiveReward, openPicker, openRoutePicker, switchPlanet } from '../state/store';
 import { Reward } from './common';
 import { type Step, nextStep, stepLabel } from './guide';
 
@@ -9,7 +9,10 @@ function go(step: Step) {
     case 'research': return goTo({ tab: 'research', id: step.tech });
     case 'milestone': return goTo({ tab: 'milestones', id: step.milestone });
     case 'line': return focusLine(step.line);
-    case 'picker': return openPicker(true, step.query);
+    case 'picker':
+      if (step.planet) switchPlanet(step.planet);
+      return openPicker(true, step.query);
+    case 'routes': return openRoutePicker(true);
   }
 }
 

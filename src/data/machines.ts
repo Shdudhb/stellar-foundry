@@ -257,6 +257,17 @@ const list: MachineDef[] = [
     cost: { titanium: 40, tungsten: 20, precision_circuit: 4 },
     description: '只有失重環境才做得出的東西：微重力晶體、奈米碳管。原料要用運力送上去。',
   },
+  // ---- the ice moon ----
+  {
+    id: 'ice_drill', name: '冰層鑽機', tier: 5, categories: ['ice_mining'], power: { item: 'eu', amount: 24 }, slots: 1,
+    cost: { titanium: 30, tungsten: 10, precision_circuit: 2 },
+    description: '鑽穿冰衛星的冰層開採彗星冰。只能蓋在冰衛星上。',
+  },
+  {
+    id: 'geothermal_well', name: '地熱井', tier: 5, categories: ['geothermal'], slots: 1,
+    cost: { titanium: 40, stainless: 80, precision_circuit: 2 },
+    description: '冰衛星的地熱：每秒 160 電力，不用燃料。只能蓋在冰衛星上。',
+  },
   // ---- T6: IV machines overclock perfectly: 4x speed per tier for 4x power ----
   {
     id: 'iv_assembler', name: 'IV 組裝機', tier: 6, categories: ['assembling'], power: { item: 'eu', amount: 4 }, slots: 1,

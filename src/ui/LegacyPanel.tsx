@@ -1,6 +1,7 @@
 import { GALAXIES, GALAXY_LIST } from '../data/galaxies';
 import { SWARM_ITEM } from '../data/items';
 import { LEGACY_LIST, legacyCost, warpPoints } from '../data/legacy';
+import { homeItems } from '../sim/planets';
 import { simSpeed } from '../sim/rules';
 import { buyLegacy, getState, warp } from '../state/store';
 import { PageHeader, fmtNum } from './common';
@@ -10,7 +11,7 @@ export function LegacyPanel() {
   const s = getState();
   const { points, warps, upgrades } = s.legacy;
   const gateOpen = s.milestones.includes('stargate');
-  const swarm = Math.floor(s.items[SWARM_ITEM] ?? 0);
+  const swarm = Math.floor(homeItems(s)[SWARM_ITEM] ?? 0);
   const earn = warpPoints(swarm);
   const nextBonus = 600 + (Math.max(0, Math.floor((swarm - 600) / 50)) + 1) * 50;
 

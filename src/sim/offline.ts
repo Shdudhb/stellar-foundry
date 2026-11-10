@@ -1,4 +1,5 @@
-import { tick } from './engine';
+import { atHome } from './planets';
+import { tickAll } from './world';
 import { runQueue } from './research';
 import type { GameState, TickResult } from './types';
 
@@ -46,9 +47,9 @@ export function simulateOffline(state: GameState, seconds: number, speed = 1, ca
   let left = simulated;
   while (left > 1e-9) {
     const dt = Math.min(OFFLINE_STEP, left);
-    last = tick(state, dt * speed);
+    last = tickAll(state, dt * speed).last;
     // Queued research goes ahead as the data comes in, so a long absence doesn't sit on full data storage
-    if (state.queue?.length) researched.push(...runQueue(state));
+    if (state.queue?.length) researched.push(...atHome(state, () => runQueue(state)));
     left -= dt;
     // Advance the clock every step, so a world event that was running when the player left ends on time
     state.playTime += dt;

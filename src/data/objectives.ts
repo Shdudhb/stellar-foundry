@@ -1,3 +1,4 @@
+import { allLines, homeItems } from '../sim/planets';
 import type { GameState } from '../sim/types';
 
 export interface Objective {
@@ -7,16 +8,17 @@ export interface Objective {
   /** Tutorial steps before the research station pay only a token reward, so the first research still needs one */
   minor?: boolean;
   /** What the step is about, so the objective bar can take the player there */
-  go?: { tech?: string; milestone?: string; machine?: string; recipe?: string };
+  go?: { tech?: string; milestone?: string; machine?: string; recipe?: string; route?: boolean };
 }
 
+// Lines count wherever they are; stock means the home world's
 const has = (s: GameState, machine: string, recipe?: string) =>
-  s.lines.some((l) => l.machine === machine && l.count > 0 && (!recipe || l.recipe === recipe));
+  allLines(s).some((l) => l.machine === machine && l.count > 0 && (!recipe || l.recipe === recipe));
 
 export const OBJECTIVES: Objective[] = [
-  { text: '手動採集 10 個石頭', done: (s) => (s.items.stone ?? 0) >= 10 || s.lines.length > 0, minor: true },
+  { text: '手動採集 10 個石頭', done: (s) => (homeItems(s).stone ?? 0) >= 10 || allLines(s).length > 0, minor: true },
   { text: '新增「石爐」生產線並建造一座', done: (s) => has(s, 'stone_furnace'), minor: true, go: { machine: 'stone_furnace' } },
-  { text: '採集鐵礦與煤，讓石爐冶煉出 5 個鐵錠', done: (s) => (s.items.iron_ingot ?? 0) >= 5 || has(s, 'basic_drill'), minor: true },
+  { text: '採集鐵礦與煤，讓石爐冶煉出 5 個鐵錠', done: (s) => (homeItems(s).iron_ingot ?? 0) >= 5 || has(s, 'basic_drill'), minor: true },
   { text: '建造簡易鑽機，讓採礦自動化', done: (s) => has(s, 'basic_drill'), minor: true, go: { machine: 'basic_drill' } },
   { text: '建造組裝台，生產齒輪與銅線', done: (s) => has(s, 'workbench'), minor: true, go: { machine: 'workbench' } },
   { text: '組裝紅色科研包，並建造研究站分析它', done: (s) => has(s, 'research_station'), go: { machine: 'research_station' } },
@@ -40,9 +42,9 @@ export const OBJECTIVES: Objective[] = [
   { text: '研究「硫酸」與「進階電路」，做出藍色科研包', done: (s) => has(s, 'mv_assembler', 'craft_blue_pack'), go: { machine: 'mv_assembler', recipe: 'craft_blue_pack' } },
   { text: '研究「化工廠」', done: (s) => s.techs.includes('chem_plant'), go: { tech: 'chem_plant' } },
   { text: '在「巨構」分頁建成化工廠', done: (s) => s.milestones.includes('chem_plant'), go: { milestone: 'chem_plant' } },
-  { text: '研究「HV 機械」，用化學反應器把重油調成潤滑油', done: (s) => s.lines.some((l) => l.recipe === 'make_lubricant' && l.count > 0), go: { recipe: 'make_lubricant' } },
-  { text: '組裝維護套件：HV 機器沒有它會慢慢磨損', done: (s) => s.lines.some((l) => l.recipe === 'craft_kit' && l.count > 0), go: { recipe: 'craft_kit' } },
-  { text: '研究「鈦冶金」，電解鹽得到鈉和氯氣', done: (s) => s.lines.some((l) => l.recipe === 'electrolyze_salt' && l.count > 0), go: { recipe: 'electrolyze_salt' } },
+  { text: '研究「HV 機械」，用化學反應器把重油調成潤滑油', done: (s) => allLines(s).some((l) => l.recipe === 'make_lubricant' && l.count > 0), go: { recipe: 'make_lubricant' } },
+  { text: '組裝維護套件：HV 機器沒有它會慢慢磨損', done: (s) => allLines(s).some((l) => l.recipe === 'craft_kit' && l.count > 0), go: { recipe: 'craft_kit' } },
+  { text: '研究「鈦冶金」，電解鹽得到鈉和氯氣', done: (s) => allLines(s).some((l) => l.recipe === 'electrolyze_salt' && l.count > 0), go: { recipe: 'electrolyze_salt' } },
   { text: '用 HV 化學反應器氯化金紅石', done: (s) => has(s, 'hv_chem_reactor', 'chlorinate_rutile'), go: { machine: 'hv_chem_reactor', recipe: 'chlorinate_rutile' } },
   { text: '用真空爐把四氯化鈦還原成熱鈦錠', done: (s) => has(s, 'vacuum_furnace', 'reduce_titanium'), go: { machine: 'vacuum_furnace', recipe: 'reduce_titanium' } },
   { text: '研究「低溫技術」，用真空冷凍機冷卻熱鈦錠', done: (s) => has(s, 'vacuum_freezer', 'freeze_titanium'), go: { machine: 'vacuum_freezer', recipe: 'freeze_titanium' } },
@@ -51,7 +53,7 @@ export const OBJECTIVES: Objective[] = [
   { text: '研究「精密電路」，做出紫色科研包', done: (s) => has(s, 'hv_assembler', 'craft_purple_pack'), go: { machine: 'hv_assembler', recipe: 'craft_purple_pack' } },
   { text: '研究「軌道發射台」', done: (s) => s.techs.includes('orbital_pad'), go: { tech: 'orbital_pad' } },
   { text: '在「巨構」分頁建成軌道發射台', done: (s) => s.milestones.includes('orbital_pad'), go: { milestone: 'orbital_pad' } },
-  { text: '研究「補給火箭」，調配火箭燃料、組裝火箭零件', done: (s) => s.lines.some((l) => l.recipe === 'craft_rocket_part' && l.count > 0), go: { recipe: 'craft_rocket_part' } },
+  { text: '研究「補給火箭」，調配火箭燃料、組裝火箭零件', done: (s) => allLines(s).some((l) => l.recipe === 'craft_rocket_part' && l.count > 0), go: { recipe: 'craft_rocket_part' } },
   { text: '蓋發射台：火箭提供軌道運力', done: (s) => has(s, 'launch_pad'), go: { machine: 'launch_pad' } },
   { text: '研究「軌道站」，在軌道上蓋太陽風收集器收集氦-3', done: (s) => has(s, 'solar_wind_collector'), go: { machine: 'solar_wind_collector' } },
   { text: '研究「EV 機械」與「小行星採礦」，蓋小行星採礦機', done: (s) => has(s, 'asteroid_miner'), go: { machine: 'asteroid_miner' } },
@@ -65,19 +67,21 @@ export const OBJECTIVES: Objective[] = [
   { text: '研究「液氦」，在軌道上收集氦氣', done: (s) => has(s, 'solar_wind_collector', 'collect_helium'), go: { machine: 'solar_wind_collector', recipe: 'collect_helium' } },
   { text: '用真空冷凍機把氦氣液化', done: (s) => has(s, 'vacuum_freezer', 'liquefy_helium'), go: { machine: 'vacuum_freezer', recipe: 'liquefy_helium' } },
   { text: '研究「超導體」，用 IV 組裝機組裝超導線', done: (s) => has(s, 'iv_assembler', 'craft_superconductor'), go: { machine: 'iv_assembler', recipe: 'craft_superconductor' } },
-  { text: '研究「氘」，開採彗星冰並電解出氘', done: (s) => s.lines.some((l) => l.recipe === 'electrolyze_ice' && l.count > 0), go: { recipe: 'electrolyze_ice' } },
+  { text: '研究「氘」，到冰衛星蓋地熱井和冰層鑽機開採彗星冰', done: (s) => has(s, 'ice_drill'), go: { machine: 'ice_drill' } },
+  { text: '電解彗星冰得到氘（在冰衛星或母星都可以）', done: (s) => allLines(s).some((l) => l.recipe === 'electrolyze_ice' && l.count > 0), go: { recipe: 'electrolyze_ice' } },
+  { text: '建立貨運航線，把冰衛星的產物運回母星', done: (s) => (s.routes ?? []).some((r) => r.ships > 0), go: { route: true } },
   { text: '研究「聚變」，蓋聚變反應爐', done: (s) => has(s, 'fusion_reactor'), go: { machine: 'fusion_reactor' } },
-  { text: '點燃聚變反應爐：點火要先灌入大量電力', done: (s) => s.lines.some((l) => l.machine === 'fusion_reactor' && (l.heat ?? 0) >= 1), go: { machine: 'fusion_reactor' } },
+  { text: '點燃聚變反應爐：點火要先灌入大量電力', done: (s) => allLines(s).some((l) => l.machine === 'fusion_reactor' && (l.heat ?? 0) >= 1), go: { machine: 'fusion_reactor' } },
   { text: '研究「中子素」，蓋中子素壓縮機', done: (s) => has(s, 'neutronium_compressor'), go: { machine: 'neutronium_compressor' } },
   { text: '研究「戴森群」，在軌道上製造戴森板', done: (s) => has(s, 'orbital_fab', 'fab_dyson_panel'), go: { machine: 'orbital_fab', recipe: 'fab_dyson_panel' } },
   { text: '在「巨構」分頁建成戴森群第一段', done: (s) => s.milestones.includes('dyson_segment'), go: { milestone: 'dyson_segment' } },
   { text: '研究「戴森群部署」，在軌道上蓋戴森群發射器', done: (s) => has(s, 'swarm_launcher'), go: { machine: 'swarm_launcher' } },
-  { text: '把戴森群擴大到 300 片：每片永久提供 20 電力/秒', done: (s) => (s.items.dyson_swarm ?? 0) >= 300, go: { machine: 'swarm_launcher' } },
+  { text: '把戴森群擴大到 300 片：每片永久提供 20 電力/秒', done: (s) => (homeItems(s).dyson_swarm ?? 0) >= 300, go: { machine: 'swarm_launcher' } },
   { text: '研究「粒子對撞」，把中子素撞成奇異物質', done: (s) => has(s, 'particle_collider'), go: { machine: 'particle_collider' } },
   { text: '研究「時空穩定」，趕在奇異物質衰變前把它穩定下來', done: (s) => has(s, 'spacetime_stabilizer'), go: { machine: 'spacetime_stabilizer' } },
   { text: '研究「星際科學」，組裝白色科研包', done: (s) => has(s, 'iv_assembler', 'craft_white_pack'), go: { machine: 'iv_assembler', recipe: 'craft_white_pack' } },
   { text: '研究「星門」', done: (s) => s.techs.includes('stargate'), go: { tech: 'stargate' } },
-  { text: '把戴森群擴大到 600 片', done: (s) => (s.items.dyson_swarm ?? 0) >= 600, go: { machine: 'swarm_launcher' } },
+  { text: '把戴森群擴大到 600 片', done: (s) => (homeItems(s).dyson_swarm ?? 0) >= 600, go: { machine: 'swarm_launcher' } },
   { text: '在「巨構」分頁建成星門', done: (s) => s.milestones.includes('stargate'), go: { milestone: 'stargate' } },
 ];
 

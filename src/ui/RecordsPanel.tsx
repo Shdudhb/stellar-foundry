@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ACHIEVEMENT_LIST } from '../data/achievements';
 import { ITEMS, itemName } from '../data/items';
+import { allLines } from '../sim/planets';
 import { ACHIEVEMENT_BONUS } from '../sim/rules';
 import { getHistory, getRates, getState, getUi, openLookup, type HistorySample } from '../state/store';
 import { Bar, PageHeader, fmt, fmtDuration, fmtRate } from './common';
@@ -196,7 +197,7 @@ function Stats() {
     .slice(0, 8);
   const top = Object.entries(s.stats.produced).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const topMax = top[0]?.[1] ?? 1;
-  const machines = s.lines.reduce((n, l) => n + l.count, 0);
+  const machines = allLines(s).reduce((n, l) => n + l.count, 0);
   const tiles: [string, string][] = [
     ['本輪時間', fmtDuration(s.playTime)],
     ['目前星系', `第 ${s.legacy.warps + 1} 個`],

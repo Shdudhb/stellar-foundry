@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEMS, canVent, itemName } from '../data/items';
 import type { Line, LineStatus, Reason } from '../sim/types';
+import { homeItems } from '../sim/planets';
 import { AMOUNT_EPSILON, hasAmount } from '../sim/rules';
 import { getState, getUi, goTo, openLookup, subscribe } from '../state/store';
 import { ItemIcon } from './pixel';
@@ -74,9 +75,9 @@ export function Chevron({ up, size = 14 }: { up?: boolean; size?: number }) {
   );
 }
 
-/** Material list, red where the player does not have enough */
+/** Material list, red where the player does not have enough. Everything is paid from the home world's storage */
 export function Cost({ cost }: { cost: Record<string, number> }) {
-  const items = getState().items;
+  const items = homeItems(getState());
   return (
     <span class="cost">
       {Object.entries(cost).map(([id, n]) => (

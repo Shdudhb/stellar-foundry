@@ -549,6 +549,25 @@ p { margin: 0 0 8px; }
 .upgrade-row button { border-color: rgb(240 160 75 / 0.7); color: var(--accent); }
 .wear-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .wear-row .bar { max-width: 160px; }
+/* ---------- other worlds and cargo routes ---------- */
+.planet-note { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--line); line-height: 1.5; }
+.routes-card { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.routes-card h2, .routes-card .section-head .small-btn { white-space: nowrap; }
+.routes-card { margin-top: 14px; }
+.route-list { display: flex; flex-direction: column; gap: 6px; }
+.route { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 6px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line-soft); }
+.route.paused { opacity: 0.6; }
+.route-main { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px; text-align: left; }
+.route-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.route-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-rate { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.route-ctl { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.route-ships { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }
+.cargo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; margin-bottom: 12px; }
+.cargo { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; min-width: 0; }
+.cargo.on { border-color: var(--ok); }
+.cargo-name { max-width: 100%; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* A file picker that looks like the buttons beside it */
 .file-btn {
   position: relative; display: inline-flex; align-items: center; cursor: pointer;
@@ -830,6 +849,10 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .seg button { border: none; background: none; padding: 6px 14px; border-radius: 8px; color: var(--muted); font-weight: 600; }
 .seg button.on { background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
 .seg.small-seg { margin-bottom: 8px; }
+/* Which world is in view: part of the colony card's heading */
+.seg.planet-seg { margin: 0; padding: 2px; }
+.seg.planet-seg button { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; font-size: 12px; }
+.seg.planet-seg button.on { color: var(--accent); box-shadow: inset 0 0 0 1px rgb(240 160 75 / 0.6); }
 .seg.small-seg button { padding: 3px 10px; font-size: 12px; }
 
 .ach-summary { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }

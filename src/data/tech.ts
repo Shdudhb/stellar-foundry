@@ -14,6 +14,8 @@ export interface TechDef {
   slotBonus?: number;
   /** Extra orbital slots */
   orbitSlotBonus?: number;
+  /** Extra slots on other worlds, by planet id */
+  planetSlots?: Record<string, number>;
   unlockMilestone?: string;
 }
 
@@ -332,8 +334,14 @@ const list: TechDef[] = [
   },
   {
     id: 'deuterium_extraction', name: '氘', tier: 6, cost: { data_yellow: 300 }, requires: ['iv_tech'],
-    description: '小行星採礦機也能開採彗星冰；電解彗星冰得到氘和氧氣。',
-    unlockRecipes: ['mine_ice', 'electrolyze_ice'],
+    description: '冰衛星的冰層鑽機開採彗星冰，地熱井供電；電解彗星冰得到氘和氧氣，再用貨運船運回母星。',
+    unlockMachines: ['ice_drill', 'geothermal_well'],
+    unlockRecipes: ['mine_ice', 'geothermal_power', 'electrolyze_ice'],
+  },
+  {
+    id: 'colony_expansion', name: '殖民地擴建', tier: 6, cost: { data_yellow: 400 }, requires: ['deuterium_extraction'],
+    description: '冰衛星槽位 +8。',
+    planetSlots: { ice: 8 },
   },
   {
     id: 'fusion', name: '聚變', tier: 6, cost: { data_yellow: 750 }, requires: ['superconductors', 'deuterium_extraction'],
@@ -396,6 +404,11 @@ const list: TechDef[] = [
     id: 'station_expansion_3', name: '軌道站擴建 III', tier: 7, cost: { data_white: 250 }, requires: ['white_science', 'station_expansion_2'],
     description: '軌道槽位再 +24。',
     orbitSlotBonus: 24,
+  },
+  {
+    id: 'colony_expansion_2', name: '殖民地擴建 II', tier: 7, cost: { data_white: 200 }, requires: ['white_science', 'colony_expansion'],
+    description: '冰衛星槽位再 +12。',
+    planetSlots: { ice: 12 },
   },
   {
     id: 'storage_8', name: '倉儲擴充 VIII', tier: 7, cost: { data_white: 200 }, requires: ['white_science', 'storage_7'],

@@ -6,8 +6,11 @@ import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { WORN_SPEED, fuelLines, limitableItem } from '../sim/engine';
 import { shortfall } from '../sim/supply';
 import {
-  canAfford, canRun, capOf, categoryBoost, craftsPerMachine, isMachineUnlocked, isRecipeUnlocked, overclock, recipesFor, slotsTotal, slotsUsed, upgradeCost, upgradeTarget,
+  canAfford, canRun, capOf, categoryBoost, craftsPerMachine, isMachineUnlocked, isRecipeUnlocked, overclock, recipeFits, recipesFor, slotsTotal, slotsUsed, upgradeCost, upgradeTarget,
 } from '../sim/rules';
+import { PLANETS } from '../data/planets';
+import { HOME, homeView, planetOf } from '../sim/planets';
+import { RoutesCard } from './Shipping';
 import type { Line, LineStatus } from '../sim/types';
 import {
   build, buildUpTo, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, openPicker, openRecipeSwitch, removeLine,
@@ -81,11 +84,11 @@ function ManualCard() {
 
 /** What a recipe group is for, in the player's terms; every recipe category belongs to one */
 const GROUPS: { id: string; label: string; categories: string[] }[] = [
-  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind'] },
+  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind', 'ice_mining'] },
   { id: 'metal', label: '冶煉', categories: ['smelting', 'blasting', 'arc', 'vacuum', 'freezing', 'cooling', 'coking'] },
   { id: 'parts', label: '零件', categories: ['crafting', 'compressing', 'assembling'] },
   { id: 'chem', label: '化工', categories: ['crushing', 'electrolysis', 'mixing', 'distilling', 'chemistry'] },
-  { id: 'power', label: '電力', categories: ['burning', 'turbine', 'solar', 'combustion', 'fusion', 'launch', 'elevator'] },
+  { id: 'power', label: '電力', categories: ['burning', 'turbine', 'solar', 'combustion', 'fusion', 'launch', 'elevator', 'geothermal'] },
   { id: 'science', label: '研究', categories: ['research'] },
   { id: 'space', label: '太空', categories: ['microgravity', 'neutron', 'swarm', 'collider', 'stabilizer'] },
 ];
@@ -104,7 +107,7 @@ function readGroup(): string {
 function affordable(m: MachineDef): boolean {
   const s = getState();
   const orbit = !!m.orbital;
-  return canAfford(s, m.cost) && slotsUsed(s, orbit) + m.slots <= slotsTotal(s, orbit);
+  return canAfford(homeView(s), m.cost) && slotsUsed(s, orbit) + m.slots <= slotsTotal(s, orbit);
 }
 
 /** One side of a recipe as per-second amounts for a single machine */
@@ -189,7 +192,7 @@ const perMachineRate = (m: MachineDef, r: RecipeDef) => craftsPerMachine(getStat
 function readyRecipes() {
   const s = getState();
   return RECIPE_LIST.flatMap((r) => {
-    if (!isRecipeUnlocked(s, r.id)) return [];
+    if (!isRecipeUnlocked(s, r.id) || !recipeFits(s, r)) return [];
     const ms = MACHINE_LIST.filter((m) => canRun(m, r) && isMachineUnlocked(s, m.id)).sort((a, b) => a.tier - b.tier);
     return ms.length ? [{ r, ms }] : [];
   });
@@ -322,7 +325,7 @@ function UpgradeRow({ line, to }: { line: Line; to: MachineDef }) {
     : '';
   return (
     <div class="upgrade-row">
-      <button disabled={!canAfford(getState(), pays)} onClick={() => upgradeLine(line.id)}>
+      <button disabled={!canAfford(homeView(getState()), pays)} onClick={() => upgradeLine(line.id)}>
         升級為 {to.name}
       </button>
       <span class="muted small">
@@ -649,7 +652,7 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
         <RemoveButton line={line} />
       </footer>
       {limitItem && limitOpen && <LimitRow line={line} item={limitItem} />}
-      <p class="line-cost muted small">每台：<Cost cost={m.cost} /></p>
+      <p class="line-cost muted small">每台{planetOf(s) === HOME ? '' : '（母星庫存）'}：<Cost cost={m.cost} /></p>
       {upgrade && <UpgradeRow line={line} to={upgrade} />}
     </article>
   );
@@ -899,6 +902,7 @@ export function ProductionPanel() {
   }, [glow]);
 
   const machines = s.lines.reduce((n, l) => n + l.count, 0);
+  const away = planetOf(s) !== HOME;
   return (
     <div class="panel prod-panel">
       {/* The page heading doubles as the toolbar; on a phone it and the filter stay at the top while the list scrolls */}
@@ -923,10 +927,15 @@ export function ProductionPanel() {
       </header>
       {s.lines.length > 1 && <LineFilter filter={filter} setFilter={setFilter} counts={counts} />}
       </div>
-      <ManualCard />
+      {away ? (
+        <p class="planet-note muted small">
+          <strong>{PLANETS[planetOf(s)].name}</strong>：這裡有自己的倉庫和電網。蓋機器的材料從母星倉庫扣；原料和產物要用貨運航線來回。
+        </p>
+      ) : <ManualCard />}
+      {away && <RoutesCard />}
       {s.lines.length === 0 ? (
         <div class="empty empty-cta">
-          <p>還沒有生產線。先手動採集石頭，然後建立一條「石爐」生產線。</p>
+          <p>{away ? '這顆星球還沒有生產線。先蓋發電的，再蓋開採的。' : '還沒有生產線。先手動採集石頭，然後建立一條「石爐」生產線。'}</p>
           <button class="primary big" onClick={() => openPicker(true)}>＋ 新增生產線</button>
         </div>
       ) : (
@@ -951,6 +960,7 @@ export function ProductionPanel() {
         )}
         </>
       )}
+      {!away && <RoutesCard />}
     </div>
   );
 }

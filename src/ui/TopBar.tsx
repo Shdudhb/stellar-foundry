@@ -1,8 +1,10 @@
 import { POWER_ORDER, SWARM_EU, SWARM_ITEM, itemName } from '../data/items';
 import { GALAXIES } from '../data/galaxies';
+import { PLANETS } from '../data/planets';
+import { HOME, homeItems, openPlanets, planetOf } from '../sim/planets';
 import { TIER_NAMES } from '../data/tech';
 import { activeIncident, currentTier, slotsTotal, slotsUsed } from '../sim/rules';
-import { getLast, getRates, getState, openLookup, openSignal, openTrade, togglePause } from '../state/store';
+import { getLast, getRates, getState, openLookup, openSignal, openTrade, switchPlanet, togglePause } from '../state/store';
 import { PauseIcon, fmt, fmtDuration, fmtNum, fmtRate } from './common';
 import { ItemIcon } from './pixel';
 import { getAudioPrefs, setAudioPrefs } from './sound';
@@ -50,9 +52,12 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
   const total = slotsTotal(s);
   const orbitUsed = slotsUsed(s, true);
   const orbitTotal = slotsTotal(s, true);
-  const swarm = Math.floor(s.items[SWARM_ITEM] ?? 0);
+  const here = planetOf(s);
+  const planets = openPlanets(s);
+  // The swarm powers the home grid only
+  const swarm = here === HOME ? Math.floor(homeItems(s)[SWARM_ITEM] ?? 0) : 0;
   const tier = currentTier(s);
-  const keyItems = KEY_ITEMS_BY_TIER[Math.min(tier, KEY_ITEMS_BY_TIER.length - 1)];
+  const keyItems = here === HOME ? KEY_ITEMS_BY_TIER[Math.min(tier, KEY_ITEMS_BY_TIER.length - 1)] : PLANETS[here].keyItems;
   const day = Math.floor(s.playTime / DAY_SECONDS) + 1;
   const incident = activeIncident(s);
   const audio = getAudioPrefs();
@@ -70,6 +75,15 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
             <span class="colony-tag" title={s.galaxy ? `${GALAXIES[s.galaxy]?.name}：${GALAXIES[s.galaxy]?.text}` : '已躍遷的星系數'}>
               星系 {s.legacy.warps + 1}{s.galaxy && GALAXIES[s.galaxy] ? ` · ${GALAXIES[s.galaxy].name}` : ''}
             </span>
+          )}
+          {planets.length > 1 && (
+            <div class="seg planet-seg" role="radiogroup" aria-label="星球">
+              {planets.map((p) => (
+                <button key={p} role="radio" aria-checked={p === here} class={p === here ? 'on' : ''} title={PLANETS[p].text} onClick={() => switchPlanet(p)}>
+                  <ItemIcon id={PLANETS[p].icon} /> {PLANETS[p].name}
+                </button>
+              ))}
+            </div>
           )}
           <span class="spacer" />
           {incident && (
@@ -133,7 +147,7 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
               {fmt(swarm)} 片 · +{fmt(swarm * SWARM_EU)} 電力
             </button>
           )}
-          <span class={`stat stat-slots ${used >= total ? 'tone-text-warn' : ''}`} title="地面區域槽位">▦ 槽位 {used}/{total}</span>
+          <span class={`stat stat-slots ${used >= total ? 'tone-text-warn' : ''}`} title={here === HOME ? '地面區域槽位' : `${PLANETS[here].name}的槽位`}>▦ 槽位 {used}/{total}</span>
           {orbitTotal > 0 && (
             <span class={`stat stat-slots ${orbitUsed >= orbitTotal ? 'tone-text-warn' : ''}`} title="軌道站槽位">◎ 軌道 {orbitUsed}/{orbitTotal}</span>
           )}
