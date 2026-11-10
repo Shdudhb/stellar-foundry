@@ -46,6 +46,25 @@ button, select, textarea { font: inherit; color: inherit; }
 /* iOS zooms in on any field under 16px when it gets focus */
 @media (pointer: coarse) {
   select, textarea, input:not([type='checkbox']):not([type='range']) { font-size: 16px; }
+  /* The top bar's small controls: big enough for a thumb, without growing the bar's text */
+  .colony-head > .icon-btn { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .signal-btn, .incident-chip, .boost-chip { min-height: 34px; display: inline-flex; align-items: center; gap: 6px; }
+  .colony-stats .stat-btn, .colony-stats .link-stat { min-height: 32px; display: inline-flex; align-items: center; }
+  input[type='range'] { min-height: 32px; }
+  select { min-height: 36px; }
+  /* Item names inside a sentence stay one line tall; the tap area around them grows instead */
+  .item-link { position: relative; }
+  .item-link::after { content: ''; position: absolute; inset: -9px -3px; }
+}
+
+/* The narrowest phones (320px): names before buttons */
+@media (max-width: 360px) {
+  .prod-head h1 { white-space: nowrap; font-size: 18px; }
+  .prod-count { display: none; }
+  /* A collapsed row keeps only ＋; − is one tap away when the row is opened */
+  .lrow > .lrow-btn:not(.add) { display: none; }
+  .chips .chip-rate { display: none; }
+  .route-rules { gap: 8px; }
 }
 
 button {
@@ -1019,6 +1038,8 @@ body:has(.modal-backdrop) { overflow: hidden; }
   /* At the top, away from the line buttons and the tab bar the thumb is working on */
   .toasts { left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top)); bottom: auto; align-items: stretch; }
   .toast { max-width: none; animation-name: toast-drop; }
+  /* A window is open: its title and close button sit where toasts land, so they drop to the bottom meanwhile */
+  body:has(.modal-backdrop) .toasts { top: auto; bottom: calc(10px + env(safe-area-inset-bottom)); }
   /* Two at a time on a phone, or a burst of them covers the objective and the top of the page */
   .toast:nth-last-child(n + 3) { display: none; }
   .incident-chip { padding: 2px 8px; font-size: 11px; }
