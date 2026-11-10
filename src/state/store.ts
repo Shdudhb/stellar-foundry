@@ -120,6 +120,8 @@ export const getState = () => state;
 export const getLast = () => last;
 /** Smoothed net change per second of each item, on the world in view unless another is named */
 export const getRates = (planet = planetOf(state)) => ratesOf(planet);
+/** The last tick of one world, for looking in on it from another */
+export const getWorld = (planet: string): TickResult | undefined => worlds[planet];
 export const getRouteStatus = (id: number): RouteStatus | undefined => routeStatus[id];
 export const getUi = () => ui;
 export const getHistory = () => history;

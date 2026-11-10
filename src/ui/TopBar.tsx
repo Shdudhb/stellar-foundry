@@ -1,11 +1,11 @@
 import { POWER_ORDER, SWARM_EU, SWARM_ITEM, itemName } from '../data/items';
 import { GALAXIES } from '../data/galaxies';
 import { PLANETS } from '../data/planets';
-import { HOME, homeItems, openPlanets, planetOf } from '../sim/planets';
+import { HOME, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
 import { TIER_NAMES } from '../data/tech';
 import { activeIncident, currentTier, slotsTotal, slotsUsed } from '../sim/rules';
-import { getLast, getRates, getState, openLookup, openSignal, openTrade, switchPlanet, togglePause } from '../state/store';
-import { PauseIcon, fmt, fmtDuration, fmtNum, fmtRate } from './common';
+import { getLast, getRates, getRouteStatus, getState, getWorld, openLookup, openSignal, openTrade, switchPlanet, togglePause } from '../state/store';
+import { PauseIcon, isStuck, fmt, fmtDuration, fmtNum, fmtRate } from './common';
 import { ItemIcon } from './pixel';
 import { getAudioPrefs, setAudioPrefs } from './sound';
 
@@ -63,6 +63,14 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
   const audio = getAudioPrefs();
   const muted = !audio.sfx && !audio.music;
 
+  // Lines stuck on a world, and ships leaving it that can't fly: worth a look without having to go there first
+  const trouble = (p: string) => {
+    const res = getWorld(p);
+    const stuck = (storeOf(s, p)?.lines ?? []).filter((l) => isStuck(l, res?.lines[l.id])).length;
+    const grounded = (s.routes ?? []).filter((r) => r.from === p && r.enabled && r.ships > 0 && ['fuel', 'full'].includes(getRouteStatus(r.id)?.reason ?? '')).length;
+    return stuck + grounded;
+  };
+
   return (
     <header class="topbar">
       <div class="mobile-brand">
@@ -85,6 +93,7 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
                   onClick={() => switchPlanet(p)}
                 >
                   <ItemIcon id={PLANETS[p].icon} /> {PLANETS[p].name}
+                  {trouble(p) > 0 && <span class="planet-flag" title={`${trouble(p)} 條生產線或航線卡住`} aria-label={`${trouble(p)} 處卡住`}>{trouble(p)}</span>}
                 </button>
               ))}
             </div>

@@ -5,6 +5,7 @@ import { RECIPE_LIST, RECIPES } from '../data/recipes';
 import { MILESTONES, TECHS } from '../data/tech';
 import { allLines, atHome, enterPlanet, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
 import { capOf, recipeFits, recipePlanet, slotsTotal } from '../sim/rules';
+import { simulateOffline } from '../sim/offline';
 import { tickAll } from '../sim/world';
 import { exportString, importString, newGame } from './save';
 import { addLine, addRoute, build, buildShip, getState, importSave, removeRoute, switchPlanet } from './store';
@@ -166,6 +167,20 @@ describe('planets', () => {
     res = tickAll(s, 1);
     expect(s.items.comet_ice).toBeCloseTo(SHIP_RATE);
     expect(res.routes[1]).toMatchObject({ perSec: 0, reason: 'fuel' });
+  });
+
+  it('reports an absence across every world, whichever one is in view', () => {
+    const s = colony();
+    s.lines = [{ id: 1, machine: 'basic_drill', recipe: 'mine_stone', count: 2, enabled: true }];
+    enterPlanet(s, 'ice');
+    s.lines = [
+      { id: 2, machine: 'geothermal_well', recipe: 'geothermal_power', count: 1, enabled: true },
+      { id: 3, machine: 'ice_drill', recipe: 'mine_ice', count: 1, enabled: true },
+    ];
+    const report = simulateOffline(s, 60);
+    expect(planetOf(s)).toBe('ice');
+    expect(report.changes.comet_ice).toBeGreaterThan(30);
+    expect(report.changes.stone).toBeGreaterThan(30);
   });
 
   it('charges more fuel the farther the trip', () => {

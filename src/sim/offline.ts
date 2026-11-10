@@ -1,4 +1,4 @@
-import { atHome } from './planets';
+import { atHome, openPlanets, storeOf } from './planets';
 import { tickAll } from './world';
 import { runQueue } from './research';
 import type { GameState, TickResult } from './types';
@@ -40,7 +40,13 @@ export function mergeReports(a: OfflineReport, b: OfflineReport): OfflineReport 
 /** Catch up `seconds` of absence; `speed` scales factory time (legacy upgrades) */
 export function simulateOffline(state: GameState, seconds: number, speed = 1, cap = MAX_OFFLINE_SECONDS): OfflineReport {
   const simulated = Math.min(Math.max(0, seconds), cap);
-  const before = { ...state.items };
+  // Every world's stock added up: what a ship moved cancels out, and the report doesn't depend on which world is in view
+  const totals = () => {
+    const sum: Record<string, number> = {};
+    for (const p of openPlanets(state)) for (const [item, n] of Object.entries(storeOf(state, p)?.items ?? {})) sum[item] = (sum[item] ?? 0) + n;
+    return sum;
+  };
+  const before = totals();
   let last: TickResult | null = null;
   const researched: string[] = [];
   const start = state.playTime;
@@ -57,8 +63,9 @@ export function simulateOffline(state: GameState, seconds: number, speed = 1, ca
   state.playTime = start + simulated;
 
   const changes: Record<string, number> = {};
-  for (const item of new Set([...Object.keys(before), ...Object.keys(state.items)])) {
-    const d = (state.items[item] ?? 0) - (before[item] ?? 0);
+  const after = totals();
+  for (const item of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    const d = (after[item] ?? 0) - (before[item] ?? 0);
     if (Math.abs(d) >= 0.5) changes[item] = d;
   }
   return { away: seconds, simulated, changes, last, researched };
