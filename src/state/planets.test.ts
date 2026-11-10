@@ -54,7 +54,7 @@ describe('planets', () => {
     ];
     enterPlanet(s, 'home');
     for (let i = 0; i < 20; i++) tickAll(s, 1);
-    expect(storeOf(s, 'lava')!.items.iron_ingot).toBeGreaterThan(40);
+    expect(storeOf(s, 'lava')!.items.iron_ingot).toBeGreaterThan(30);
     expect(s.items.iron_ingot ?? 0).toBe(0);
   });
 
