@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENT_LIST } from '../data/achievements';
 import { INCIDENTS, eligibleIncidents } from '../data/incidents';
+import { MILESTONES } from '../data/tech';
 import { tick } from '../sim/engine';
 import { capOf, categoryBoost, simSpeed, techCost } from '../sim/rules';
 import { exportString, importString, newGame, parseSave } from './save';
 import {
-  acceptTrade, advance, build, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, togglePause, traderOffer, warp, addLine, openPicker,
+  acceptTrade, advance, build, buildMilestone, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, togglePause, traderOffer, warp, addLine, openPicker,
 } from './store';
 
 function load(patch: (s: ReturnType<typeof newGame>) => void) {
@@ -236,5 +237,60 @@ describe('galaxy traits', () => {
     getState().milestones.push('stargate');
     warp();
     expect(getState().galaxy).not.toBe(first);
+  });
+});
+
+describe('coming back', () => {
+  const drill = (s: ReturnType<typeof newGame>) => {
+    s.lines = [{ id: 1, machine: 'basic_drill', recipe: 'mine_stone', count: 1, enabled: true }];
+    s.nextLineId = 2;
+  };
+
+  it('tells a background tab\'s many short catch-ups as one absence', () => {
+    load(drill);
+    // A hidden tab is woken about once a minute: each wake-up is its own catch-up
+    advance(60);
+    advance(60);
+    advance(60);
+    const report = getUi().offlineReport!;
+    expect(report.away).toBe(180);
+    expect(report.simulated).toBe(180);
+    expect(report.changes.stone).toBeCloseTo(getState().items.stone);
+    expect(getState().playTime).toBe(180);
+  });
+
+  it('does not report a short hiccup, but adds it to a report still unread', () => {
+    load(drill);
+    advance(10);
+    expect(getUi().offlineReport).toBeNull();
+    advance(90);
+    advance(10);
+    expect(getUi().offlineReport!.away).toBe(100);
+  });
+
+  it('closes windows that point into the old run on a reset or a warp', () => {
+    load((s) => {
+      drill(s);
+      s.milestones = ['stargate'];
+    });
+    openLookup('stone');
+    openPicker(true, '石');
+    warp();
+    expect(getUi().lookupItem).toBeNull();
+    expect(getUi().picker).toBe(false);
+    expect(getUi().pickerQuery).toBe('');
+  });
+
+  it('says what is missing when a megastructure waits on something to hold, not to spend', () => {
+    load((s) => {
+      s.techs = ['stargate'];
+      for (const [item, n] of Object.entries(MILESTONES.stargate.cost)) s.items[item] = n;
+      s.items.dyson_swarm = 100;
+    });
+    buildMilestone('stargate');
+    expect(getState().milestones).toEqual([]);
+    const said = getUi().toasts[getUi().toasts.length - 1];
+    expect(said.text).toContain('戴森群');
+    expect(said.text).toContain('500');
   });
 });

@@ -664,6 +664,8 @@ details.tier:not([open]) + details.tier:not([open]) { margin-top: -6px; }
 @keyframes fade-in { from { opacity: 0; } }
 /* The page behind a window stays put */
 body:has(.modal-backdrop) { overflow: hidden; }
+/* Focus is parked on the window itself when it opens; the ring belongs to the controls inside */
+.modal:focus { outline: none; }
 .modal {
   width: min(580px, 100%);
   max-height: 86vh;

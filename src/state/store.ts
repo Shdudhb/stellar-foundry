@@ -8,7 +8,7 @@ import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS } from '../data/tech';
 import { tick } from '../sim/engine';
-import { simulateOffline, type OfflineReport } from '../sim/offline';
+import { mergeReports, simulateOffline, type OfflineReport } from '../sim/offline';
 import { learn, queueNext, toggleQueued } from '../sim/research';
 import {
   AMOUNT_EPSILON, activeIncident, canAfford, canBuildMilestone, hasAmount, canRun, capOf, currentTier, isMachineUnlocked, offlineCap, simSpeed, techCost, isRecipeUnlocked, milestoneUnlocked, slotsTotal, slotsUsed, techAvailable,
@@ -16,7 +16,7 @@ import {
 } from '../sim/rules';
 import type { GameState, TickResult } from '../sim/types';
 import { emit, type GameEvent } from './events';
-import { clearLocal, exportString, importString, loadLocal, newGame, saveLocal } from './save';
+import { SAVE_KEY, clearLocal, exportString, importString, loadLocal, newGame, saveLocal } from './save';
 
 const TICK = 0.1;
 const UI_INTERVAL = 250;
@@ -77,6 +77,8 @@ export interface UiState {
   goto: { tab: 'research' | 'milestones'; id: string } | null;
   /** The line whose recipe is being switched */
   recipeLine: number | null;
+  /** The game was opened in another tab after this one: this tab has stopped, so the two don't overwrite each other */
+  superseded: boolean;
   toasts: Toast[];
   /** Recent notable happenings, newest first */
   log: LogEntry[];
@@ -88,7 +90,7 @@ let state: GameState = newGame();
 let last: TickResult = emptyTick();
 const smoothRates: Record<string, number> = {};
 const ui: UiState = {
-  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null,
+  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null, superseded: false,
   toasts: [], log: [],
 };
 const listeners = new Set<() => void>();
@@ -210,7 +212,44 @@ function catchUp(seconds: number) {
   for (const [item, d] of Object.entries(report.changes)) {
     if (d > 0 && !isPower(item)) state.stats.produced[item] = (state.stats.produced[item] ?? 0) + d;
   }
-  if (seconds >= REPORT_THRESHOLD) ui.offlineReport = report;
+  // A report still unread takes this absence in too: a background tab is woken about once a minute, and each
+  // wake-up is its own catch-up, so without this the player would come back to a report of the last minute only
+  if (ui.offlineReport) ui.offlineReport = mergeReports(ui.offlineReport, report);
+  else if (seconds >= REPORT_THRESHOLD) ui.offlineReport = report;
+}
+
+/** Windows and shortcuts that point into a run that is no longer there */
+function resetUi() {
+  Object.assign(ui, { lookupItem: null, picker: false, pickerQuery: '', focusLine: null, goto: null, recipeLine: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
+  acc = 0;
+  historyAcc = 0;
+}
+
+// ---------- one tab at a time ----------
+
+const TAB_KEY = `${SAVE_KEY}-tab`;
+const tabId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+/** Save, unless a newer tab has taken the game over: its progress is the one to keep */
+function persist() {
+  if (!ui.superseded) saveLocal(state);
+}
+
+/**
+ * Two tabs would each run the factory and save over the other, so whichever closed last would decide what
+ * survived, and the player would lose whatever the other one did. The newest tab plays; older ones stop.
+ */
+function claimTab() {
+  try {
+    localStorage.setItem(TAB_KEY, tabId);
+  } catch {
+    // storage blocked: nothing is saved either, so there is nothing to protect
+  }
+  window.addEventListener('storage', (e) => {
+    if (e.key !== TAB_KEY || !e.newValue || e.newValue === tabId || ui.superseded) return;
+    ui.superseded = true;
+    notify();
+  });
 }
 
 // ---------- lifecycle ----------
@@ -220,7 +259,7 @@ let acc = 0;
 
 /** Wall-clock seconds since the last call: run the factory, or catch up a long gap as offline time */
 export function advance(elapsed: number) {
-  if (state.paused) {
+  if (state.paused || ui.superseded) {
     acc = 0;
     return;
   }
@@ -242,14 +281,22 @@ export function togglePause() {
   state.paused = !state.paused;
   acc = 0;
   emit('click');
-  saveLocal(state);
+  persist();
   notify();
 }
 
 export function start() {
   if (started) return;
   started = true;
-  const saved = loadLocal();
+  let unreadable = false;
+  const saved = loadLocal(() => (unreadable = true));
+  claimTab();
+  // Ask the browser not to clear the save when the device runs low on space; it may say no, and that's fine
+  try {
+    void navigator.storage?.persist?.().catch(() => undefined);
+  } catch {
+    // not supported
+  }
   if (saved) {
     state = saved;
     checkAchievements(true);
@@ -257,18 +304,22 @@ export function start() {
     if (!saved.paused) catchUp((Date.now() - saved.savedAt) / 1000);
   } else {
     ui.intro = true;
+    if (unreadable) toast('原本的存檔讀不出來，已另外保留一份，這裡從新的一局開始', { tone: 'bad', title: '存檔損毀' });
   }
 
-  let prev = performance.now();
+  // The wall clock, not performance.now(): on many systems that one stands still while the computer sleeps,
+  // so a tab left open overnight would wake up thinking no time had passed and skip the offline catch-up
+  let prev = Date.now();
   setInterval(() => {
-    const now = performance.now();
-    advance((now - prev) / 1000);
+    const now = Date.now();
+    // Never negative: the clock can be set back
+    advance(Math.max(0, (now - prev) / 1000));
     prev = now;
   }, TICK * 1000);
 
   setInterval(notify, UI_INTERVAL);
-  setInterval(() => saveLocal(state), AUTOSAVE_INTERVAL);
-  const flush = () => saveLocal(state);
+  setInterval(persist, AUTOSAVE_INTERVAL);
+  const flush = persist;
   window.addEventListener('beforeunload', flush);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flush();
@@ -537,7 +588,12 @@ export function clearQueue() {
 export function buildMilestone(id: string) {
   const ms = MILESTONES[id];
   if (!ms || state.milestones.includes(id) || !milestoneUnlocked(state, id)) return;
-  if (!canBuildMilestone(state, id)) return lacking(ms.cost);
+  if (!canBuildMilestone(state, id)) {
+    // What has to be held counts too: with the materials ready and the swarm too small, say so
+    const need = { ...ms.holds };
+    for (const [item, n] of Object.entries(ms.cost)) need[item] = Math.max(need[item] ?? 0, n);
+    return lacking(need);
+  }
   pay(ms.cost);
   state.milestones.push(id);
   if (id === 'stargate') state.stats.bestGate = Math.min(state.stats.bestGate ?? Infinity, state.playTime);
@@ -548,7 +604,7 @@ export function buildMilestone(id: string) {
     state.lines.push({ id: state.nextLineId++, ...ms.grantsLine, count: 1, enabled: true });
   }
   ui.milestoneModal = id;
-  saveLocal(state);
+  persist();
   notify();
 }
 
@@ -692,10 +748,8 @@ export function warp() {
   history.length = 0;
   last = emptyTick();
   for (const k of Object.keys(smoothRates)) smoothRates[k] = 0;
-  ui.milestoneModal = null;
-  ui.signalOpen = false;
-  ui.tradeOpen = false;
-  saveLocal(state);
+  resetUi();
+  persist();
   toast(`抵達第 ${legacy.warps + 1} 個星系「${GALAXIES[galaxy].name}」，獲得 ${earned} 遺產點`, { tone: 'good', title: '躍遷完成', icon: 'dyson_swarm', sound: 'warp', log: true });
   checkAchievements();
 }
@@ -720,11 +774,11 @@ export function importSave(text: string): boolean {
   state = s;
   last = emptyTick();
   history.length = 0;
-  acc = 0;
   for (const k of Object.keys(smoothRates)) smoothRates[k] = 0;
-  Object.assign(ui, { intro: false, lookupItem: null, picker: false, focusLine: null, goto: null, recipeLine: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
+  resetUi();
+  ui.intro = false;
   checkAchievements(true);
-  saveLocal(state);
+  persist();
   toast('已匯入存檔', { tone: 'good' });
   return true;
 }
@@ -738,7 +792,8 @@ export function resetGame() {
   last = emptyTick();
   history.length = 0;
   for (const k of Object.keys(smoothRates)) smoothRates[k] = 0;
-  saveLocal(state);
+  resetUi();
+  persist();
   toast('已重新開始');
 }
 

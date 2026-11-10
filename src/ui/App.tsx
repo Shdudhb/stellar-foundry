@@ -328,6 +328,23 @@ function MilestoneModal({ id, onWarp }: { id: string; onWarp: () => void }) {
   );
 }
 
+/** This tab lost the game to a newer one: say so, and offer to take it back */
+function SupersededScreen() {
+  return (
+    <div class="modal-backdrop">
+      <div class="modal" role="alertdialog" aria-modal="true" aria-label="遊戲已在另一個分頁開啟">
+        <header class="modal-head">
+          <h2>遊戲已在另一個分頁開啟</h2>
+        </header>
+        <div class="modal-body">
+          <p>這個分頁已經停下來，免得兩邊各跑各的、互相蓋掉存檔。進度以另一個分頁為準。</p>
+          <button class="primary big" onClick={() => location.reload()}>改在這個分頁繼續</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface Badge { text: string; tone: 'go' | 'warn'; title: string }
 
 /** Little counters on the tabs: something to research or build, or lines that are stuck */
@@ -384,6 +401,8 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return;
       if (document.querySelector('.modal')) return;
+      // A held key would otherwise flip the pause back and forth, or reopen the window it just opened
+      if (e.repeat) return;
       if (e.key === 'p' || e.key === 'P') return togglePause();
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
@@ -396,6 +415,15 @@ export function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  if (ui.superseded) {
+    return (
+      <div class="app">
+        <Embers />
+        <SupersededScreen />
+      </div>
+    );
+  }
 
   return (
     <div class={`app ${s.paused ? 'paused' : ''}`} style={{ '--tier': TIER_COLORS[Math.min(currentTier(s), TIER_COLORS.length - 1)] }}>

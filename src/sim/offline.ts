@@ -19,6 +19,23 @@ export interface OfflineReport {
   researched: string[];
 }
 
+/**
+ * Two catch-ups in a row told as one absence. A tab left in the background is woken about once a minute,
+ * so a long absence arrives as many short ones; the player should read about all of it, not the last minute.
+ */
+export function mergeReports(a: OfflineReport, b: OfflineReport): OfflineReport {
+  const changes: Record<string, number> = { ...a.changes };
+  for (const [item, d] of Object.entries(b.changes)) changes[item] = (changes[item] ?? 0) + d;
+  for (const item of Object.keys(changes)) if (Math.abs(changes[item]) < 0.5) delete changes[item];
+  return {
+    away: a.away + b.away,
+    simulated: a.simulated + b.simulated,
+    changes,
+    last: b.last ?? a.last,
+    researched: [...a.researched, ...b.researched],
+  };
+}
+
 /** Catch up `seconds` of absence; `speed` scales factory time (legacy upgrades) */
 export function simulateOffline(state: GameState, seconds: number, speed = 1, cap = MAX_OFFLINE_SECONDS): OfflineReport {
   const simulated = Math.min(Math.max(0, seconds), cap);

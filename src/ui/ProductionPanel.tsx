@@ -370,7 +370,7 @@ function LimitRow({ line, item }: { line: Line; item: string }) {
   return (
     <div class="limit-row">
       <span class="small">
-        <ItemLink id={item} /> 存到倉庫的
+        <ItemLink id={item} /> 庫存上限
       </span>
       <div class="limit-chips">
         <button class={`filter-chip ${line.limit === undefined ? 'active' : ''}`} onClick={() => setLineLimit(line.id, undefined)}>不限</button>
@@ -382,8 +382,8 @@ function LimitRow({ line, item }: { line: Line; item: string }) {
       </div>
       <span class="muted small">
         {line.limit === undefined
-          ? '就停，下游用掉多少再補多少'
-          : `＝${fmt(line.limit * cap)} 個就停，下游用掉多少再補多少`}
+          ? '不設上限：一直做到倉庫滿。設了上限，就能把共用的原料留給別條線'
+          : `存到 ${fmt(line.limit * cap)} 個就停，下游用掉多少再補多少`}
       </span>
     </div>
   );

@@ -5,7 +5,7 @@ import { MILESTONES } from '../data/tech';
 import { capOf, categoryBoost, isMachineUnlocked, isRecipeUnlocked, machinesFor, overclock } from '../sim/rules';
 import type { Line } from '../sim/types';
 import { build, createLine, focusLine, gather, getLast, getState, openLookup } from '../state/store';
-import { HoldButton, Modal, Side, fmtRate, reasonText, reasonTone, useHold } from './common';
+import { HoldButton, Modal, Side, fmtNum, fmtRate, reasonText, reasonTone, useHold } from './common';
 import { ItemIcon, MachineIcon } from './pixel';
 import { ShortfallFix } from './ProductionPanel';
 import { StoreControls } from './StoragePanel';
@@ -175,6 +175,9 @@ function FlowList({ title, rows, sign }: { title: string; rows: FlowRow[]; sign:
   );
 }
 
+/** An amount per second with no sign: demand and capacity are sizes, not changes */
+const perSecond = (n: number) => `${fmtNum(Math.round(n * 100) / 100)}/s`;
+
 /** Who makes it and who uses it right now: the answer to "why is this short?" */
 function ItemFlow({ item }: { item: string }) {
   // Biggest first: with dozens of lines on the grid, the top few are the ones worth acting on
@@ -191,7 +194,7 @@ function ItemFlow({ item }: { item: string }) {
       {f && (
         <div class="supply-gap">
           <span class="tone-text-warn small">
-            全速需要 {fmtRate(f.demand)} · 產能只有 {fmtRate(f.capacity)}
+            全速需要 {perSecond(f.demand)} · 產能只有 {perSecond(f.capacity)}
           </span>
           <ShortfallFix item={item} />
         </div>
