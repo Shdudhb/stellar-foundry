@@ -2,6 +2,7 @@ import { LEGACY_LIST } from './legacy';
 import { MACHINES } from './machines';
 import { RECIPES } from './recipes';
 import { MILESTONE_LIST, TECH_LIST } from './tech';
+import { HOME, allLines, homeItems, openPlanets, storeOf } from '../sim/planets';
 import { capOf } from '../sim/rules';
 import type { GameState, TickResult } from '../sim/types';
 import { ITEMS } from './items';
@@ -21,7 +22,10 @@ export interface AchievementDef {
 }
 
 const produced = (s: GameState, id: string) => s.stats.produced[id] ?? 0;
-const machines = (s: GameState) => s.lines.reduce((n, l) => n + l.count, 0);
+const machines = (s: GameState) => allLines(s).reduce((n, l) => n + l.count, 0);
+/** Machines standing on worlds other than the home world */
+const awayMachines = (s: GameState) =>
+  openPlanets(s).filter((p) => p !== HOME).reduce((n, p) => n + (storeOf(s, p)?.lines.reduce((m, l) => m + l.count, 0) ?? 0), 0);
 const has = (s: GameState, ms: string) => s.milestones.includes(ms);
 
 const MILESTONE_ICONS: Record<string, string> = {
@@ -48,9 +52,11 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   { id: 'build_25', name: '小型工坊', text: '累計建造 25 台機器。', icon: 'iron_ingot', group: '開拓', ...counter((s) => s.stats.built, 25) },
   { id: 'build_100', name: '工業區', text: '累計建造 100 台機器。', icon: 'steel', group: '開拓', ...counter((s) => s.stats.built, 100) },
   { id: 'build_500', name: '機械之海', text: '累計建造 500 台機器。', icon: 'stainless', group: '開拓', ...counter((s) => s.stats.built, 500) },
-  { id: 'lines_10', name: '生產網', text: '同時擁有 10 條生產線。', icon: 'copper_wire', group: '開拓', ...counter((s) => s.lines.length, 10) },
-  { id: 'lines_25', name: '複雜系統', text: '同時擁有 25 條生產線。', icon: 'cable', group: '開拓', ...counter((s) => s.lines.length, 25) },
+  { id: 'lines_10', name: '生產網', text: '同時擁有 10 條生產線。', icon: 'copper_wire', group: '開拓', ...counter((s) => allLines(s).length, 10) },
+  { id: 'lines_25', name: '複雜系統', text: '同時擁有 25 條生產線。', icon: 'cable', group: '開拓', ...counter((s) => allLines(s).length, 25) },
   { id: 'machines_100', name: '百機齊鳴', text: '同時運轉 100 台機器。', icon: 'circuit', group: '開拓', ...counter((s) => machines(s), 100) },
+  { id: 'lines_50', name: '龐然巨物', text: '同時擁有 50 條生產線。', icon: 'pcb', group: '開拓', ...counter((s) => allLines(s).length, 50) },
+  { id: 'machines_300', name: '千軍萬馬', text: '同時運轉 300 台機器。', icon: 'adv_circuit', group: '開拓', ...counter((s) => machines(s), 300) },
 
   // 生產
   made('iron_1k', 'iron_ingot', 1000, '鐵器時代', '累計生產 1,000 鐵錠。'),
@@ -74,11 +80,11 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   },
   {
     id: 'overclock', name: '超頻玩家', text: '讓一條生產線超頻 ×4 以上。', icon: 'eu', group: '科技',
-    done: (s) => s.lines.some((l) => l.count > 0 && MACHINES[l.machine] && RECIPES[l.recipe] && MACHINES[l.machine].tier - RECIPES[l.recipe].tier >= 2),
+    done: (s) => allLines(s).some((l) => l.count > 0 && MACHINES[l.machine] && RECIPES[l.recipe] && MACHINES[l.machine].tier - RECIPES[l.recipe].tier >= 2),
   },
   {
     id: 'perfect', name: '完美超頻', text: '建造一台具備完美超頻的機器。', icon: 'neutronium', group: '科技',
-    done: (s) => s.lines.some((l) => l.count > 0 && MACHINES[l.machine]?.perfectOC),
+    done: (s) => allLines(s).some((l) => l.count > 0 && MACHINES[l.machine]?.perfectOC),
   },
   {
     id: 'power_1k', name: '點亮殖民地', text: '電網供應達到 1,000 EU/s，且滿足所有需求。', icon: 'eu', group: '科技',
@@ -103,7 +109,16 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   { id: 'signal_1', name: '第一次接觸', text: '回應 1 次遺物訊號。', icon: 'exotic_matter', group: '星海', ...counter((s) => s.stats.signals, 1) },
   { id: 'signal_10', name: '遺物獵人', text: '回應 10 次遺物訊號。', icon: 'stable_exotic', group: '星海', ...counter((s) => s.stats.signals, 10) },
   { id: 'incident_10', name: '見過世面', text: '經歷 10 次星球事件。', icon: 'meteor_ore', group: '星海', ...counter((s) => s.stats.incidents, 10) },
+  { id: 'signal_50', name: '解謎者', text: '回應 50 次遺物訊號。', icon: 'zg_crystal', group: '星海', ...counter((s) => s.stats.signals, 50) },
+  { id: 'incident_50', name: '風雨無阻', text: '經歷 50 次星球事件。', icon: 'comet_ice', group: '星海', ...counter((s) => s.stats.incidents, 50) },
+  { id: 'swarm_1000', name: '恆星的冠冕', text: '把戴森群擴大到 1,000 片。', icon: 'dyson_swarm', group: '星海', ...counter((s) => homeItems(s).dyson_swarm ?? 0, 1000) },
   { id: 'trade_5', name: '星際商人', text: '與商隊交易 5 次。', icon: 'rocket_part', group: '星海', ...counter((s) => s.stats.trades, 5) },
+  { id: 'colony_10', name: '第二個家', text: '在母星以外的星球上蓋起 10 台機器。', icon: 'comet_ice', group: '星海', ...counter(awayMachines, 10) },
+  {
+    id: 'worlds_3', name: '三星工業', text: '母星、冰衛星和熔岩星同時都有機器在運轉。', icon: 'magma', group: '星海',
+    done: (s) => ['home', 'ice', 'lava'].every((p) => (storeOf(s, p)?.lines ?? []).some((l) => l.count > 0)),
+  },
+  { id: 'ships_10', name: '星際航運', text: '同時擁有 10 艘貨運船。', icon: 'rocket_part', group: '星海', ...counter((s) => (s.routes ?? []).reduce((n, r) => n + r.ships, 0), 10) },
   { id: 'warp_1', name: '越過地平線', text: '躍遷 1 次。', icon: 'dyson_swarm', group: '星海', ...counter((s) => s.legacy.warps, 1) },
   { id: 'warp_5', name: '星系旅人', text: '躍遷 5 次。', icon: 'dyson_panel', group: '星海', ...counter((s) => s.legacy.warps, 5) },
   { id: 'warp_10', name: '銀河漫遊者', text: '躍遷 10 次。', icon: 'stable_exotic', group: '星海', ...counter((s) => s.legacy.warps, 10) },
@@ -113,7 +128,7 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   },
   {
     id: 'hoarder', name: '囤積狂', text: '把一種中間產物堆滿倉庫。', icon: 'iron_ingot', group: '星海', hidden: true,
-    done: (s) => Object.entries(s.items).some(([id, n]) => ITEMS[id]?.kind === 'intermediate' && n >= capOf(s, id) - 1e-6),
+    done: (s) => Object.entries(homeItems(s)).some(([id, n]) => ITEMS[id]?.kind === 'intermediate' && n >= capOf(s, id) - 1e-6),
   },
 ];
 

@@ -2,10 +2,12 @@ import { ITEMS, isPower, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { MILESTONES } from '../data/tech';
-import { capOf, categoryBoost, isMachineUnlocked, isRecipeUnlocked, machinesFor, overclock } from '../sim/rules';
+import { PLANETS } from '../data/planets';
+import { capOf, categoryBoost, isMachineUnlocked, isRecipeUnlocked, machinesFor, overclock, recipeFits, recipePlanet } from '../sim/rules';
+import { ItemRoutes } from './Shipping';
 import type { Line } from '../sim/types';
 import { build, createLine, focusLine, gather, getLast, getState, openLookup } from '../state/store';
-import { HoldButton, Modal, Side, fmtRate, reasonText, reasonTone, useHold } from './common';
+import { HoldButton, Modal, Side, fmtNum, fmtRate, reasonText, reasonTone, useHold } from './common';
 import { ItemIcon, MachineIcon } from './pixel';
 import { ShortfallFix } from './ProductionPanel';
 import { StoreControls } from './StoragePanel';
@@ -14,7 +16,7 @@ import { shortfall } from '../sim/supply';
 /** Can be built right now: the recipe and at least one machine for it are unlocked */
 function ready(r: RecipeDef): boolean {
   const s = getState();
-  return isRecipeUnlocked(s, r.id) && machinesFor(r.id).some((m) => isMachineUnlocked(s, m.id));
+  return isRecipeUnlocked(s, r.id) && recipeFits(s, r) && machinesFor(r.id).some((m) => isMachineUnlocked(s, m.id));
 }
 
 /** Usable recipes first, then the locked ones as a peek at what's ahead */
@@ -24,7 +26,9 @@ function RecipeRow({ r, item }: { r: RecipeDef; item: string }) {
   const s = getState();
   const locked = !isRecipeUnlocked(s, r.id);
   const machines = machinesFor(r.id);
-  const usable = machines.filter((m) => !locked && isMachineUnlocked(s, m.id));
+  // Somewhere else's ore or heat: it can be looked at from here, not built here
+  const fits = recipeFits(s, r);
+  const usable = machines.filter((m) => !locked && fits && isMachineUnlocked(s, m.id));
   const rest = machines.filter((m) => !usable.includes(m));
   // Per second, in this item, like everywhere else in the game
   const perSec = (m: (typeof machines)[number]) => {
@@ -40,6 +44,7 @@ function RecipeRow({ r, item }: { r: RecipeDef; item: string }) {
         <strong>{r.name}</strong>
         <span class="muted small"> · {r.time}s · 最低 T{r.tier}</span>
         {locked && <span class="badge">未解鎖</span>}
+        {!fits && <span class="badge">只能在{PLANETS[recipePlanet(r)!]?.name}</span>}
       </div>
       <div class="small recipe-eq">
         <span class="side"><Side items={r.inputs} /></span>
@@ -175,6 +180,9 @@ function FlowList({ title, rows, sign }: { title: string; rows: FlowRow[]; sign:
   );
 }
 
+/** An amount per second with no sign: demand and capacity are sizes, not changes */
+const perSecond = (n: number) => `${fmtNum(Math.round(n * 100) / 100)}/s`;
+
 /** Who makes it and who uses it right now: the answer to "why is this short?" */
 function ItemFlow({ item }: { item: string }) {
   // Biggest first: with dozens of lines on the grid, the top few are the ones worth acting on
@@ -191,7 +199,7 @@ function ItemFlow({ item }: { item: string }) {
       {f && (
         <div class="supply-gap">
           <span class="tone-text-warn small">
-            全速需要 {fmtRate(f.demand)} · 產能只有 {fmtRate(f.capacity)}
+            全速需要 {perSecond(f.demand)} · 產能只有 {perSecond(f.capacity)}
           </span>
           <ShortfallFix item={item} />
         </div>
@@ -223,6 +231,7 @@ export function RecipeLookup({ item }: { item: string }) {
       {def?.kind === 'structure' && <p class="muted small">部署好的戴森板，不佔倉庫、不能丟棄；每片提供 20 電力/秒。</p>}
       {isPower(item) && <p class="muted small">{itemName(item)}不能儲存，產出當下就被機器用掉；不夠時所有用它的機器一起降速。</p>}
       <ItemFlow item={item} />
+      <ItemRoutes item={item} />
       <h4>取得方式</h4>
       <ul class="recipe-list">
         {def?.manual && <GatherRow item={item} />}

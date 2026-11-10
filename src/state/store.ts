@@ -2,21 +2,23 @@ import { ACHIEVEMENT_LIST } from '../data/achievements';
 import { GALAXIES, rollGalaxy } from '../data/galaxies';
 import { INCIDENT_INTERVAL, eligibleIncidents } from '../data/incidents';
 import { ITEMS, SWARM_ITEM, canVent, isPower } from '../data/items';
-import { BOOST_TIME, KIT_LEVELS, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
+import { KIT_LEVELS, boostTime, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
 import { OBJECTIVES, unclaimedObjectives } from '../data/objectives';
 import { MACHINES } from '../data/machines';
+import { HOME, PLANETS, SHIP_COST, shippable } from '../data/planets';
 import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS } from '../data/tech';
-import { tick } from '../sim/engine';
-import { simulateOffline, type OfflineReport } from '../sim/offline';
+import { mergeReports, simulateOffline, type OfflineReport } from '../sim/offline';
+import { allLines, atHome, enterPlanet, ensurePlanets, homeItems, openPlanets, planetOf, planetOfLine } from '../sim/planets';
 import { learn, queueNext, toggleQueued } from '../sim/research';
 import {
-  AMOUNT_EPSILON, activeIncident, canAfford, canBuildMilestone, hasAmount, canRun, capOf, currentTier, isMachineUnlocked, offlineCap, simSpeed, techCost, isRecipeUnlocked, milestoneUnlocked, slotsTotal, slotsUsed, techAvailable,
+  AMOUNT_EPSILON, activeIncident, canAfford, canBuildMilestone, hasAmount, canRun, capOf, currentTier, isMachineUnlocked, offlineCap, recipeFits, simSpeed, techCost, isRecipeUnlocked, milestoneUnlocked, slotsTotal, slotsUsed, techAvailable,
   upgradeCost, upgradeTarget,
 } from '../sim/rules';
-import type { GameState, TickResult } from '../sim/types';
+import type { GameState, Route, RouteStatus, TickResult } from '../sim/types';
+import { tickAll } from '../sim/world';
 import { emit, type GameEvent } from './events';
-import { clearLocal, exportString, importString, loadLocal, newGame, saveLocal } from './save';
+import { SAVE_KEY, clearLocal, exportString, importString, loadLocal, newGame, saveLocal } from './save';
 
 const TICK = 0.1;
 const UI_INTERVAL = 250;
@@ -41,6 +43,8 @@ export interface Toast {
   icon?: string;
   /** Small heading above the text */
   title?: string;
+  /** Where tapping it leads: the relic choice, or the current world event's window */
+  action?: 'signal' | 'trade';
 }
 
 export interface LogEntry {
@@ -77,6 +81,10 @@ export interface UiState {
   goto: { tab: 'research' | 'milestones'; id: string } | null;
   /** The line whose recipe is being switched */
   recipeLine: number | null;
+  /** The new-route window is open */
+  routePicker: boolean;
+  /** The game was opened in another tab after this one: this tab has stopped, so the two don't overwrite each other */
+  superseded: boolean;
   toasts: Toast[];
   /** Recent notable happenings, newest first */
   log: LogEntry[];
@@ -86,9 +94,19 @@ const emptyTick = (): TickResult => ({ lines: {}, power: {}, rates: {}, vented: 
 
 let state: GameState = newGame();
 let last: TickResult = emptyTick();
-const smoothRates: Record<string, number> = {};
+/** The latest step of every world, and of the cargo routes between them */
+let worlds: Record<string, TickResult> = {};
+let routeStatus: Record<number, RouteStatus> = {};
+/** Smoothed item rates, by world */
+const smooth: Record<string, Record<string, number>> = {};
+const ratesOf = (planet: string) => (smooth[planet] ??= {});
+const clearRates = () => {
+  for (const k of Object.keys(smooth)) delete smooth[k];
+  worlds = {};
+  routeStatus = {};
+};
 const ui: UiState = {
-  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null,
+  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null, routePicker: false, superseded: false,
   toasts: [], log: [],
 };
 const listeners = new Set<() => void>();
@@ -99,7 +117,9 @@ let achievementAcc = 0;
 
 export const getState = () => state;
 export const getLast = () => last;
-export const getRates = () => smoothRates;
+/** Smoothed net change per second of each item, on the world in view unless another is named */
+export const getRates = (planet = planetOf(state)) => ratesOf(planet);
+export const getRouteStatus = (id: number): RouteStatus | undefined => routeStatus[id];
 export const getUi = () => ui;
 export const getHistory = () => history;
 
@@ -119,18 +139,20 @@ interface ToastOpts {
   /** Also keep it in the log */
   log?: boolean;
   sound?: GameEvent;
+  action?: Toast['action'];
 }
 
-function toast(text: string, { tone = 'info', icon, title, log, sound }: ToastOpts = {}) {
+function toast(text: string, { tone = 'info', icon, title, log, sound, action }: ToastOpts = {}) {
   const id = nextToastId++;
   // The same message again (tapping a button that can't work) refreshes it instead of stacking copies
   const others = ui.toasts.filter((x) => x.text !== text || x.title !== title);
-  ui.toasts = [...others.slice(-3), { id, text, tone, icon, title }];
+  ui.toasts = [...others.slice(-3), { id, text, tone, icon, title, action }];
   if (log) addLog(title ? `${title}：${text}` : text, tone, icon);
   if (sound) emit(sound);
   else if (tone === 'bad') emit('error');
   // Longer warnings (with a hint) stay up long enough to read
-  setTimeout(() => dismissToast(id), tone === 'achievement' ? 5000 : tone === 'bad' ? Math.max(2200, text.length * 110) : Math.max(3200, text.length * 90));
+  // One the player can act on waits a little longer for them
+  setTimeout(() => dismissToast(id), action ? 8000 : tone === 'achievement' ? 5000 : tone === 'bad' ? Math.max(2200, text.length * 110) : Math.max(3200, text.length * 90));
   notify();
 }
 
@@ -145,20 +167,29 @@ function addLog(text: string, tone: ToastTone = 'info', icon?: string) {
 
 function step(dt: number) {
   const simDt = dt * simSpeed(state);
-  last = tick(state, simDt);
+  const world = tickAll(state, simDt);
+  last = world.last;
+  worlds = world.byPlanet;
+  routeStatus = world.routes;
   state.playTime += dt;
-  for (let id = queueNext(state); id; id = queueNext(state)) {
-    const cost = techCost(state, id);
-    learn(state, id);
-    announceTech(id, cost, true);
-  }
+  // Research, relics and world events all happen at home, whichever world is in view
+  atHome(state, () => {
+    for (let id = queueNext(state); id; id = queueNext(state)) {
+      const cost = techCost(state, id);
+      learn(state, id);
+      announceTech(id, cost, true);
+    }
+    updateSignal();
+    updateIncident();
+  });
   countProduced(last, simDt);
-  updateSignal();
-  updateIncident();
   const alpha = 0.05;
-  for (const item of Object.keys(ITEMS)) {
-    const r = last.rates[item] ?? 0;
-    smoothRates[item] = (smoothRates[item] ?? 0) + (r - (smoothRates[item] ?? 0)) * alpha;
+  for (const [planet, res] of Object.entries(worlds)) {
+    const rates = ratesOf(planet);
+    for (const item of Object.keys(ITEMS)) {
+      const r = res.rates[item] ?? 0;
+      rates[item] = (rates[item] ?? 0) + (r - (rates[item] ?? 0)) * alpha;
+    }
   }
   historyAcc += dt;
   if (historyAcc >= HISTORY_STEP) {
@@ -175,7 +206,7 @@ function step(dt: number) {
 /** Lifetime production: what machines made this tick */
 function countProduced(res: TickResult, simDt: number) {
   const produced = state.stats.produced;
-  for (const l of state.lines) {
+  for (const l of allLines(state)) {
     const st = res.lines[l.id];
     if (!st || st.craftsPerSec <= 0) continue;
     for (const [item, n] of Object.entries(RECIPES[l.recipe]?.outputs ?? {})) {
@@ -186,9 +217,9 @@ function countProduced(res: TickResult, simDt: number) {
 
 function sampleHistory() {
   const rates: Record<string, number> = {};
-  for (const [item, r] of Object.entries(smoothRates)) if (Math.abs(r) >= 0.005) rates[item] = r;
+  for (const [item, r] of Object.entries(ratesOf(HOME))) if (Math.abs(r) >= 0.005) rates[item] = r;
   const power: HistorySample['power'] = {};
-  for (const [item, p] of Object.entries(last.power)) power[item] = { supply: p.supply, demand: p.demand };
+  for (const [item, p] of Object.entries((worlds[HOME] ?? last).power)) power[item] = { supply: p.supply, demand: p.demand };
   history.push({ t: state.playTime, rates, power });
   if (history.length > HISTORY_LENGTH) history.shift();
 }
@@ -206,11 +237,51 @@ function catchUp(seconds: number) {
   // Relic boosts are for live play; legacy speed applies offline too
   const speed = simSpeed({ ...state, boostUntil: 0 });
   const report = simulateOffline(state, seconds, speed, offlineCap(state));
-  if (report.last) last = report.last;
+  if (report.last) {
+    last = report.last;
+    worlds = { [planetOf(state)]: report.last };
+  }
   for (const [item, d] of Object.entries(report.changes)) {
     if (d > 0 && !isPower(item)) state.stats.produced[item] = (state.stats.produced[item] ?? 0) + d;
   }
-  if (seconds >= REPORT_THRESHOLD) ui.offlineReport = report;
+  // A report still unread takes this absence in too: a background tab is woken about once a minute, and each
+  // wake-up is its own catch-up, so without this the player would come back to a report of the last minute only
+  if (ui.offlineReport) ui.offlineReport = mergeReports(ui.offlineReport, report);
+  else if (seconds >= REPORT_THRESHOLD) ui.offlineReport = report;
+}
+
+/** Windows and shortcuts that point into a run that is no longer there */
+function resetUi() {
+  Object.assign(ui, { lookupItem: null, picker: false, pickerQuery: '', focusLine: null, goto: null, recipeLine: null, routePicker: false, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
+  acc = 0;
+  historyAcc = 0;
+}
+
+// ---------- one tab at a time ----------
+
+const TAB_KEY = `${SAVE_KEY}-tab`;
+const tabId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+/** Save, unless a newer tab has taken the game over: its progress is the one to keep */
+function persist() {
+  if (!ui.superseded) saveLocal(state);
+}
+
+/**
+ * Two tabs would each run the factory and save over the other, so whichever closed last would decide what
+ * survived, and the player would lose whatever the other one did. The newest tab plays; older ones stop.
+ */
+function claimTab() {
+  try {
+    localStorage.setItem(TAB_KEY, tabId);
+  } catch {
+    // storage blocked: nothing is saved either, so there is nothing to protect
+  }
+  window.addEventListener('storage', (e) => {
+    if (e.key !== TAB_KEY || !e.newValue || e.newValue === tabId || ui.superseded) return;
+    ui.superseded = true;
+    notify();
+  });
 }
 
 // ---------- lifecycle ----------
@@ -220,7 +291,7 @@ let acc = 0;
 
 /** Wall-clock seconds since the last call: run the factory, or catch up a long gap as offline time */
 export function advance(elapsed: number) {
-  if (state.paused) {
+  if (state.paused || ui.superseded) {
     acc = 0;
     return;
   }
@@ -242,14 +313,22 @@ export function togglePause() {
   state.paused = !state.paused;
   acc = 0;
   emit('click');
-  saveLocal(state);
+  persist();
   notify();
 }
 
 export function start() {
   if (started) return;
   started = true;
-  const saved = loadLocal();
+  let unreadable = false;
+  const saved = loadLocal(() => (unreadable = true));
+  claimTab();
+  // Ask the browser not to clear the save when the device runs low on space; it may say no, and that's fine
+  try {
+    void navigator.storage?.persist?.().catch(() => undefined);
+  } catch {
+    // not supported
+  }
   if (saved) {
     state = saved;
     checkAchievements(true);
@@ -257,18 +336,22 @@ export function start() {
     if (!saved.paused) catchUp((Date.now() - saved.savedAt) / 1000);
   } else {
     ui.intro = true;
+    if (unreadable) toast('原本的存檔讀不出來，已另外保留一份，這裡從新的一局開始', { tone: 'bad', title: '存檔損毀' });
   }
 
-  let prev = performance.now();
+  // The wall clock, not performance.now(): on many systems that one stands still while the computer sleeps,
+  // so a tab left open overnight would wake up thinking no time had passed and skip the offline catch-up
+  let prev = Date.now();
   setInterval(() => {
-    const now = performance.now();
-    advance((now - prev) / 1000);
+    const now = Date.now();
+    // Never negative: the clock can be set back
+    advance(Math.max(0, (now - prev) / 1000));
     prev = now;
   }, TICK * 1000);
 
   setInterval(notify, UI_INTERVAL);
-  setInterval(() => saveLocal(state), AUTOSAVE_INTERVAL);
-  const flush = () => saveLocal(state);
+  setInterval(persist, AUTOSAVE_INTERVAL);
+  const flush = persist;
   window.addEventListener('beforeunload', flush);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flush();
@@ -280,8 +363,9 @@ export function start() {
 
 /** "缺 鐵錠 5、齒輪 2": what a cost still needs */
 function shortText(cost: Record<string, number>): string {
+  const have = homeItems(state);
   const short = Object.entries(cost)
-    .map(([item, n]) => [item, Math.ceil(n - (state.items[item] ?? 0) - AMOUNT_EPSILON)] as const)
+    .map(([item, n]) => [item, Math.ceil(n - (have[item] ?? 0) - AMOUNT_EPSILON)] as const)
     .filter(([, n]) => n > 0)
     .map(([item, n]) => `${ITEMS[item]?.name ?? item} ${n}`);
   return short.length ? `缺 ${short.slice(0, 3).join('、')}${short.length > 3 ? ' 等' : ''}` : '';
@@ -293,23 +377,31 @@ function consumerOf(item: string): string | null {
   return line ? `${MACHINES[line.machine].name}·${RECIPES[line.recipe].name}` : null;
 }
 
+/** Everything bought (machines, research, megastructures) is paid from the home world's storage */
+const affords = (cost: Record<string, number>) => atHome(state, () => canAfford(state, cost));
+
 function lacking(cost: Record<string, number>, what = '材料不足') {
-  const short = Object.keys(cost).find((i) => !hasAmount(state.items[i] ?? 0, cost[i]));
-  const user = short && consumerOf(short);
+  const have = homeItems(state);
+  const short = Object.keys(cost).find((i) => !hasAmount(have[i] ?? 0, cost[i]));
+  const user = short && atHome(state, () => consumerOf(short));
   const hint = user ? `。「${user}」正在用掉${ITEMS[short].name}，可以先暫停它` : '';
-  toast(shortText(cost) + hint, { tone: 'bad', title: what, icon: short });
+  const where = planetOf(state) === HOME ? '' : '母星';
+  toast(where + shortText(cost) + hint, { tone: 'bad', title: what, icon: short });
 }
 
 function pay(cost: Record<string, number>) {
   // Never below zero: paying 10 from 9.999999999999998 (float drift) leaves nothing, not -2e-15
-  for (const [item, n] of Object.entries(cost)) state.items[item] = Math.max(0, (state.items[item] ?? 0) - n);
+  const items = homeItems(state);
+  for (const [item, n] of Object.entries(cost)) items[item] = Math.max(0, (items[item] ?? 0) - n);
 }
 
 /** Adds up to the storage cap; a pile already over it (a megastructure's grant) is never cut back. Returns what fit */
 function addItem(item: string, n: number): number {
-  const have = state.items[item] ?? 0;
+  // Refunds and rewards land where the spending comes from: the home world's storage
+  const items = homeItems(state);
+  const have = items[item] ?? 0;
   const next = Math.max(have, Math.min(capOf(state, item), have + n));
-  state.items[item] = next;
+  items[item] = next;
   return next - have;
 }
 
@@ -323,7 +415,7 @@ function refund(cost: Record<string, number>, times: number): string[] {
 }
 
 export function gather(item: string) {
-  if (!ITEMS[item]?.manual) return;
+  if (!ITEMS[item]?.manual || planetOf(state) !== HOME) return;
   const cap = capOf(state, item);
   if ((state.items[item] ?? 0) >= cap) return toast(`${ITEMS[item].name} 倉庫已滿`, { tone: 'bad', icon: item });
   state.items[item] = Math.min(cap, (state.items[item] ?? 0) + 1);
@@ -337,7 +429,7 @@ export function addLine(machineId: string, recipeId: string): number | null {
   const m = MACHINES[machineId];
   const r = RECIPES[recipeId];
   if (!m || !r || !canRun(m, r)) return null;
-  if (!isMachineUnlocked(state, machineId) || !isRecipeUnlocked(state, recipeId)) return null;
+  if (!isMachineUnlocked(state, machineId) || !isRecipeUnlocked(state, recipeId) || !recipeFits(state, r)) return null;
   const id = state.nextLineId++;
   state.lines.push({ id, machine: machineId, recipe: recipeId, count: 0, enabled: true });
   emit('click');
@@ -347,11 +439,29 @@ export function addLine(machineId: string, recipeId: string): number | null {
 
 /** Show this line on the production tab, closing the window it was picked from */
 export function focusLine(id: number | null) {
+  // A line on another world: go there first
+  const where = id === null ? null : planetOfLine(state, id);
+  if (where && where !== planetOf(state)) switchPlanet(where);
   ui.focusLine = id;
   if (id !== null) {
     ui.lookupItem = null;
     ui.picker = false;
   }
+  notify();
+}
+
+export function openRoutePicker(open: boolean) {
+  ui.routePicker = open;
+  notify();
+}
+
+/** Add a route and put the first ship on it when that's affordable */
+export function createRoute(item: string, from: string, to: string) {
+  const id = addRoute(item, from, to);
+  if (id === null) return;
+  const r = state.routes!.find((x) => x.id === id)!;
+  if (r.ships === 0 && affords(SHIP_COST)) buildShip(id);
+  ui.routePicker = false;
   notify();
 }
 
@@ -373,7 +483,7 @@ export function createLine(machineId: string, recipeId: string) {
   if (id === null) return;
   const m = MACHINES[machineId];
   const orbit = !!m.orbital;
-  if (canAfford(state, m.cost) && slotsUsed(state, orbit) + m.slots <= slotsTotal(state, orbit)) build(id);
+  if (affords(m.cost) && slotsUsed(state, orbit) + m.slots <= slotsTotal(state, orbit)) build(id);
   focusLine(id);
 }
 
@@ -389,7 +499,7 @@ export function build(lineId: number, times = 1, quiet = false): number {
       if (!quiet || built === 0) toast(orbit ? '軌道槽位不足' : '區域槽位不足', { tone: 'bad' });
       break;
     }
-    if (!canAfford(state, m.cost)) {
+    if (!affords(m.cost)) {
       if (built === 0) lacking(m.cost);
       break;
     }
@@ -449,7 +559,7 @@ export function upgradeLine(lineId: number) {
   }
   const net = upgradeCost(line, to);
   const pays = Object.fromEntries(Object.entries(net).filter(([, n]) => n > 0));
-  if (!canAfford(state, pays)) return lacking(pays);
+  if (!affords(pays)) return lacking(pays);
   pay(pays);
   const lost = refund(Object.fromEntries(Object.entries(net).filter(([, n]) => n < 0).map(([i, n]) => [i, -n])), 1);
   const fromName = MACHINES[line.machine].name;
@@ -472,7 +582,7 @@ export function removeLine(lineId: number) {
 export function setRecipe(lineId: number, recipeId: string) {
   const line = state.lines.find((l) => l.id === lineId);
   const r = RECIPES[recipeId];
-  if (!line || !r || !canRun(MACHINES[line.machine], r) || !isRecipeUnlocked(state, recipeId)) return;
+  if (!line || !r || !canRun(MACHINES[line.machine], r) || !isRecipeUnlocked(state, recipeId) || !recipeFits(state, r)) return;
   line.recipe = recipeId;
   ui.recipeLine = null;
   emit('click');
@@ -501,8 +611,8 @@ export function research(techId: string) {
   const t = TECHS[techId];
   if (!t || !techAvailable(state, techId)) return;
   const cost = techCost(state, techId);
-  if (!canAfford(state, cost)) return lacking(cost, '研究數據不足');
-  learn(state, techId);
+  if (!affords(cost)) return lacking(cost, '研究數據不足');
+  atHome(state, () => learn(state, techId));
   announceTech(techId, cost);
   checkAchievements();
 }
@@ -537,18 +647,25 @@ export function clearQueue() {
 export function buildMilestone(id: string) {
   const ms = MILESTONES[id];
   if (!ms || state.milestones.includes(id) || !milestoneUnlocked(state, id)) return;
-  if (!canBuildMilestone(state, id)) return lacking(ms.cost);
+  if (!atHome(state, () => canBuildMilestone(state, id))) {
+    // What has to be held counts too: with the materials ready and the swarm too small, say so
+    const need = { ...ms.holds };
+    for (const [item, n] of Object.entries(ms.cost)) need[item] = Math.max(need[item] ?? 0, n);
+    return lacking(need);
+  }
   pay(ms.cost);
   state.milestones.push(id);
   if (id === 'stargate') state.stats.bestGate = Math.min(state.stats.bestGate ?? Infinity, state.playTime);
   addLog(`巨構建成：${ms.name}`, 'good');
   emit('milestone');
-  for (const [item, n] of Object.entries(ms.grantsItems ?? {})) state.items[item] = (state.items[item] ?? 0) + n;
-  if (ms.grantsLine) {
-    state.lines.push({ id: state.nextLineId++, ...ms.grantsLine, count: 1, enabled: true });
-  }
+  atHome(state, () => {
+    for (const [item, n] of Object.entries(ms.grantsItems ?? {})) state.items[item] = (state.items[item] ?? 0) + n;
+    if (ms.grantsLine) state.lines.push({ id: state.nextLineId++, ...ms.grantsLine, count: 1, enabled: true });
+  });
+  // A megastructure may open a new world: give it somewhere to keep things right away
+  ensurePlanets(state);
   ui.milestoneModal = id;
-  saveLocal(state);
+  persist();
   notify();
 }
 
@@ -626,13 +743,13 @@ function updateSignal() {
   }
   if (state.signal === null && state.playTime >= state.nextSignal) {
     state.signal = state.playTime + SIGNAL_LIFETIME;
-    toast('點上方的「遺物訊號」回應它', { title: '偵測到遺物訊號', icon: 'exotic_matter', sound: 'signal', log: true });
+    toast('解析它換數據，或啟動它讓工廠加速', { title: '偵測到遺物訊號', icon: 'exotic_matter', sound: 'signal', log: true, action: 'signal' });
   }
 }
 
 /** Data a relic gives when analyzed: 4% of the tier's research */
 export function signalData(s: GameState): Record<string, number> {
-  const { item, n } = share(s, 0.04 * ((s.galaxy && GALAXIES[s.galaxy]?.signalMult) || 1));
+  const { item, n } = share(s, 0.04 * ((s.galaxy && GALAXIES[s.galaxy]?.signalMult) || 1) * (1 + 0.25 * (s.legacy.upgrades.relic ?? 0)));
   return { [item]: n };
 }
 
@@ -650,8 +767,9 @@ export function answerSignal(choice: 'data' | 'boost') {
       tone: 'good', title: '解析遺物', icon: Object.keys(reward)[0], sound: 'reward', log: true,
     });
   } else {
-    state.boostUntil = Math.max(state.boostUntil, state.playTime) + BOOST_TIME;
-    toast(`整座工廠 ×2，持續 ${BOOST_TIME} 秒`, { tone: 'good', title: '時間加速', icon: 'eu', sound: 'reward', log: true });
+    const secs = boostTime(state.legacy.upgrades);
+    state.boostUntil = Math.max(state.boostUntil, state.playTime) + secs;
+    toast(`整座工廠 ×2，持續 ${secs} 秒`, { tone: 'good', title: '時間加速', icon: 'eu', sound: 'reward', log: true });
   }
   state.stats.signals++;
   state.signal = null;
@@ -682,7 +800,7 @@ export function buyLegacy(id: string) {
 /** Through the stargate: a fresh run that keeps the legacy, plus points for this one */
 export function warp() {
   if (!state.milestones.includes('stargate')) return;
-  const earned = warpPoints(state.items[SWARM_ITEM] ?? 0);
+  const earned = warpPoints(homeItems(state)[SWARM_ITEM] ?? 0);
   const legacy = { ...state.legacy, points: state.legacy.points + earned, warps: state.legacy.warps + 1 };
   const maintenance = state.maintenance;
   const galaxy = rollGalaxy(state.galaxy);
@@ -691,11 +809,9 @@ export function warp() {
   state.galaxy = galaxy;
   history.length = 0;
   last = emptyTick();
-  for (const k of Object.keys(smoothRates)) smoothRates[k] = 0;
-  ui.milestoneModal = null;
-  ui.signalOpen = false;
-  ui.tradeOpen = false;
-  saveLocal(state);
+  clearRates();
+  resetUi();
+  persist();
   toast(`抵達第 ${legacy.warps + 1} 個星系「${GALAXIES[galaxy].name}」，獲得 ${earned} 遺產點`, { tone: 'good', title: '躍遷完成', icon: 'dyson_swarm', sound: 'warp', log: true });
   checkAchievements();
 }
@@ -720,11 +836,11 @@ export function importSave(text: string): boolean {
   state = s;
   last = emptyTick();
   history.length = 0;
-  acc = 0;
-  for (const k of Object.keys(smoothRates)) smoothRates[k] = 0;
-  Object.assign(ui, { intro: false, lookupItem: null, picker: false, focusLine: null, goto: null, recipeLine: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
+  clearRates();
+  resetUi();
+  ui.intro = false;
   checkAchievements(true);
-  saveLocal(state);
+  persist();
   toast('已匯入存檔', { tone: 'good' });
   return true;
 }
@@ -737,8 +853,9 @@ export function resetGame() {
   state.galaxy = galaxy;
   last = emptyTick();
   history.length = 0;
-  for (const k of Object.keys(smoothRates)) smoothRates[k] = 0;
-  saveLocal(state);
+  clearRates();
+  resetUi();
+  persist();
   toast('已重新開始');
 }
 
@@ -774,8 +891,11 @@ function scheduleIncident() {
 function startIncident() {
   const offer = traderOffer(state);
   // No research left to discount? Then a eureka is wasted
+  // Intermediates the player has some of: what a drifting container can top up
+  const parts = Object.keys(ITEMS).filter((i) => ITEMS[i].kind === 'intermediate' && (state.items[i] ?? 0) >= 1);
   const choices = eligibleIncidents(state).filter(
-    (d) => (d.id !== 'trader' || offer) && (d.id !== 'eureka' || TECH_LIST.some((t) => !state.techs.includes(t.id))),
+    (d) => (d.id !== 'trader' || offer) && (d.id !== 'eureka' || TECH_LIST.some((t) => !state.techs.includes(t.id)))
+      && (d.id !== 'salvage' || parts.length >= 3),
   );
   const total = choices.reduce((n, d) => n + d.weight, 0);
   let roll = Math.random() * total;
@@ -794,8 +914,14 @@ function startIncident() {
     toast(`${got.slice(0, 4).join('、')}${got.length > 4 ? ' 等' : ''}各補進 25% 容量`, {
       tone: 'good', title: def.name, icon: def.icon, sound: 'incident', log: true,
     });
+  } else if (def.id === 'salvage') {
+    for (const item of parts) addItem(item, Math.ceil(capOf(state, item) * 0.1));
+    const names = parts.map((i) => ITEMS[i].name);
+    toast(`${names.slice(0, 4).join('、')}${names.length > 4 ? ` 等 ${names.length} 種` : ''}各補進 10% 容量`, {
+      tone: 'good', title: def.name, icon: def.icon, sound: 'incident', log: true,
+    });
   } else {
-    toast(def.text, { tone: def.tone === 'bad' ? 'bad' : 'info', title: def.name, icon: def.icon, sound: 'incident', log: true });
+    toast(def.text, { tone: def.tone === 'bad' ? 'bad' : 'info', title: def.name, icon: def.icon, sound: 'incident', log: true, action: state.incident.offer ? 'trade' : undefined });
   }
 }
 
@@ -817,8 +943,10 @@ export function openTrade(open: boolean) {
 export function acceptTrade() {
   const offer = state.incident?.offer;
   if (!offer || !activeIncident(state)) return;
-  if ((state.items[offer.item] ?? 0) < offer.n) return toast(`${ITEMS[offer.item].name} 不夠了`, { tone: 'bad' });
-  state.items[offer.item] -= offer.n;
+  // The trader calls at the home world
+  const items = homeItems(state);
+  if ((items[offer.item] ?? 0) < offer.n) return toast(`${ITEMS[offer.item].name} 不夠了`, { tone: 'bad' });
+  items[offer.item] -= offer.n;
   for (const [item, n] of Object.entries(offer.pay)) addItem(item, n);
   state.stats.trades++;
   state.incident = { ...state.incident!, until: state.playTime };
@@ -828,3 +956,82 @@ export function acceptTrade() {
     { tone: 'good', title: '交易完成', icon: Object.keys(offer.pay)[0], sound: 'reward', log: true },
   );
 }
+
+// ---------- other worlds and the ships between them ----------
+
+/** Put another world in view. Its factory has been running all along; this only changes what the player sees. */
+export function switchPlanet(planet: string) {
+  if (planet === planetOf(state) || !openPlanets(state).includes(planet)) return;
+  enterPlanet(state, planet);
+  last = { ...(worlds[planet] ?? emptyTick()), lines: last.lines };
+  Object.assign(ui, { focusLine: null, recipeLine: null, picker: false, routePicker: false });
+  emit('click');
+  notify();
+}
+
+const routeOf = (id: number) => state.routes?.find((r) => r.id === id);
+
+/** A new route with no ships yet; one carrying the same thing the same way is reused. Returns its id */
+export function addRoute(item: string, from: string, to: string): number | null {
+  const open = openPlanets(state);
+  if (!shippable(item) || from === to || !open.includes(from) || !open.includes(to)) return null;
+  const routes = (state.routes ??= []);
+  const same = routes.find((r) => r.item === item && r.from === from && r.to === to);
+  if (same) return same.id;
+  const id = (state.nextRouteId = (state.nextRouteId ?? 1) + 1) - 1;
+  routes.push({ id, item, from, to, ships: 0, enabled: true });
+  emit('click');
+  notify();
+  return id;
+}
+
+/** Add ships to a route, paid at home; returns how many were built */
+export function buildShip(routeId: number, times = 1): number {
+  const r = routeOf(routeId);
+  if (!r) return 0;
+  let built = 0;
+  for (let i = 0; i < times; i++) {
+    if (!affords(SHIP_COST)) {
+      if (built === 0) lacking(SHIP_COST);
+      break;
+    }
+    pay(SHIP_COST);
+    r.ships++;
+    built++;
+  }
+  if (built > 0) emit('build');
+  notify();
+  return built;
+}
+
+/** Take ships off a route, with their materials back; returns how many */
+export function scrapShip(routeId: number, times = 1): number {
+  const r = routeOf(routeId);
+  if (!r) return 0;
+  const n = Math.min(times, r.ships);
+  r.ships -= n;
+  const lost = refund(SHIP_COST, n);
+  if (lost.length > 0) toast(`母星倉庫放不下，部分${lost.join('、')}沒退回`, { tone: 'bad' });
+  else if (n > 0) emit('demolish');
+  notify();
+  return n;
+}
+
+export function toggleRoute(routeId: number) {
+  const r = routeOf(routeId);
+  if (!r) return;
+  r.enabled = !r.enabled;
+  emit('click');
+  notify();
+}
+
+export function removeRoute(routeId: number) {
+  const r = routeOf(routeId);
+  if (!r) return;
+  scrapShip(routeId, r.ships);
+  state.routes = (state.routes ?? []).filter((x) => x.id !== routeId);
+  notify();
+}
+
+export const routesOf = (s: GameState): Route[] => s.routes ?? [];
+export { PLANETS };

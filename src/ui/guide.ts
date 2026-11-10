@@ -3,14 +3,18 @@ import { MACHINES } from '../data/machines';
 import type { Objective } from '../data/objectives';
 import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS } from '../data/tech';
-import { isMachineUnlocked, isRecipeUnlocked, milestoneUnlocked } from '../sim/rules';
+import { RECIPE_LIST } from '../data/recipes';
+import { PLANETS } from '../data/planets';
+import { allLines, planetOf } from '../sim/planets';
+import { canRun, isMachineUnlocked, isRecipeUnlocked, milestoneUnlocked, recipePlanet } from '../sim/rules';
 import type { GameState } from '../sim/types';
 
 export type Step =
   | { kind: 'research'; tech: string }
   | { kind: 'milestone'; milestone: string }
   | { kind: 'line'; line: number }
-  | { kind: 'picker'; query: string };
+  | { kind: 'picker'; query: string; planet?: string }
+  | { kind: 'routes' };
 
 /** The tech that has to come first on the way to `techId`: a missing prerequisite, or the megastructure it waits for */
 function pathTo(s: GameState, techId: string, seen = new Set<string>()): Step | null {
@@ -58,10 +62,22 @@ export function nextStep(s: GameState, o: Objective): Step | null {
   }
   if (go.milestone) return milestoneStep(s, go.milestone);
   if (go.recipe || go.machine) {
-    const line = s.lines.find((l) => (!go.machine || l.machine === go.machine) && (!go.recipe || l.recipe === go.recipe));
+    const line = allLines(s).find((l) => (!go.machine || l.machine === go.machine) && (!go.recipe || l.recipe === go.recipe));
     if (line) return { kind: 'line', line: line.id };
-    return { kind: 'picker', query: go.recipe ? RECIPES[go.recipe].name : MACHINES[go.machine!].name };
+    // The world it has to be built on, when there is only one: the recipe's, or the one all the machine's recipes share
+    const m = go.machine ? MACHINES[go.machine] : undefined;
+    const where = go.recipe
+      ? recipePlanet(RECIPES[go.recipe])
+      : [...new Set(RECIPE_LIST.filter((r) => canRun(m!, r)).map(recipePlanet))].find((p, _i, all) => all.length === 1 && p);
+    const world = where ? PLANETS[where] : undefined;
+    const first = (world?.unlockMilestone && milestoneStep(s, world.unlockMilestone)) || (world?.unlockTech && pathTo(s, world.unlockTech));
+    if (first) return first;
+    return {
+      kind: 'picker', query: go.recipe ? RECIPES[go.recipe].name : m!.name,
+      ...(where && where !== planetOf(s) ? { planet: where } : {}),
+    };
   }
+  if (go.route) return { kind: 'routes' };
   return null;
 }
 
@@ -71,6 +87,7 @@ export function stepLabel(step: Step): string {
     case 'research': return `研究「${TECHS[step.tech].name}」`;
     case 'milestone': return `建造「${MILESTONES[step.milestone].name}」`;
     case 'line': return '前往生產線';
-    case 'picker': return '建立生產線';
+    case 'picker': return step.planet ? `到${PLANETS[step.planet].name}建立` : '建立生產線';
+    case 'routes': return '新增航線';
   }
 }

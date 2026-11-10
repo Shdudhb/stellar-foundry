@@ -2,6 +2,7 @@ import { itemName } from '../data/items';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS, TIER_NAMES } from '../data/tech';
+import { HOME, homeItems, homeView } from '../sim/planets';
 import { canAfford, currentTier, simSpeed, techAvailable, techCost } from '../sim/rules';
 import { clearQueue, getRates, getState, queueTech, research } from '../state/store';
 import { Cost, PageHeader, fmt, fmtDuration, fmtRate, useGoto } from './common';
@@ -44,10 +45,10 @@ function TechArt({ id, small }: { id: string; small?: boolean }) {
 /** "約 2 分 10 秒後": when the current data income covers the cost, or what is missing for it to ever do so */
 function eta(cost: Record<string, number>): string {
   const s = getState();
-  const rates = getRates();
+  const rates = getRates(HOME);
   let wait = 0;
   for (const [item, n] of Object.entries(cost)) {
-    const need = n - (s.items[item] ?? 0);
+    const need = n - (homeItems(s)[item] ?? 0);
     if (need <= 0) continue;
     // Rates are per second of factory time; factory time runs faster than the clock with speed upgrades
     const perSec = (rates[item] ?? 0) * simSpeed(s);
@@ -101,7 +102,7 @@ function QueueStrip() {
 
 export function ResearchPanel() {
   const s = getState();
-  const rates = getRates();
+  const rates = getRates(HOME);
   const tier = currentTier(s);
   const glow = useGoto('research', 'tech');
   const order = (id: string) => (s.techs.includes(id) ? 2 : techAvailable(s, id) ? 0 : 1);
@@ -117,7 +118,7 @@ export function ResearchPanel() {
           <span key={d.id} class="data-chip" title={itemName(d.id)}>
             <ItemIcon id={d.id} size={28} />
             <span>
-              <strong>{fmt(s.items[d.id] ?? 0)}</strong>
+              <strong>{fmt(homeItems(s)[d.id] ?? 0)}</strong>
               <span class="muted small"> {fmtRate(rates[d.id] ?? 0)}</span>
               <br />
               <span class="muted small">{itemName(d.id)}</span>
@@ -165,9 +166,9 @@ export function ResearchPanel() {
                       ) : (
                         <>
                           <p class="small"><Cost cost={techCost(s, t.id)} /></p>
-                          {avail && !canAfford(s, techCost(s, t.id)) && <p class="muted small tech-eta">{eta(techCost(s, t.id))}</p>}
+                          {avail && !canAfford(homeView(s), techCost(s, t.id)) && <p class="muted small tech-eta">{eta(techCost(s, t.id))}</p>}
                           <div class="tech-buttons">
-                            <button class="primary" disabled={!avail || !canAfford(s, techCost(s, t.id))} onClick={() => research(t.id)}>
+                            <button class="primary" disabled={!avail || !canAfford(homeView(s), techCost(s, t.id))} onClick={() => research(t.id)}>
                               研究
                             </button>
                             <button

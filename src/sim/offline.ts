@@ -1,4 +1,5 @@
-import { tick } from './engine';
+import { atHome } from './planets';
+import { tickAll } from './world';
 import { runQueue } from './research';
 import type { GameState, TickResult } from './types';
 
@@ -19,6 +20,23 @@ export interface OfflineReport {
   researched: string[];
 }
 
+/**
+ * Two catch-ups in a row told as one absence. A tab left in the background is woken about once a minute,
+ * so a long absence arrives as many short ones; the player should read about all of it, not the last minute.
+ */
+export function mergeReports(a: OfflineReport, b: OfflineReport): OfflineReport {
+  const changes: Record<string, number> = { ...a.changes };
+  for (const [item, d] of Object.entries(b.changes)) changes[item] = (changes[item] ?? 0) + d;
+  for (const item of Object.keys(changes)) if (Math.abs(changes[item]) < 0.5) delete changes[item];
+  return {
+    away: a.away + b.away,
+    simulated: a.simulated + b.simulated,
+    changes,
+    last: b.last ?? a.last,
+    researched: [...a.researched, ...b.researched],
+  };
+}
+
 /** Catch up `seconds` of absence; `speed` scales factory time (legacy upgrades) */
 export function simulateOffline(state: GameState, seconds: number, speed = 1, cap = MAX_OFFLINE_SECONDS): OfflineReport {
   const simulated = Math.min(Math.max(0, seconds), cap);
@@ -29,9 +47,9 @@ export function simulateOffline(state: GameState, seconds: number, speed = 1, ca
   let left = simulated;
   while (left > 1e-9) {
     const dt = Math.min(OFFLINE_STEP, left);
-    last = tick(state, dt * speed);
+    last = tickAll(state, dt * speed).last;
     // Queued research goes ahead as the data comes in, so a long absence doesn't sit on full data storage
-    if (state.queue?.length) researched.push(...runQueue(state));
+    if (state.queue?.length) researched.push(...atHome(state, () => runQueue(state)));
     left -= dt;
     // Advance the clock every step, so a world event that was running when the player left ends on time
     state.playTime += dt;

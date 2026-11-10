@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ITEMS } from '../data/items';
+import { unclaimedObjectives } from '../data/objectives';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { MILESTONE_LIST, MILESTONES, TECH_LIST, TECHS } from '../data/tech';
-import { BOOST_TIME } from '../data/legacy';
+import { boostTime } from '../data/legacy';
 import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnlocked, offlineCap, techAvailable, techCost } from '../sim/rules';
+import { allLines, homeItems, homeView } from '../sim/planets';
 import type { GameState } from '../sim/types';
 import {
   acceptTrade, answerSignal, closeIntro, closeMilestoneModal, closeOfflineReport, dismissToast, exportSave, focusLine, getLast, getState, getUi,
@@ -16,6 +18,7 @@ import { LegacyPanel } from './LegacyPanel';
 import { MilestonePanel } from './MilestonePanel';
 import { Objective } from './Objective';
 import { NewLinePicker, ProductionPanel, RecipeSwitch } from './ProductionPanel';
+import { RoutePicker } from './Shipping';
 import { RecipeLookup } from './RecipeLookup';
 import { RecordsPanel } from './RecordsPanel';
 import { ResearchPanel } from './ResearchPanel';
@@ -49,11 +52,33 @@ function readTab(): TabId {
   return 'production';
 }
 
+/** Hand the save to the browser as a file: a copy that outlives cleared site data and moves between devices */
+function downloadSave() {
+  const d = new Date();
+  const two = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}`;
+  const url = URL.createObjectURL(new Blob([exportSave()], { type: 'text/plain' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `stellar-foundry-${stamp}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function SettingsPanel() {
   const [exported, setExported] = useState('');
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState(false);
   const [copied, setCopied] = useState(false);
+  const load = (text: string) => confirm('匯入會取代目前的進度，確定嗎？') && setImportError(!importSave(text));
+  const pickFile = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Cleared, so picking the same file again still counts as a change
+    input.value = '';
+    if (!file) return;
+    file.text().then(load, () => setImportError(true));
+  };
   return (
     <div class="panel">
       <PageHeader title="設定" />
@@ -61,6 +86,14 @@ function SettingsPanel() {
       <section class="card">
         <h3>存檔</h3>
         <p class="muted small">每 10 秒自動存到瀏覽器。關掉分頁後，最多會補算 {offlineCap(getState()) / 3600} 小時的離線產出。</p>
+        <div class="row">
+          <button onClick={downloadSave}>下載存檔檔案</button>
+          <label class="file-btn">
+            從檔案匯入
+            <input type="file" accept=".txt,text/plain" onChange={pickFile} />
+          </label>
+        </div>
+        <p class="muted small">清除瀏覽器資料或換裝置前，先下載一份。也可以用下面的字串複製貼上。</p>
         <div class="row">
           <button onClick={() => setExported(exportSave())}>匯出存檔字串</button>
           {exported && (
@@ -82,7 +115,7 @@ function SettingsPanel() {
           onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)}
         />
         <div class="row">
-          <button disabled={!importText.trim()} onClick={() => confirm('匯入會取代目前的進度，確定嗎？') && setImportError(!importSave(importText))}>匯入</button>
+          <button disabled={!importText.trim()} onClick={() => load(importText)}>匯入</button>
           {importError && <span class="tone-text-bad small">存檔字串無法讀取</span>}
         </div>
       </section>
@@ -170,7 +203,7 @@ function IncidentModal() {
             <span class="trade-side">
               <ItemIcon id={offer.item} size={40} />
               <strong>−{fmt(offer.n)}</strong>
-              <span class="small muted">{ITEMS[offer.item].name}（庫存 {fmt(s.items[offer.item] ?? 0)}）</span>
+              <span class="small muted">{ITEMS[offer.item].name}（庫存 {fmt(homeItems(s)[offer.item] ?? 0)}）</span>
             </span>
             <span class="trade-arrow">→</span>
             <span class="trade-side">
@@ -180,7 +213,7 @@ function IncidentModal() {
             </span>
           </div>
           <div class="row">
-            <button class="primary" disabled={(s.items[offer.item] ?? 0) < offer.n} onClick={acceptTrade}>成交</button>
+            <button class="primary" disabled={(homeItems(s)[offer.item] ?? 0) < offer.n} onClick={acceptTrade}>成交</button>
             <button onClick={() => openTrade(false)}>再想想</button>
           </div>
         </>
@@ -196,12 +229,21 @@ function Toasts() {
   return (
     <div class="toasts" role="status" aria-live="polite">
       {toasts.map((x) => (
-        <button key={x.id} class={`toast toast-${x.tone}`} onClick={() => dismissToast(x.id)}>
+        <button
+          key={x.id}
+          class={`toast toast-${x.tone}`}
+          onClick={() => {
+            dismissToast(x.id);
+            if (x.action === 'signal') openSignal(true);
+            if (x.action === 'trade') openTrade(true);
+          }}
+        >
           {x.icon && <ItemIcon id={x.icon} size={x.tone === 'achievement' ? 32 : 24} />}
           <span class="toast-body">
             {x.title && <span class="toast-title">{x.title}</span>}
             <span>{x.text}</span>
           </span>
+          {x.action && <span class="toast-go">{x.action === 'signal' ? '回應' : '看報價'} ›</span>}
         </button>
       ))}
     </div>
@@ -216,7 +258,7 @@ function OfflineReportModal() {
   const [all, setAll] = useState(false);
   const s = getState();
   const changes = Object.entries(report.changes).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-  const stalled = s.lines
+  const stalled = allLines(s)
     .map((l) => ({ l, st: report.last?.lines[l.id] }))
     .filter(({ st }) => st && st.efficiency < 0.999 && !['idle', 'paused', 'load', 'limit'].includes(st.reason.kind))
     // The most stuck first
@@ -303,7 +345,7 @@ function SignalModal() {
         <button class="choice" onClick={() => answerSignal('boost')}>
           <ItemIcon id="eu" size={32} />
           <strong>啟動遺物</strong>
-          <span class="small">整座工廠時間加速 ×2，持續 {BOOST_TIME} 秒</span>
+          <span class="small">整座工廠時間加速 ×2，持續 {boostTime(s.legacy.upgrades)} 秒</span>
         </button>
       </div>
     </Modal>
@@ -328,14 +370,32 @@ function MilestoneModal({ id, onWarp }: { id: string; onWarp: () => void }) {
   );
 }
 
+/** This tab lost the game to a newer one: say so, and offer to take it back */
+function SupersededScreen() {
+  return (
+    <div class="modal-backdrop">
+      <div class="modal" role="alertdialog" aria-modal="true" aria-label="遊戲已在另一個分頁開啟">
+        <header class="modal-head">
+          <h2>遊戲已在另一個分頁開啟</h2>
+        </header>
+        <div class="modal-body">
+          <p>這個分頁已經停下來，免得兩邊各跑各的、互相蓋掉存檔。進度以另一個分頁為準。</p>
+          <button class="primary big" onClick={() => location.reload()}>改在這個分頁繼續</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface Badge { text: string; tone: 'go' | 'warn'; title: string }
 
 /** Little counters on the tabs: something to research or build, or lines that are stuck */
 function navBadges(s: GameState): Partial<Record<TabId, Badge>> {
   const out: Partial<Record<TabId, Badge>> = {};
-  const research = TECH_LIST.filter((t) => techAvailable(s, t.id) && canAfford(s, techCost(s, t.id))).length;
+  const home = homeView(s);
+  const research = TECH_LIST.filter((t) => techAvailable(s, t.id) && canAfford(home, techCost(s, t.id))).length;
   if (research > 0) out.research = { text: String(research), tone: 'go', title: `${research} 項研究可以進行` };
-  if (MILESTONE_LIST.some((m) => !s.milestones.includes(m.id) && milestoneUnlocked(s, m.id) && canBuildMilestone(s, m.id))) {
+  if (MILESTONE_LIST.some((m) => !s.milestones.includes(m.id) && milestoneUnlocked(s, m.id) && canBuildMilestone(home, m.id))) {
     out.milestones = { text: '!', tone: 'go', title: '巨構可以建造了' };
   }
   const last = getLast();
@@ -379,11 +439,19 @@ export function App() {
     if (ui.focusLine !== null && shown !== 'production') setTab('production');
   }, [ui.focusLine]);
 
+  // The browser tab says when something is waiting, for a player who left the game in the background
+  const waiting = s.paused ? '⏸ 已暫停 · ' : s.signal !== null ? '◈ 遺物訊號 · ' : unclaimedObjectives(s).length > 0 ? '✓ 目標完成 · ' : '';
+  useEffect(() => {
+    document.title = `${waiting}星燼工業 Stellar Foundry`;
+  }, [waiting]);
+
   // Number keys switch tabs on a keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea, select')) return;
       if (document.querySelector('.modal')) return;
+      // A held key would otherwise flip the pause back and forth, or reopen the window it just opened
+      if (e.repeat) return;
       if (e.key === 'p' || e.key === 'P') return togglePause();
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
@@ -396,6 +464,15 @@ export function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  if (ui.superseded) {
+    return (
+      <div class="app">
+        <Embers />
+        <SupersededScreen />
+      </div>
+    );
+  }
 
   return (
     <div class={`app ${s.paused ? 'paused' : ''}`} style={{ '--tier': TIER_COLORS[Math.min(currentTier(s), TIER_COLORS.length - 1)] }}>
@@ -425,7 +502,7 @@ export function App() {
         <p class="side-foot muted small">遊玩 {fmtDuration(s.playTime)}</p>
       </aside>
       <div class="content">
-        <TopBar />
+        <TopBar chips={shown === 'production'} />
         <main class="main">
           {s.paused && (
             <div class="paused-banner" role="status">
@@ -456,6 +533,7 @@ export function App() {
       {ui.intro && <IntroModal />}
       {ui.picker && <NewLinePicker />}
       {ui.recipeLine !== null && <RecipeSwitch lineId={ui.recipeLine} />}
+      {ui.routePicker && <RoutePicker />}
       {/* The item window opens from inside the others too, so it goes on top */}
       {ui.lookupItem && <RecipeLookup item={ui.lookupItem} />}
       <Toasts />

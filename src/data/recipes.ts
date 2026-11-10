@@ -5,7 +5,8 @@ export type Category =
   | 'vacuum' | 'freezing' | 'cooling'
   | 'launch' | 'elevator' | 'asteroid' | 'solar_wind' | 'microgravity'
   | 'fusion' | 'neutron'
-  | 'swarm' | 'collider' | 'stabilizer';
+  | 'swarm' | 'collider' | 'stabilizer'
+  | 'ice_mining' | 'geothermal' | 'magma' | 'casting';
 
 export interface RecipeDef {
   id: string;
@@ -17,6 +18,8 @@ export interface RecipeDef {
   time: number;
   inputs: Record<string, number>;
   outputs: Record<string, number>;
+  /** Only this world has what it needs (its ore, its heat). Unset: see `recipePlanet` in the rules */
+  planet?: string;
 }
 
 const list: RecipeDef[] = [
@@ -199,7 +202,15 @@ const list: RecipeDef[] = [
   },
 
   // ---- T6: fusion. Deuterium from comet ice, helium-3 from the solar wind. ----
-  { id: 'mine_ice', name: '開採彗星冰', category: 'asteroid', tier: 5, time: 4, inputs: {}, outputs: { comet_ice: 2 } },
+  // ---- the ice moon: its own ore and its own power; everything else there is shipped in or out ----
+  { id: 'mine_ice', name: '開採彗星冰', category: 'ice_mining', tier: 5, time: 2, inputs: {}, outputs: { comet_ice: 2 }, planet: 'ice' },
+  { id: 'geothermal_power', name: '地熱發電', category: 'geothermal', tier: 5, time: 1, inputs: {}, outputs: { eu: 160 }, planet: 'ice' },
+  // The lava world: magma comes up ready to pour, so ingots skip the ore, the coal and the tungsten chemistry
+  { id: 'pump_magma', name: '抽取岩漿', category: 'magma', tier: 6, time: 1, inputs: {}, outputs: { magma: 4 }, planet: 'lava' },
+  { id: 'magma_power', name: '岩漿發電', category: 'geothermal', tier: 5, time: 1, inputs: {}, outputs: { eu: 240 }, planet: 'lava' },
+  { id: 'cast_iron', name: '岩漿鑄鐵', category: 'casting', tier: 6, time: 1, inputs: { magma: 4 }, outputs: { iron_ingot: 4 }, planet: 'lava' },
+  { id: 'cast_copper', name: '岩漿鑄銅', category: 'casting', tier: 6, time: 1, inputs: { magma: 4 }, outputs: { copper_ingot: 4 }, planet: 'lava' },
+  { id: 'cast_tungsten', name: '岩漿提鎢', category: 'casting', tier: 6, time: 4, inputs: { magma: 16 }, outputs: { tungsten: 1 }, planet: 'lava' },
   { id: 'electrolyze_ice', name: '電解彗星冰', category: 'electrolysis', tier: 4, time: 4, inputs: { comet_ice: 2 }, outputs: { deuterium: 1, oxygen: 2 } },
   // Helium is a byproduct: if it backs up, fusion stops and the reactor goes cold.
   { id: 'fuse_dhe3', name: '氘-氦3 聚變', category: 'fusion', tier: 6, time: 4, inputs: { deuterium: 1, helium_3: 1 }, outputs: { eu: 8000, helium: 2 } },

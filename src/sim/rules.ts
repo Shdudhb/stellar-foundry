@@ -2,6 +2,7 @@ import { GALAXIES } from '../data/galaxies';
 import { INCIDENTS } from '../data/incidents';
 import { DEFAULT_CAP, ITEMS } from '../data/items';
 import { MACHINES, type MachineDef } from '../data/machines';
+import { HOME, PLANETS } from '../data/planets';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { MILESTONE_LIST, TECHS, TECH_LOCKED_MACHINES, TECH_LOCKED_RECIPES } from '../data/tech';
 import type { GameState, Line } from './types';
@@ -45,7 +46,17 @@ export function capOf(state: GameState, item: string): number {
 
 /** Ground and orbit are separate slot pools; orbit has none until the orbital station */
 export function slotsTotal(state: GameState, orbit = false): number {
-  if (orbit) return state.techs.reduce((s, id) => s + (TECHS[id]?.orbitSlotBonus ?? 0), 0);
+  const planet = state.planet ?? HOME;
+  if (planet !== HOME) {
+    // Other worlds have ground only, and grow by their own research
+    if (orbit) return 0;
+    return state.techs.reduce((s, id) => s + (TECHS[id]?.planetSlots?.[planet] ?? 0), PLANETS[planet]?.slots ?? 0);
+  }
+  if (orbit) {
+    const built = state.techs.reduce((s, id) => s + (TECHS[id]?.orbitSlotBonus ?? 0), 0);
+    // The legacy widens a station that exists; it doesn't put one in orbit
+    return built > 0 ? built + 4 * legacyLevel(state, 'orbit') : 0;
+  }
   return state.techs.reduce((s, id) => s + (TECHS[id]?.slotBonus ?? 0), BASE_SLOTS + 10 * legacyLevel(state, 'slots'));
 }
 
@@ -79,6 +90,20 @@ export function isRecipeUnlocked(state: GameState, id: string): boolean {
   return state.techs.some((t) => TECHS[t]?.unlockRecipes?.includes(id));
 }
 
+/** Work tied to the home world: its ores and wells, its orbit, its launch sites, and the labs the data is spent from */
+const HOME_CATEGORIES = new Set(['mining', 'pumping', 'asteroid', 'solar_wind', 'microgravity', 'launch', 'elevator', 'swarm', 'research']);
+
+/** The only world a recipe can run on, or undefined when any will do */
+export function recipePlanet(recipe: RecipeDef): string | undefined {
+  return recipe.planet ?? (HOME_CATEGORIES.has(recipe.category) ? HOME : undefined);
+}
+
+/** This recipe can be set up on the world in view */
+export function recipeFits(state: GameState, recipe: RecipeDef): boolean {
+  const only = recipePlanet(recipe);
+  return !only || only === (state.planet ?? HOME);
+}
+
 export function canRun(machine: MachineDef, recipe: RecipeDef): boolean {
   return machine.categories.includes(recipe.category) && machine.tier >= recipe.tier;
 }
@@ -86,7 +111,7 @@ export function canRun(machine: MachineDef, recipe: RecipeDef): boolean {
 export function recipesFor(state: GameState, machineId: string): RecipeDef[] {
   const m = MACHINES[machineId];
   if (!m) return [];
-  return RECIPE_LIST.filter((r) => canRun(m, r) && isRecipeUnlocked(state, r.id));
+  return RECIPE_LIST.filter((r) => canRun(m, r) && isRecipeUnlocked(state, r.id) && recipeFits(state, r));
 }
 
 export function machinesFor(recipeId: string): MachineDef[] {
@@ -158,8 +183,8 @@ export function canBuildMilestone(state: GameState, id: string): boolean {
 
 /** Worth showing: the player has some, can gather it, or can currently make it */
 export function itemDiscovered(state: GameState, id: string): boolean {
-  if ((state.items[id] ?? 0) > 0 || ITEMS[id]?.manual) return true;
+  if ((state.items[id] ?? 0) > 0 || (ITEMS[id]?.manual && (state.planet ?? HOME) === HOME)) return true;
   return RECIPE_LIST.some(
-    (r) => id in r.outputs && isRecipeUnlocked(state, r.id) && machinesFor(r.id).some((m) => isMachineUnlocked(state, m.id)),
+    (r) => id in r.outputs && isRecipeUnlocked(state, r.id) && recipeFits(state, r) && machinesFor(r.id).some((m) => isMachineUnlocked(state, m.id)),
   );
 }

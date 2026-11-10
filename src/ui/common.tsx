@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ITEMS, canVent, itemName } from '../data/items';
 import type { Line, LineStatus, Reason } from '../sim/types';
-import { hasAmount } from '../sim/rules';
+import { homeItems } from '../sim/planets';
+import { AMOUNT_EPSILON, hasAmount } from '../sim/rules';
 import { getState, getUi, goTo, openLookup, subscribe } from '../state/store';
 import { ItemIcon } from './pixel';
 
@@ -18,7 +19,8 @@ export function fmt(n: number): string {
   if (a >= 1e9) return `${(n / 1e9).toFixed(2)}G`;
   if (a >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
   if (a >= 1e4) return `${(n / 1e3).toFixed(1)}k`;
-  return Math.floor(n + 1e-9).toString();
+  // The same allowance as the can-afford check, so a cost never reads 9/10 while the button says it's enough
+  return Math.floor(n + AMOUNT_EPSILON).toString();
 }
 
 export function fmtRate(n: number): string {
@@ -73,9 +75,9 @@ export function Chevron({ up, size = 14 }: { up?: boolean; size?: number }) {
   );
 }
 
-/** Material list, red where the player does not have enough */
+/** Material list, red where the player does not have enough. Everything is paid from the home world's storage */
 export function Cost({ cost }: { cost: Record<string, number> }) {
-  const items = getState().items;
+  const items = homeItems(getState());
   return (
     <span class="cost">
       {Object.entries(cost).map(([id, n]) => (
@@ -185,21 +187,47 @@ export function Modal({ title, icon, onClose, wide, tall, bar, children }: {
 }) {
   const close = useRef(onClose);
   close.current = onClose;
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const me = () => close.current();
     modalStack.push(me);
+    // The keyboard moves into the window and stays there, then goes back to where it was: without this,
+    // Tab walks through the page behind, and Enter presses a button the player can't see
+    const before = document.activeElement as HTMLElement | null;
+    const el = box.current;
+    if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === me) me();
+      if (modalStack[modalStack.length - 1] !== me) return;
+      if (e.key === 'Escape') return me();
+      if (e.key !== 'Tab' || !el) return;
+      const stops = [...el.querySelectorAll<HTMLElement>('button, input, textarea, select, a[href], [tabindex]:not([tabindex="-1"])')]
+        .filter((x) => !x.hasAttribute('disabled') && x.getClientRects().length > 0);
+      const at = document.activeElement;
+      const [first, last] = [stops[0], stops[stops.length - 1]];
+      if (!first) return e.preventDefault();
+      if (!el.contains(at) || (e.shiftKey ? at === first || at === el : at === last)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
       modalStack.splice(modalStack.indexOf(me), 1);
+      if (before?.isConnected) before.focus({ preventScroll: true });
     };
   }, []);
   return (
     <div class="modal-backdrop" onClick={onClose}>
-      <div class={`modal ${wide ? 'wide' : ''} ${tall ? 'tall' : ''}`} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={box}
+        tabIndex={-1}
+        class={`modal ${wide ? 'wide' : ''} ${tall ? 'tall' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
         <header class="modal-head">
           <h2>{icon}{title}</h2>
           <button class="icon-btn close-btn" onClick={onClose} aria-label="關閉">✕</button>

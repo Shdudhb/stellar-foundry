@@ -12,6 +12,23 @@ export interface Line {
   limit?: number;
 }
 
+/** What a world other than the one in view holds while the player is elsewhere */
+export interface PlanetStore {
+  items: Record<string, number>;
+  lines: Line[];
+  vent: string[];
+}
+
+/** A cargo route: its ships carry one item from one world's storage to another's */
+export interface Route {
+  id: number;
+  item: string;
+  from: string;
+  to: string;
+  ships: number;
+  enabled: boolean;
+}
+
 export interface GameState {
   version: number;
   items: Record<string, number>;
@@ -51,6 +68,14 @@ export interface GameState {
   queue?: string[];
   /** The player paused the game: no factory time passes, live or while away */
   paused?: boolean;
+  /**
+   * The world in view (unset = the home world). `items`, `lines` and `vent` above are always that world's;
+   * the others wait in `others`, and are swapped in when the player goes there.
+   */
+  planet?: string;
+  others?: Record<string, PlanetStore>;
+  routes?: Route[];
+  nextRouteId?: number;
 }
 
 export interface Stats {
@@ -120,4 +145,13 @@ export interface TickResult {
   vented: Record<string, number>;
   /** Amount lost per second to decay */
   decayed: Record<string, number>;
+}
+
+export interface RouteStatus {
+  /** Items per second actually carried */
+  perSec: number;
+  /** Items per second the ships could carry */
+  capacity: number;
+  /** Why it carries less than it could */
+  reason: 'ok' | 'paused' | 'idle' | 'empty' | 'full';
 }
