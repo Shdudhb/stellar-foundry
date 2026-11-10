@@ -147,7 +147,12 @@ function sanitize(s: GameState, base: GameState): void {
       if (!r || typeof r !== 'object' || !Number.isInteger(r.id) || ids.has(r.id)) continue;
       if (typeof r.item !== 'string' || !PLANETS[r.from] || !PLANETS[r.to] || r.from === r.to) continue;
       ids.add(r.id);
-      routes.push({ id: r.id, item: r.item, from: r.from, to: r.to, ships: Math.floor(num(r.ships, 0)), enabled: r.enabled !== false });
+      const frac = (v: unknown) => (typeof v === 'number' && v > 0 && v < 1 ? v : undefined);
+      routes.push({
+        id: r.id, item: r.item, from: r.from, to: r.to, ships: Math.floor(num(r.ships, 0)), enabled: r.enabled !== false,
+        ...(frac(r.keep) !== undefined ? { keep: frac(r.keep) } : {}),
+        ...(frac(r.upTo) !== undefined ? { upTo: frac(r.upTo) } : {}),
+      });
     }
     s.routes = routes;
     s.nextRouteId = Math.max(Math.floor(num(s.nextRouteId, 1, 1)), ...routes.map((r) => r.id + 1));
@@ -186,6 +191,7 @@ function migrate(raw: any): GameState {
   for (const o of Object.values(s.others ?? {})) o.lines = keep(o.lines);
   for (const l of [s.lines, ...Object.values(s.others ?? {}).map((o) => o.lines)].flat()) {
     if (l.limit !== undefined && !(l.limit > 0 && l.limit < 1)) delete l.limit;
+    if (l.reserve !== undefined && !(l.reserve > 0 && l.reserve < 1)) delete l.reserve;
   }
   if (s.queue !== undefined) s.queue = Array.isArray(s.queue) ? s.queue.filter((q) => typeof q === 'string' && TECHS[q]) : [];
   s.version = SAVE_VERSION;

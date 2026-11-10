@@ -607,6 +607,16 @@ export function setLineLimit(lineId: number, limit: number | undefined) {
   notify();
 }
 
+/** How much of each input the line leaves in storage, as a fraction of its cap */
+export function setLineReserve(lineId: number, reserve: number | undefined) {
+  const line = state.lines.find((l) => l.id === lineId);
+  if (!line) return;
+  if (reserve === undefined || !(reserve > 0 && reserve < 1)) delete line.reserve;
+  else line.reserve = reserve;
+  emit('click');
+  notify();
+}
+
 export function research(techId: string) {
   const t = TECHS[techId];
   if (!t || !techAvailable(state, techId)) return;
@@ -1021,6 +1031,20 @@ export function toggleRoute(routeId: number) {
   const r = routeOf(routeId);
   if (!r) return;
   r.enabled = !r.enabled;
+  emit('click');
+  notify();
+}
+
+/** A route's conditions: what the source keeps, and how full the destination gets (fractions of storage) */
+export function setRouteRule(routeId: number, rule: { keep?: number | null; upTo?: number | null }) {
+  const r = routeOf(routeId);
+  if (!r) return;
+  for (const k of ['keep', 'upTo'] as const) {
+    const v = rule[k];
+    if (v === undefined) continue;
+    if (v === null || !(v > 0 && v < 1)) delete r[k];
+    else r[k] = v;
+  }
   emit('click');
   notify();
 }

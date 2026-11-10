@@ -194,6 +194,18 @@ export function tick(state: GameState, dt: number): TickResult {
         a.reason = { kind: 'output', item };
       }
     }
+    // The line's own reserve: it leaves that much of every input in storage
+    if (a.line.reserve !== undefined && a.line.reserve > 0) {
+      for (const [item, n] of Object.entries(r.inputs)) {
+        if (isPower(item)) continue;
+        const spare = Math.max(0, (state.items[item] ?? 0) - a.line.reserve * capOf(state, item));
+        const ratio = Math.min(1, spare / (a.potential * n));
+        if (ratio < a.f) {
+          a.f = ratio;
+          a.reason = { kind: 'reserve', item };
+        }
+      }
+    }
     // The line's own stock limit: make only what brings the main output back up to it
     const main = limitedItem(a.line);
     if (main) {

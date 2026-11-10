@@ -47,7 +47,7 @@ export function shortfall(s: GameState, last: TickResult, item: string): Shortfa
     }
     if (line.count === 0 || !st) continue;
     // A line held back by its own stock limit only wants what keeps it topped up
-    const wants = st.reason.kind === 'limit' ? st.craftsPerSec : st.maxCraftsPerSec;
+    const wants = st.reason.kind === 'limit' || st.reason.kind === 'reserve' ? st.craftsPerSec : st.maxCraftsPerSec;
     if (!isPower(item)) demand += (r.inputs[item] ?? 0) * wants;
     if (item === MAINTENANCE_ITEM && st.upkeep) demand += st.upkeep.need;
   }

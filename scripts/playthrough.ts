@@ -35,7 +35,7 @@ import { OBJECTIVES, currentObjective } from '../src/data/objectives';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../src/data/recipes';
 import { MILESTONE_LIST, TECH_LIST, TIER_NAMES } from '../src/data/tech';
 import { fuelLines } from '../src/sim/engine';
-import { SHIP_COST, SHIP_RATE } from '../src/data/planets';
+import { SHIP_COST, SHIP_FUEL, SHIP_FUEL_ITEM, SHIP_RATE } from '../src/data/planets';
 import { HOME, openPlanets, storeOf } from '../src/sim/planets';
 import { tickAll } from '../src/sim/world';
 import { EU_PER, primaryRecipe, price } from '../src/sim/balance';
@@ -273,6 +273,9 @@ function targets(): Record<string, number> {
     if (m.holds) add(m.holds, HORIZON * 3);
   }
   add(buildWants, HORIZON / 3);
+  // Ships burn rocket fuel at home for every item they carry
+  const shipping = (st.routes ?? []).reduce((n, r) => n + (r.enabled ? r.ships * SHIP_RATE * SHIP_FUEL : 0), 0);
+  if (shipping > 0) want[SHIP_FUEL_ITEM] = (want[SHIP_FUEL_ITEM] ?? 0) + shipping * 1.25;
   add(saveFor, HORIZON);
   saveFor = {};
   // Power is planned from what the grid actually draws, like a player reading the top bar: keep 25% spare

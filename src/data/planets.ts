@@ -50,3 +50,6 @@ export const shippable = (item: string): boolean => {
 };
 
 export const SHIP_RATE = 2;
+/** Flying costs fuel: rocket fuel from the home storage per item carried (one unit per 20 items) */
+export const SHIP_FUEL_ITEM = 'rocket_fuel';
+export const SHIP_FUEL = 0.05;

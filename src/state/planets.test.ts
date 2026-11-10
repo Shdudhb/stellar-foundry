@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { MACHINES } from '../data/machines';
-import { SHIP_COST, SHIP_RATE } from '../data/planets';
+import { SHIP_COST, SHIP_FUEL, SHIP_RATE } from '../data/planets';
 import { RECIPE_LIST, RECIPES } from '../data/recipes';
 import { MILESTONES, TECHS } from '../data/tech';
 import { allLines, atHome, enterPlanet, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
-import { recipeFits, recipePlanet, slotsTotal } from '../sim/rules';
+import { capOf, recipeFits, recipePlanet, slotsTotal } from '../sim/rules';
 import { tickAll } from '../sim/world';
 import { exportString, importString, newGame } from './save';
 import { addLine, addRoute, build, buildShip, getState, importSave, removeRoute, switchPlanet } from './store';
@@ -68,6 +68,7 @@ describe('planets', () => {
     ];
     expect(s.lines.reduce((n, l) => n + l.count, 0)).toBeLessThanOrEqual(slotsTotal(s, false));
     enterPlanet(s, 'home');
+    s.items.rocket_fuel = 100;
     s.routes = [{ id: 1, item: 'iridium', from: 'lava', to: 'home', ships: 1, enabled: true }];
     // 150 s: a fresh game's store holds 200
     for (let i = 0; i < 150; i++) tickAll(s, 1);
@@ -127,6 +128,7 @@ describe('planets', () => {
     enterPlanet(s, 'ice');
     s.items.comet_ice = 5;
     enterPlanet(s, 'home');
+    s.items.rocket_fuel = 100;
     s.routes = [{ id: 1, item: 'comet_ice', from: 'ice', to: 'home', ships: 1, enabled: true }];
     let res = tickAll(s, 1);
     expect(s.items.comet_ice).toBe(SHIP_RATE);
@@ -139,6 +141,55 @@ describe('planets', () => {
     expect(res.routes[1].reason).toBe('empty');
     s.routes[0].enabled = false;
     expect(tickAll(s, 1).routes[1].reason).toBe('paused');
+  });
+
+  it('burns rocket fuel at home for what the ships carry, and stops without it', () => {
+    const s = colony((g) => { g.items.rocket_fuel = 0.1; });
+    enterPlanet(s, 'ice');
+    s.items.comet_ice = 50;
+    enterPlanet(s, 'home');
+    s.routes = [{ id: 1, item: 'comet_ice', from: 'ice', to: 'home', ships: 1, enabled: true }];
+    let res = tickAll(s, 1);
+    expect(s.items.comet_ice).toBeCloseTo(SHIP_RATE);
+    expect(s.items.rocket_fuel).toBeCloseTo(0.1 - SHIP_RATE * SHIP_FUEL);
+    expect(res.routes[1].fuel).toBeCloseTo(SHIP_RATE * SHIP_FUEL);
+    expect(res.last.rates.rocket_fuel).toBeCloseTo(-SHIP_RATE * SHIP_FUEL);
+    res = tickAll(s, 1);
+    expect(s.items.comet_ice).toBeCloseTo(SHIP_RATE);
+    expect(res.routes[1]).toMatchObject({ perSec: 0, reason: 'fuel' });
+  });
+
+  it('keeps a reserve at the source and stops when the destination has enough', () => {
+    const s = colony((g) => { g.items.rocket_fuel = 100; });
+    const cap = capOf(s, 'comet_ice');
+    enterPlanet(s, 'ice');
+    s.items.comet_ice = cap * 0.5 + 1;
+    enterPlanet(s, 'home');
+    s.routes = [{ id: 1, item: 'comet_ice', from: 'ice', to: 'home', ships: 5, enabled: true, keep: 0.5 }];
+    let res = tickAll(s, 1);
+    expect(s.items.comet_ice).toBeCloseTo(1);
+    expect(storeOf(s, 'ice')!.items.comet_ice).toBeCloseTo(cap * 0.5);
+    expect(res.routes[1].reason).toBe('keep');
+    // A target at the destination: fill to a quarter of storage and no further
+    storeOf(s, 'ice')!.items.comet_ice = cap;
+    s.routes[0] = { ...s.routes[0], keep: undefined, upTo: 0.25, ships: 1000 };
+    res = tickAll(s, 1);
+    expect(s.items.comet_ice).toBeCloseTo(cap * 0.25);
+    expect(res.routes[1].reason).toBe('enough');
+  });
+
+  it('lets a line leave part of its inputs for others', () => {
+    const s = newGame();
+    const cap = capOf(s, 'iron_ore');
+    s.items.iron_ore = cap * 0.5 + 2;
+    s.items.coal = cap;
+    s.lines = [{ id: 1, machine: 'stone_furnace', recipe: 'smelt_iron', count: 50, enabled: true, reserve: 0.5 }];
+    let res = tickAll(s, 10);
+    expect(s.items.iron_ore).toBeCloseTo(cap * 0.5);
+    expect(s.items.iron_ingot).toBeCloseTo(2);
+    expect(res.last.lines[1].reason).toEqual({ kind: 'reserve', item: 'iron_ore' });
+    res = tickAll(s, 10);
+    expect(s.items.iron_ore).toBeCloseTo(cap * 0.5);
   });
 
   it('pays for ships at home and refunds them when the route goes', () => {
@@ -159,7 +210,7 @@ describe('planets', () => {
     enterPlanet(s, 'ice');
     s.items.comet_ice = 4;
     s.lines.push({ id: s.nextLineId++, machine: 'ice_drill', recipe: 'mine_ice', count: 2, enabled: true });
-    s.routes = [{ id: 1, item: 'comet_ice', from: 'ice', to: 'home', ships: 2, enabled: true }];
+    s.routes = [{ id: 1, item: 'comet_ice', from: 'ice', to: 'home', ships: 2, enabled: true, keep: 0.25, upTo: 0.5 }];
     s.nextRouteId = 2;
     const back = importString(exportString(s))!;
     expect(planetOf(back)).toBe('ice');

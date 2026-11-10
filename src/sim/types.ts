@@ -10,6 +10,8 @@ export interface Line {
   heat?: number;
   /** Stop making the main output once its stock reaches this fraction of storage (0..1); unset = no limit */
   limit?: number;
+  /** Leave this fraction of storage of each input untouched, for other lines and for ships (0..1); unset = use it all */
+  reserve?: number;
 }
 
 /** What a world other than the one in view holds while the player is elsewhere */
@@ -27,6 +29,10 @@ export interface Route {
   to: string;
   ships: number;
   enabled: boolean;
+  /** Only carry what the source holds above this fraction of its storage (0..1); unset = take everything */
+  keep?: number;
+  /** Stop once the destination holds this fraction of its storage (0..1); unset = fill it up */
+  upTo?: number;
 }
 
 export interface GameState {
@@ -109,6 +115,8 @@ export type Reason =
   | { kind: 'load' }
   /** Held back by the line's own stock limit on its main output */
   | { kind: 'limit'; item: string }
+  /** Held back by the line's own reserve on one of its inputs */
+  | { kind: 'reserve'; item: string }
   | { kind: 'wear' }
   | { kind: 'igniting' };
 
@@ -153,5 +161,7 @@ export interface RouteStatus {
   /** Items per second the ships could carry */
   capacity: number;
   /** Why it carries less than it could */
-  reason: 'ok' | 'paused' | 'idle' | 'empty' | 'full';
+  reason: 'ok' | 'paused' | 'idle' | 'empty' | 'full' | 'keep' | 'enough' | 'fuel';
+  /** Rocket fuel burned per second, out of the home storage */
+  fuel: number;
 }

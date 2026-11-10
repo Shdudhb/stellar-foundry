@@ -260,7 +260,7 @@ function OfflineReportModal() {
   const changes = Object.entries(report.changes).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
   const stalled = allLines(s)
     .map((l) => ({ l, st: report.last?.lines[l.id] }))
-    .filter(({ st }) => st && st.efficiency < 0.999 && !['idle', 'paused', 'load', 'limit'].includes(st.reason.kind))
+    .filter(({ st }) => st && st.efficiency < 0.999 && !['idle', 'paused', 'load', 'limit', 'reserve'].includes(st.reason.kind))
     // The most stuck first
     .sort((a, b) => a.st!.efficiency - b.st!.efficiency);
 
