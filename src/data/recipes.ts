@@ -6,7 +6,7 @@ export type Category =
   | 'launch' | 'elevator' | 'asteroid' | 'solar_wind' | 'microgravity'
   | 'fusion' | 'neutron'
   | 'swarm' | 'collider' | 'stabilizer'
-  | 'ice_mining' | 'geothermal' | 'magma' | 'casting';
+  | 'ice_mining' | 'geothermal' | 'magma' | 'casting' | 'wind' | 'atmo' | 'stellar' | 'crystal_mining' | 'crystal_growth';
 
 export interface RecipeDef {
   id: string;
@@ -214,6 +214,15 @@ const list: RecipeDef[] = [
   // The one thing only the lava world makes: the compressor and both late megastructures are lined with it
   { id: 'cast_ceramic', name: '燒結耐熱陶瓷', category: 'casting', tier: 6, time: 4, inputs: { magma: 20 }, outputs: { heat_ceramic: 1 }, planet: 'lava' },
   { id: 'cast_iridium', name: '岩漿提銥', category: 'casting', tier: 6, time: 8, inputs: { magma: 40 }, outputs: { iridium: 1 }, planet: 'lava' },
+  // The gas giant: metallic hydrogen exists nowhere else, and helium-3 is thick in the upper air
+  { id: 'storm_power', name: '風暴發電', category: 'wind', tier: 7, time: 1, inputs: {}, outputs: { eu: 400 }, planet: 'gas' },
+  { id: 'compress_hydrogen', name: '壓製金屬氫', category: 'atmo', tier: 7, time: 4, inputs: {}, outputs: { metallic_hydrogen: 1 }, planet: 'gas' },
+  { id: 'harvest_he3', name: '採集大氣氦-3', category: 'atmo', tier: 7, time: 4, inputs: {}, outputs: { helium_3: 1 }, planet: 'gas' },
+  // The crystal world: resonant crystal grows only there; its shards also cut straight into wafers
+  { id: 'array_power', name: '聚光發電', category: 'stellar', tier: 7, time: 1, inputs: {}, outputs: { eu: 300 }, planet: 'crystal' },
+  { id: 'cut_crystal', name: '切割晶簇', category: 'crystal_mining', tier: 7, time: 1, inputs: {}, outputs: { crystal_shard: 2 }, planet: 'crystal' },
+  { id: 'grow_resonant', name: '培養共振晶體', category: 'crystal_growth', tier: 7, time: 8, inputs: { crystal_shard: 16 }, outputs: { resonant_crystal: 1 }, planet: 'crystal' },
+  { id: 'shard_wafer', name: '晶屑切片', category: 'crystal_growth', tier: 7, time: 4, inputs: { crystal_shard: 4 }, outputs: { wafer: 1 }, planet: 'crystal' },
   { id: 'electrolyze_ice', name: '電解彗星冰', category: 'electrolysis', tier: 4, time: 4, inputs: { comet_ice: 2 }, outputs: { deuterium: 1, oxygen: 2 } },
   // Helium is a byproduct: if it backs up, fusion stops and the reactor goes cold.
   { id: 'fuse_dhe3', name: '氘-氦3 聚變', category: 'fusion', tier: 6, time: 4, inputs: { deuterium: 1, helium_3: 1 }, outputs: { eu: 8000, helium: 2 } },

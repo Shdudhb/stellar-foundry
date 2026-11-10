@@ -84,13 +84,13 @@ function ManualCard() {
 
 /** What a recipe group is for, in the player's terms; every recipe category belongs to one */
 const GROUPS: { id: string; label: string; categories: string[] }[] = [
-  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind', 'ice_mining', 'magma'] },
+  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind', 'ice_mining', 'magma', 'atmo', 'crystal_mining'] },
   { id: 'metal', label: '冶煉', categories: ['smelting', 'casting', 'blasting', 'arc', 'vacuum', 'freezing', 'cooling', 'coking'] },
   { id: 'parts', label: '零件', categories: ['crafting', 'compressing', 'assembling'] },
   { id: 'chem', label: '化工', categories: ['crushing', 'electrolysis', 'mixing', 'distilling', 'chemistry'] },
-  { id: 'power', label: '電力', categories: ['burning', 'turbine', 'solar', 'combustion', 'fusion', 'launch', 'elevator', 'geothermal'] },
+  { id: 'power', label: '電力', categories: ['burning', 'turbine', 'solar', 'combustion', 'fusion', 'launch', 'elevator', 'geothermal', 'wind', 'stellar'] },
   { id: 'science', label: '研究', categories: ['research'] },
-  { id: 'space', label: '太空', categories: ['microgravity', 'neutron', 'swarm', 'collider', 'stabilizer'] },
+  { id: 'space', label: '太空', categories: ['microgravity', 'neutron', 'swarm', 'collider', 'stabilizer', 'crystal_growth'] },
 ];
 const GROUP_KEY = 'sf-new-group';
 

@@ -39,6 +39,16 @@ export const PLANET_LIST: PlanetDef[] = [
     keyItems: ['magma', 'heat_ceramic', 'tungsten', 'iridium'],
     text: '地殼還沒冷卻的行星。只有這裡燒得出耐熱陶瓷，中子素壓縮機、戴森群和星門都少不了它；岩漿還能直接鑄成鐵、銅、鎢和銥，也拿來發電。',
   },
+  {
+    id: 'gas', name: '氣態巨星', icon: 'metallic_hydrogen', unlockTech: 'gas_giant_station', slots: 12, distance: 3,
+    keyItems: ['metallic_hydrogen', 'helium_3'],
+    text: '風暴永不停歇的氣態巨行星。大氣深處壓得出金屬氫，粒子對撞機和星門都要用；這裡的氦-3 也比母星軌道好採，電力全靠風暴渦輪。',
+  },
+  {
+    id: 'crystal', name: '晶簇星', icon: 'resonant_crystal', unlockTech: 'crystal_survey', slots: 12, distance: 4,
+    keyItems: ['crystal_shard', 'resonant_crystal', 'wafer'],
+    text: '整顆星球長滿晶簇的近日行星。只有這裡養得出共振晶體，時空穩定器和星門都少不了；晶屑還能直接切成矽晶圓，電力靠聚光陣列。',
+  },
 ];
 
 export const PLANETS: Record<string, PlanetDef> = Object.fromEntries(PLANET_LIST.map((p) => [p.id, p]));

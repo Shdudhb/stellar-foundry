@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MACHINES } from '../data/machines';
-import { SHIP_COST, SHIP_FUEL, SHIP_RATE, routeFuel } from '../data/planets';
+import { PLANET_LIST, SHIP_COST, SHIP_FUEL, SHIP_RATE, routeFuel } from '../data/planets';
 import { RECIPE_LIST, RECIPES } from '../data/recipes';
 import { MILESTONES, TECHS } from '../data/tech';
 import { allLines, atHome, enterPlanet, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
@@ -78,7 +78,10 @@ describe('planets', () => {
 
   it('makes every world a required stop on the way to the stargate', () => {
     // Each colony has something no other world can make...
-    for (const [planet, item] of [['ice', 'comet_ice'], ['lava', 'heat_ceramic']]) {
+    const unique: Record<string, string> = { ice: 'comet_ice', lava: 'heat_ceramic', gas: 'metallic_hydrogen', crystal: 'resonant_crystal' };
+    // No colony without one: a new world has to be added here, with something the main line needs
+    expect(Object.keys(unique).sort()).toEqual(PLANET_LIST.map((p) => p.id).filter((id) => id !== 'home').sort());
+    for (const [planet, item] of Object.entries(unique)) {
       const makers = RECIPE_LIST.filter((r) => r.outputs[item]);
       expect(makers.length).toBeGreaterThan(0);
       expect(makers.every((r) => recipePlanet(r) === planet)).toBe(true);
@@ -90,6 +93,12 @@ describe('planets', () => {
     expect(MILESTONES.stargate.cost.heat_ceramic).toBeGreaterThan(0);
     expect(MACHINES.neutronium_compressor.cost.heat_ceramic).toBeGreaterThan(0);
     expect(TECHS.neutron_compression.requires).toContain('lava_expedition');
+    expect(MACHINES.particle_collider.cost.metallic_hydrogen).toBeGreaterThan(0);
+    expect(MACHINES.spacetime_stabilizer.cost.resonant_crystal).toBeGreaterThan(0);
+    expect(MILESTONES.stargate.cost.metallic_hydrogen).toBeGreaterThan(0);
+    expect(MILESTONES.stargate.cost.resonant_crystal).toBeGreaterThan(0);
+    // Every colony has a generator of its own, or nothing there could run
+    for (const planet of Object.keys(unique)) expect(RECIPE_LIST.some((r) => r.outputs.eu && recipePlanet(r) === planet)).toBe(true);
   });
 
   it('gives a colony its own slots and no orbit', () => {

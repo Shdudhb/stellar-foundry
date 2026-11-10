@@ -79,7 +79,11 @@ export function TopBar({ chips = true }: { chips?: boolean }) {
           {planets.length > 1 && (
             <div class="seg planet-seg" role="radiogroup" aria-label="星球">
               {planets.map((p) => (
-                <button key={p} role="radio" aria-checked={p === here} class={p === here ? 'on' : ''} title={PLANETS[p].text} onClick={() => switchPlanet(p)}>
+                <button
+                  key={p} role="radio" aria-checked={p === here} class={p === here ? 'on' : ''} title={PLANETS[p].text}
+                  ref={p === here ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined}
+                  onClick={() => switchPlanet(p)}
+                >
                   <ItemIcon id={PLANETS[p].icon} /> {PLANETS[p].name}
                 </button>
               ))}

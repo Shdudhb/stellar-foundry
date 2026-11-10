@@ -6,6 +6,7 @@ import { HOME, allLines, homeItems, openPlanets, storeOf } from '../sim/planets'
 import { capOf } from '../sim/rules';
 import type { GameState, TickResult } from '../sim/types';
 import { ITEMS } from './items';
+import { PLANET_LIST } from './planets';
 
 export interface AchievementDef {
   id: string;
@@ -117,6 +118,10 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   {
     id: 'worlds_3', name: '三星工業', text: '母星、冰衛星和熔岩星同時都有機器在運轉。', icon: 'magma', group: '星海',
     done: (s) => ['home', 'ice', 'lava'].every((p) => (storeOf(s, p)?.lines ?? []).some((l) => l.count > 0)),
+  },
+  {
+    id: 'worlds_5', name: '五星聯產', text: '母星和四個殖民地同時都有機器在運轉。', icon: 'resonant_crystal', group: '星海',
+    done: (s) => PLANET_LIST.every((p) => (storeOf(s, p.id)?.lines ?? []).some((l) => l.count > 0)),
   },
   { id: 'ships_10', name: '星際航運', text: '同時擁有 10 艘貨運船。', icon: 'rocket_part', group: '星海', ...counter((s) => (s.routes ?? []).reduce((n, r) => n + r.ships, 0), 10) },
   { id: 'warp_1', name: '越過地平線', text: '躍遷 1 次。', icon: 'dyson_swarm', group: '星海', ...counter((s) => s.legacy.warps, 1) },

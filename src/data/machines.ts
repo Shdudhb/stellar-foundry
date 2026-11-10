@@ -305,6 +305,31 @@ const list: MachineDef[] = [
   },
   // ---- T7 ----
   {
+    id: 'storm_turbine', name: '風暴渦輪', tier: 7, categories: ['wind'], slots: 1,
+    cost: { titanium: 60, superconductor: 20, precision_circuit: 4 },
+    description: '氣態巨星的風暴永不停：每秒 400 電力，不用燃料。只能蓋在氣態巨星上。',
+  },
+  {
+    id: 'atmo_harvester', name: '大氣採集站', tier: 7, categories: ['atmo'], power: { item: 'eu', amount: 120 }, slots: 1,
+    cost: { titanium: 80, tungsten: 40, superconductor: 10 },
+    description: '沉進氣態巨星的大氣深處壓製金屬氫，或在高層採集氦-3。只能蓋在氣態巨星上。',
+  },
+  {
+    id: 'light_array', name: '聚光陣列', tier: 7, categories: ['stellar'], slots: 1,
+    cost: { titanium: 60, zg_crystal: 10, precision_circuit: 4 },
+    description: '晶簇星離恆星很近：每秒 300 電力，不用燃料。只能蓋在晶簇星上。',
+  },
+  {
+    id: 'crystal_cutter', name: '晶簇切割機', tier: 7, categories: ['crystal_mining'], power: { item: 'eu', amount: 80 }, slots: 1,
+    cost: { tungsten: 60, iridium: 20, precision_circuit: 4 },
+    description: '把晶簇切成晶屑，每秒 2 個。只能蓋在晶簇星上。',
+  },
+  {
+    id: 'resonance_kiln', name: '共振爐', tier: 7, categories: ['crystal_growth'], power: { item: 'eu', amount: 200 }, slots: 1,
+    cost: { tungsten: 80, superconductor: 20, heat_ceramic: 20 },
+    description: '用晶屑培養共振晶體，或直接切成矽晶圓。只能蓋在晶簇星上。',
+  },
+  {
     id: 'swarm_launcher', name: '戴森群發射器', tier: 7, categories: ['swarm'], power: { item: 'lift', amount: 20 }, slots: 1,
     orbital: true,
     cost: { neutronium: 10, superconductor: 40, titanium: 100 },
@@ -313,14 +338,14 @@ const list: MachineDef[] = [
   {
     id: 'particle_collider', name: '粒子對撞機', tier: 7, categories: ['collider'], power: { item: 'eu', amount: 4096 }, slots: 1,
     upkeep: 4,
-    cost: { neutronium: 50, superconductor: 200, iridium: 200, zg_crystal: 100 },
-    description: '大型設施：把中子素撞成奇異物質，每秒吃 4096 電力。奇異物質放著會衰變。需要維護。',
+    cost: { neutronium: 50, superconductor: 200, iridium: 200, zg_crystal: 100, metallic_hydrogen: 80 },
+    description: '大型設施：把中子素撞成奇異物質，每秒吃 4096 電力。靶材要用氣態巨星的金屬氫。奇異物質放著會衰變。需要維護。',
   },
   {
     id: 'spacetime_stabilizer', name: '時空穩定器', tier: 7, categories: ['stabilizer'], power: { item: 'eu', amount: 1024 }, slots: 1,
     upkeep: 2,
-    cost: { neutronium: 20, superconductor: 100, zg_crystal: 50 },
-    description: '在奇異物質衰變前把它穩定下來。需要維護。',
+    cost: { neutronium: 20, superconductor: 100, zg_crystal: 50, resonant_crystal: 40 },
+    description: '在奇異物質衰變前把它穩定下來。核心要用晶簇星的共振晶體。需要維護。',
   },
 ];
 

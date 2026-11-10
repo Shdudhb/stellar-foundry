@@ -341,7 +341,7 @@ const list: TechDef[] = [
   {
     id: 'colony_expansion', name: '殖民地擴建', tier: 6, cost: { data_yellow: 400 }, requires: ['deuterium_extraction'],
     description: '每個殖民地槽位 +8。',
-    planetSlots: { ice: 8, lava: 8 },
+    planetSlots: { ice: 8, lava: 8, gas: 8, crystal: 8 },
   },
   {
     id: 'lava_expedition', name: '熔岩星探勘', tier: 6, cost: { data_yellow: 500 }, requires: ['colony_expansion'],
@@ -385,13 +385,25 @@ const list: TechDef[] = [
     unlockRecipes: ['deploy_swarm'],
   },
   {
-    id: 'particle_physics', name: '粒子對撞', tier: 7, cost: { data_yellow: 800 }, requires: ['swarm_deployment'],
+    id: 'gas_giant_station', name: '氣態巨星站', tier: 7, cost: { data_yellow: 500 }, requires: ['swarm_deployment'],
+    description: '開放第三個殖民地「氣態巨星」：風暴渦輪發電，大氣採集站壓製只有那裡有的金屬氫（粒子對撞機和星門都要用），也能採氦-3。',
+    unlockMachines: ['storm_turbine', 'atmo_harvester'],
+    unlockRecipes: ['storm_power', 'compress_hydrogen', 'harvest_he3'],
+  },
+  {
+    id: 'particle_physics', name: '粒子對撞', tier: 7, cost: { data_yellow: 800 }, requires: ['swarm_deployment', 'gas_giant_station'],
     description: '粒子對撞機把中子素撞成奇異物質。奇異物質每秒衰變 2%，不能囤。',
     unlockMachines: ['particle_collider'],
     unlockRecipes: ['collide_neutronium'],
   },
   {
-    id: 'spacetime', name: '時空穩定', tier: 7, cost: { data_yellow: 800 }, requires: ['particle_physics'],
+    id: 'crystal_survey', name: '晶簇星測繪', tier: 7, cost: { data_yellow: 500 }, requires: ['particle_physics'],
+    description: '開放第四個殖民地「晶簇星」：聚光陣列發電，晶簇切割機採晶屑，共振爐培養只有那裡有的共振晶體（時空穩定器和星門都要用），也能把晶屑切成矽晶圓。',
+    unlockMachines: ['light_array', 'crystal_cutter', 'resonance_kiln'],
+    unlockRecipes: ['array_power', 'cut_crystal', 'grow_resonant', 'shard_wafer'],
+  },
+  {
+    id: 'spacetime', name: '時空穩定', tier: 7, cost: { data_yellow: 800 }, requires: ['particle_physics', 'crystal_survey'],
     description: '時空穩定器：奇異物質 + 超導線 → 穩定奇異物質，不再衰變。',
     unlockMachines: ['spacetime_stabilizer'],
     unlockRecipes: ['stabilize_exotic'],
@@ -414,7 +426,7 @@ const list: TechDef[] = [
   {
     id: 'colony_expansion_2', name: '殖民地擴建 II', tier: 7, cost: { data_white: 200 }, requires: ['white_science', 'colony_expansion'],
     description: '每個殖民地槽位再 +12。',
-    planetSlots: { ice: 12, lava: 12 },
+    planetSlots: { ice: 12, lava: 12, gas: 12, crystal: 12 },
   },
   {
     id: 'storage_8', name: '倉儲擴充 VIII', tier: 7, cost: { data_white: 200 }, requires: ['white_science', 'storage_7'],
@@ -525,7 +537,7 @@ export const MILESTONE_LIST: MilestoneDef[] = [
     name: '星門',
     tier: 7,
     description: '建成即通關，之後可以在「星系」分頁躍遷到新星系。',
-    cost: { stable_exotic: 100, neutronium: 100, superconductor: 300, dyson_panel: 100, heat_ceramic: 300 },
+    cost: { stable_exotic: 100, neutronium: 100, superconductor: 300, dyson_panel: 100, heat_ceramic: 300, metallic_hydrogen: 200, resonant_crystal: 150 },
     holds: { dyson_swarm: 600 },
     victory: {
       title: '星門開啟',
