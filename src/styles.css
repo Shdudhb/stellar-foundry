@@ -859,6 +859,14 @@ body:has(.modal-backdrop) { overflow: hidden; }
 .intro p { line-height: 1.7; }
 .galaxy-now { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 10px; border-radius: 10px; background: rgb(143 122 230 / 0.1); border: 1px solid rgb(143 122 230 / 0.4); }
 .galaxy-now p { margin: 2px 0 0; }
+.star-map { display: block; width: 100%; max-height: 240px; margin: 4px 0 12px; border-radius: 12px; background: radial-gradient(ellipse at 50% 50%, rgb(143 122 230 / 0.16), rgb(8 10 20 / 0.9) 75%); border: 1px solid var(--line-soft); }
+.star-lane { stroke: rgb(143 122 230 / 0.55); stroke-width: 1; stroke-dasharray: 3 4; }
+.star-here { fill: none; stroke: rgb(240 160 75 / 0.8); stroke-width: 1.2; }
+.star-label { paint-order: stroke; stroke: #0b0d18; stroke-width: 4px; stroke-linejoin: round; fill: var(--text); font-size: 12px; text-anchor: middle; font-weight: 700; }
+.star-label.sub, .star-label.here { fill: var(--muted); font-weight: 400; font-size: 11px; }
+.star-pick { cursor: pointer; }
+.star-pick:hover .star-label { fill: var(--accent); }
+.badge.slow { color: var(--warn); border-color: rgb(240 190 80 / 0.5); }
 .system-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .system { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line-soft); min-width: 0; }
 .system.now { border-color: rgb(143 122 230 / 0.5); }

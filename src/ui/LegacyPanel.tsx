@@ -20,7 +20,7 @@ function SystemCard({ sys, children, now }: { sys: StarSystem; children?: preact
   // On the map every world is listed; in the system you are in, the ones not reached yet stay unnamed
   const known = now ? new Set(openPlanets(getState())) : null;
   return (
-    <article class={`system ${now ? 'now' : ''}`}>
+    <article id={now ? undefined : `system-${sys.name}`} class={`system ${now ? 'now' : ''}`}>
       <header class="system-head">
         <span class="star-dot" style={{ background: star.color, boxShadow: `0 0 ${Math.round(6 + star.lum * 8)}px ${star.color}` }} aria-hidden="true" />
         <span class="system-name">
@@ -47,6 +47,53 @@ function SystemCard({ sys, children, now }: { sys: StarSystem; children?: preact
       {star.bonus > 0 && <p class="small tone-text-ok">在這裡建成星門再躍遷，多拿 {star.bonus} 遺產點。</p>}
       {children}
     </article>
+  );
+}
+
+/** A number in 0..1 that is always the same for the same name, to place a star on the map */
+function spot(name: string, salt: number): number {
+  let h = 2166136261 ^ salt;
+  for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619);
+  return ((h >>> 0) % 1000) / 1000;
+}
+
+/** The gate's reach drawn as a map: where you are in the middle, the candidates around it */
+function StarMap({ here, choices }: { here: StarSystem | null; choices: StarSystem[] }) {
+  const W = 600;
+  const H = 220;
+  const at = (sys: StarSystem, i: number) => {
+    // One sector of the circle each, so they never land on top of each other
+    const a = ((i + 0.2 + spot(sys.name, 1) * 0.6) / choices.length) * Math.PI * 2 - Math.PI / 2;
+    const d = 0.55 + spot(sys.name, 2) * 0.4;
+    return { x: W / 2 + Math.cos(a) * d * (W / 2 - 70), y: H / 2 + Math.sin(a) * d * (H / 2 - 28) };
+  };
+  const hereStar = here ? STARS[here.star] : STARS.yellow_dwarf;
+  const jump = (name: string) => document.getElementById(`system-${name}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return (
+    <svg class="star-map" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="星圖：目前的恆星系與星門搆得到的三個恆星系">
+      {Array.from({ length: 40 }, (_, i) => (
+        <circle key={i} cx={spot('bg', i) * W} cy={spot('bg', i + 100) * H} r={0.6 + spot('bg', i + 200)} fill="#fff" opacity={0.15 + spot('bg', i + 300) * 0.3} />
+      ))}
+      {choices.map((sys, i) => {
+        const p = at(sys, i);
+        return <line key={sys.name} x1={W / 2} y1={H / 2} x2={p.x} y2={p.y} class="star-lane" />;
+      })}
+      <circle cx={W / 2} cy={H / 2} r={7} fill={hereStar.color} />
+      <circle cx={W / 2} cy={H / 2} r={13} class="star-here" />
+      <text x={W / 2 + 20} y={H / 2 - 12} class="star-label here" style={{ textAnchor: 'start' }}>{here?.name ?? '出發的恆星系'}</text>
+      {choices.map((sys, i) => {
+        const p = at(sys, i);
+        const star = STARS[sys.star];
+        return (
+          <g key={sys.name} class="star-pick" onClick={() => jump(sys.name)}>
+            <circle cx={p.x} cy={p.y} r={22} fill="transparent" />
+            <circle cx={p.x} cy={p.y} r={5 + star.lum * 3} fill={star.color} style={{ filter: `drop-shadow(0 0 ${4 + star.lum * 4}px ${star.color})` }} />
+            <text x={p.x} y={p.y - 16 - star.lum * 2} class="star-label">{sys.name}</text>
+            <text x={p.x} y={p.y + 24 + star.lum * 2} class="star-label sub">{star.name}</text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -103,6 +150,7 @@ export function LegacyPanel() {
               <span class="muted small"> 星門 10 點，戴森群超過 600 片後每 50 片再 +1（下一點在 {nextBonus} 片）{s.system && STARS[s.system.star]?.bonus ? `；這顆${STARS[s.system.star].name}再 +${STARS[s.system.star].bonus}` : ''}。</span>
             </p>
             <p class="small muted">星門搆得到這三個恆星系。挑一個：</p>
+            <StarMap here={s.system ?? null} choices={choices} />
             <div class="system-grid">
               {choices.map((sys, i) => (
                 <SystemCard key={sys.name} sys={sys}>

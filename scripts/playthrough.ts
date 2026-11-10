@@ -20,6 +20,7 @@
 //   --item=<id>   at the end, list every line making or using that item and why it is slow
 //   --galaxy=<id> play under that galaxy's trait, as after a warp
 //   --star=<id>   play around that kind of star; --rich=0.7 sets every world's richness
+//   --style=0..3  how it treats lines it stopped using (see STYLE); try the others when one stalls
 //   --verbose     log each decision; --shed  pause lines by hand in brownouts, as before the game did it
 //
 // Limits: it is a heuristic, not an optimal player. It misplans slots, power and basic supplies in later
@@ -53,6 +54,12 @@ import {
 import { exportString, newGame } from '../src/state/save';
 
 const VERBOSE = process.argv.includes('--verbose');
+/** `--style=0..3`: how the bot treats lines it stopped using. The bot is deterministic and brittle: a small change in
+ *  speeds sends it down a different path, and each style stalls somewhere the others don't. A setting counts as
+ *  playable when any style finishes it.
+ *  0 scraps them; 1 also swaps an empty line it can't pay for onto a cheaper machine; 2 also keeps one machine on
+ *  the only source of anything; 3 keeps one only on what comes out of the ground */
+const STYLE = Number((process.argv.find((a) => a.startsWith('--style=')) ?? '--style=0').slice(8));
 const MAX_HOURS = 60;
 /** Seconds of play between decisions */
 const DECIDE_EVERY = 20;
@@ -309,6 +316,16 @@ function ensureLines(crafts: Record<string, number>) {
     // A better machine than the line's, with no in-place upgrade (basic drill → electric drill): start a new line on it
     const better = machineFor(r);
     if (line && better && better.tier > MACHINES[line.machine].tier && !upgradeTarget(st, line)) line = undefined;
+    // An empty line on a machine that can't be paid for, while a lesser one can (the big plant, after the old
+    // reactor was scrapped as unused): swap the plan for the one that can be built now
+    if (STYLE >= 1 && line && line.count === 0 && !canAfford(st, MACHINES[line.machine].cost)) {
+      const now = MACHINE_LIST.filter((x) => canRun(x, r) && isMachineUnlocked(st, x.id) && canAfford(st, x.cost)).sort((a, b) => b.tier - a.tier)[0];
+      if (now && now.id !== line.machine) {
+        if (VERBOSE) log(`give up on ${MACHINES[line.machine].name} · ${r.name}, use ${now.name}`);
+        removeLine(line.id);
+        line = undefined;
+      }
+    }
     if (!line) {
       // Nothing standing for this recipe and the best machine out of reach (the big plant costs the plastic
       // it would make): start on the best one that can be paid for, as a player would
@@ -504,8 +521,22 @@ function upgradeWhenTight() {
         // can't replace the reactor that makes the ethylene for it)
         !st.lines.some((o) => o !== l && o.recipe === l.recipe && o.count === 0)
       ) {
-        if (VERBOSE) log(`scrap unused ${MACHINES[l.machine].name}×${l.count} · ${RECIPES[l.recipe].name}`);
+        // The only source of something keeps one machine: a full store pauses a line for a long while, and once
+        // the ore is spent the drill that mined it can't be bought back without the metal
+        // Only for what comes out of the ground: anything made from something can be rebuilt on a cheaper machine
+        const root = Object.keys(RECIPES[l.recipe].inputs).every(isPower);
+        const sole = STYLE >= 2 && (STYLE === 2 || root) && !Object.keys(RECIPES[l.recipe].outputs).filter((o) => !isPower(o)).every((o) =>
+          st.lines.some((x) => x !== l && x.count > 0 && o in RECIPES[x.recipe].outputs) ||
+          (st.routes ?? []).some((x) => x.item === o && x.to === HOME && x.ships > 0));
         idleSince.delete(l.id);
+        if (sole) {
+          if (l.count > 1) {
+            if (VERBOSE) log(`trim unused ${MACHINES[l.machine].name}×${l.count}→1 · ${RECIPES[l.recipe].name}`);
+            demolish(l.id, l.count - 1);
+          }
+          continue;
+        }
+        if (VERBOSE) log(`scrap unused ${MACHINES[l.machine].name}×${l.count} · ${RECIPES[l.recipe].name}`);
         removeLine(l.id);
       }
     }

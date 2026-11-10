@@ -553,7 +553,8 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
   const reason = status?.reason ?? { kind: 'idle' as const };
   const tone = reasonTone(reason);
   // An empty line shows what one machine would do; a slowed line also shows what full speed would be
-  const perMachine = (oc.speed * (m.speed ?? 1) * categoryBoost(s, r.category)) / r.time;
+  const boost = categoryBoost(s, r.category);
+  const perMachine = (oc.speed * (m.speed ?? 1) * boost) / r.time;
   const empty = line.count === 0;
   const perSec = empty ? perMachine : status?.craftsPerSec ?? 0;
   const fullSpeed = status?.maxCraftsPerSec ?? 0;
@@ -587,6 +588,11 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
             <span class="badge oc" title="機器階層高於配方：速度與耗能增加">{m.perfectOC ? '完美超頻' : '超頻'} ×{oc.speed}</span>
           )}
           {(m.speed ?? 1) > 1 && <span class="badge oc" title="大型設施">大型 ×{m.speed}</span>}
+          {Math.abs(boost - 1) > 0.001 && (
+            <span class={`badge ${boost > 1 ? 'oc' : 'slow'}`} title="這個恆星系（恆星、星球貧富、星域特性）或正在發生的世界事件，讓這類機器變快或變慢">
+              {boost > 1 ? '加成' : '減益'} ×{fmtNum(Math.round(boost * 100) / 100)}
+            </span>
+          )}
           {m.upkeep && s.maintenance && <span class="badge" title="每台每分鐘全速運轉消耗的維護套件">維護 {m.upkeep}/分</span>}
           {m.orbital && <span class="badge orbit" title="佔軌道槽位，靠軌道運力運轉">軌道</span>}
           {fuel && m.power && (
