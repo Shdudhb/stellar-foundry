@@ -60,6 +60,35 @@ export const INCIDENT_LIST: IncidentDef[] = [
     boost: { freezing: 2, cooling: 2 }, needs: ['freezing', 'cooling'],
   },
   {
+    id: 'hot_blast', name: '爐火純青', icon: 'steel', duration: 120, tone: 'good', weight: 2,
+    text: '冶煉、高爐、電弧爐與焦爐速度 ×1.5。',
+    boost: { smelting: 1.5, blasting: 1.5, arc: 1.5, coking: 1.5 }, needs: ['smelting', 'blasting', 'arc', 'coking'],
+  },
+  {
+    id: 'catalyst', name: '催化反應', icon: 'sulfuric_acid', duration: 120, tone: 'good', weight: 2,
+    text: '化學反應、混合與分餾速度 ×1.5。',
+    boost: { chemistry: 1.5, mixing: 1.5, distilling: 1.5 }, needs: ['chemistry', 'mixing', 'distilling'],
+  },
+  {
+    id: 'symposium', name: '學術熱潮', icon: 'red_pack', duration: 90, tone: 'good', weight: 2,
+    text: '研究站分析科研包的速度 ×2。',
+    boost: { research: 2 }, needs: ['research'],
+  },
+  {
+    id: 'launch_window', name: '發射窗口', icon: 'rocket_fuel', duration: 120, tone: 'good', weight: 2,
+    text: '發射台與太空電梯的運力 ×1.5。',
+    boost: { launch: 1.5, elevator: 1.5 }, needs: ['launch', 'elevator'],
+  },
+  {
+    id: 'salvage', name: '漂流貨櫃', icon: 'gear', duration: 10, tone: 'good', weight: 1,
+    text: '倉庫裡有的每種中間產物各補進 10% 容量。',
+  },
+  {
+    id: 'mag_storm', name: '磁暴', icon: 'circuit', duration: 60, tone: 'bad', weight: 1,
+    text: '組裝機與電解槽速度 ×0.7。',
+    boost: { assembling: 0.7, electrolysis: 0.7 }, needs: ['assembling', 'electrolysis'],
+  },
+  {
     id: 'dust_storm', name: '沙塵暴', icon: 'sand', duration: 60, tone: 'bad', weight: 1,
     text: '採礦速度 ×0.6。',
     boost: { mining: 0.6 }, needs: ['mining'],

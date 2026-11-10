@@ -51,6 +51,8 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   { id: 'lines_10', name: '生產網', text: '同時擁有 10 條生產線。', icon: 'copper_wire', group: '開拓', ...counter((s) => s.lines.length, 10) },
   { id: 'lines_25', name: '複雜系統', text: '同時擁有 25 條生產線。', icon: 'cable', group: '開拓', ...counter((s) => s.lines.length, 25) },
   { id: 'machines_100', name: '百機齊鳴', text: '同時運轉 100 台機器。', icon: 'circuit', group: '開拓', ...counter((s) => machines(s), 100) },
+  { id: 'lines_50', name: '龐然巨物', text: '同時擁有 50 條生產線。', icon: 'pcb', group: '開拓', ...counter((s) => s.lines.length, 50) },
+  { id: 'machines_300', name: '千軍萬馬', text: '同時運轉 300 台機器。', icon: 'adv_circuit', group: '開拓', ...counter((s) => machines(s), 300) },
 
   // 生產
   made('iron_1k', 'iron_ingot', 1000, '鐵器時代', '累計生產 1,000 鐵錠。'),
@@ -103,6 +105,9 @@ export const ACHIEVEMENT_LIST: AchievementDef[] = [
   { id: 'signal_1', name: '第一次接觸', text: '回應 1 次遺物訊號。', icon: 'exotic_matter', group: '星海', ...counter((s) => s.stats.signals, 1) },
   { id: 'signal_10', name: '遺物獵人', text: '回應 10 次遺物訊號。', icon: 'stable_exotic', group: '星海', ...counter((s) => s.stats.signals, 10) },
   { id: 'incident_10', name: '見過世面', text: '經歷 10 次星球事件。', icon: 'meteor_ore', group: '星海', ...counter((s) => s.stats.incidents, 10) },
+  { id: 'signal_50', name: '解謎者', text: '回應 50 次遺物訊號。', icon: 'zg_crystal', group: '星海', ...counter((s) => s.stats.signals, 50) },
+  { id: 'incident_50', name: '風雨無阻', text: '經歷 50 次星球事件。', icon: 'comet_ice', group: '星海', ...counter((s) => s.stats.incidents, 50) },
+  { id: 'swarm_1000', name: '恆星的冠冕', text: '把戴森群擴大到 1,000 片。', icon: 'dyson_swarm', group: '星海', ...counter((s) => s.items.dyson_swarm ?? 0, 1000) },
   { id: 'trade_5', name: '星際商人', text: '與商隊交易 5 次。', icon: 'rocket_part', group: '星海', ...counter((s) => s.stats.trades, 5) },
   { id: 'warp_1', name: '越過地平線', text: '躍遷 1 次。', icon: 'dyson_swarm', group: '星海', ...counter((s) => s.legacy.warps, 1) },
   { id: 'warp_5', name: '星系旅人', text: '躍遷 5 次。', icon: 'dyson_panel', group: '星海', ...counter((s) => s.legacy.warps, 5) },

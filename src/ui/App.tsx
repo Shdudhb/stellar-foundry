@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ITEMS } from '../data/items';
+import { unclaimedObjectives } from '../data/objectives';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
 import { MILESTONE_LIST, MILESTONES, TECH_LIST, TECHS } from '../data/tech';
-import { BOOST_TIME } from '../data/legacy';
+import { boostTime } from '../data/legacy';
 import { activeIncident, canAfford, canBuildMilestone, currentTier, milestoneUnlocked, offlineCap, techAvailable, techCost } from '../sim/rules';
 import type { GameState } from '../sim/types';
 import {
@@ -49,11 +50,33 @@ function readTab(): TabId {
   return 'production';
 }
 
+/** Hand the save to the browser as a file: a copy that outlives cleared site data and moves between devices */
+function downloadSave() {
+  const d = new Date();
+  const two = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}`;
+  const url = URL.createObjectURL(new Blob([exportSave()], { type: 'text/plain' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `stellar-foundry-${stamp}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function SettingsPanel() {
   const [exported, setExported] = useState('');
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState(false);
   const [copied, setCopied] = useState(false);
+  const load = (text: string) => confirm('匯入會取代目前的進度，確定嗎？') && setImportError(!importSave(text));
+  const pickFile = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Cleared, so picking the same file again still counts as a change
+    input.value = '';
+    if (!file) return;
+    file.text().then(load, () => setImportError(true));
+  };
   return (
     <div class="panel">
       <PageHeader title="設定" />
@@ -61,6 +84,14 @@ function SettingsPanel() {
       <section class="card">
         <h3>存檔</h3>
         <p class="muted small">每 10 秒自動存到瀏覽器。關掉分頁後，最多會補算 {offlineCap(getState()) / 3600} 小時的離線產出。</p>
+        <div class="row">
+          <button onClick={downloadSave}>下載存檔檔案</button>
+          <label class="file-btn">
+            從檔案匯入
+            <input type="file" accept=".txt,text/plain" onChange={pickFile} />
+          </label>
+        </div>
+        <p class="muted small">清除瀏覽器資料或換裝置前，先下載一份。也可以用下面的字串複製貼上。</p>
         <div class="row">
           <button onClick={() => setExported(exportSave())}>匯出存檔字串</button>
           {exported && (
@@ -82,7 +113,7 @@ function SettingsPanel() {
           onInput={(e) => setImportText((e.target as HTMLTextAreaElement).value)}
         />
         <div class="row">
-          <button disabled={!importText.trim()} onClick={() => confirm('匯入會取代目前的進度，確定嗎？') && setImportError(!importSave(importText))}>匯入</button>
+          <button disabled={!importText.trim()} onClick={() => load(importText)}>匯入</button>
           {importError && <span class="tone-text-bad small">存檔字串無法讀取</span>}
         </div>
       </section>
@@ -312,7 +343,7 @@ function SignalModal() {
         <button class="choice" onClick={() => answerSignal('boost')}>
           <ItemIcon id="eu" size={32} />
           <strong>啟動遺物</strong>
-          <span class="small">整座工廠時間加速 ×2，持續 {BOOST_TIME} 秒</span>
+          <span class="small">整座工廠時間加速 ×2，持續 {boostTime(s.legacy.upgrades)} 秒</span>
         </button>
       </div>
     </Modal>
@@ -404,6 +435,12 @@ export function App() {
   useEffect(() => {
     if (ui.focusLine !== null && shown !== 'production') setTab('production');
   }, [ui.focusLine]);
+
+  // The browser tab says when something is waiting, for a player who left the game in the background
+  const waiting = s.paused ? '⏸ 已暫停 · ' : s.signal !== null ? '◈ 遺物訊號 · ' : unclaimedObjectives(s).length > 0 ? '✓ 目標完成 · ' : '';
+  useEffect(() => {
+    document.title = `${waiting}星燼工業 Stellar Foundry`;
+  }, [waiting]);
 
   // Number keys switch tabs on a keyboard
   useEffect(() => {

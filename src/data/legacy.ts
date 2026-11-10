@@ -15,6 +15,8 @@ export const LEGACY_LIST: LegacyDef[] = [
   { id: 'storage', name: '倉儲傳承', description: '所有物品容量 ×1.5。', max: 5, base: 4 },
   { id: 'kit', name: '開局補給', description: '每次開局帶著物資，等級越高帶越多、越後期。升級時這一輪也立刻拿到新的一份。', max: 5, base: 2 },
   { id: 'offline', name: '離線延長', description: '離線補算上限 +6 小時。', max: 4, base: 3 },
+  { id: 'relic', name: '遺物共鳴', description: '解析遺物得到的數據 +25%，啟動遺物的時間加速多 30 秒。', max: 4, base: 3 },
+  { id: 'orbit', name: '軌道傳承', description: '軌道槽位 +4（研究出軌道站之後生效）。', max: 5, base: 4 },
 ];
 
 export const LEGACY: Record<string, LegacyDef> = Object.fromEntries(LEGACY_LIST.map((l) => [l.id, l]));
@@ -45,3 +47,5 @@ export const FIRST_SIGNAL = 180;
 export const SIGNAL_LIFETIME = 90;
 /** Time-warp from a relic: x2 for this many seconds */
 export const BOOST_TIME = 120;
+/** With the 遺物共鳴 legacy: seconds a relic's time-warp lasts */
+export const boostTime = (upgrades: Record<string, number>) => BOOST_TIME + 30 * (upgrades.relic ?? 0);

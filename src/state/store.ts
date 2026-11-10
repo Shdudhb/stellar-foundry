@@ -2,7 +2,7 @@ import { ACHIEVEMENT_LIST } from '../data/achievements';
 import { GALAXIES, rollGalaxy } from '../data/galaxies';
 import { INCIDENT_INTERVAL, eligibleIncidents } from '../data/incidents';
 import { ITEMS, SWARM_ITEM, canVent, isPower } from '../data/items';
-import { BOOST_TIME, KIT_LEVELS, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
+import { KIT_LEVELS, boostTime, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
 import { OBJECTIVES, unclaimedObjectives } from '../data/objectives';
 import { MACHINES } from '../data/machines';
 import { RECIPES } from '../data/recipes';
@@ -692,7 +692,7 @@ function updateSignal() {
 
 /** Data a relic gives when analyzed: 4% of the tier's research */
 export function signalData(s: GameState): Record<string, number> {
-  const { item, n } = share(s, 0.04 * ((s.galaxy && GALAXIES[s.galaxy]?.signalMult) || 1));
+  const { item, n } = share(s, 0.04 * ((s.galaxy && GALAXIES[s.galaxy]?.signalMult) || 1) * (1 + 0.25 * (s.legacy.upgrades.relic ?? 0)));
   return { [item]: n };
 }
 
@@ -710,8 +710,9 @@ export function answerSignal(choice: 'data' | 'boost') {
       tone: 'good', title: '解析遺物', icon: Object.keys(reward)[0], sound: 'reward', log: true,
     });
   } else {
-    state.boostUntil = Math.max(state.boostUntil, state.playTime) + BOOST_TIME;
-    toast(`整座工廠 ×2，持續 ${BOOST_TIME} 秒`, { tone: 'good', title: '時間加速', icon: 'eu', sound: 'reward', log: true });
+    const secs = boostTime(state.legacy.upgrades);
+    state.boostUntil = Math.max(state.boostUntil, state.playTime) + secs;
+    toast(`整座工廠 ×2，持續 ${secs} 秒`, { tone: 'good', title: '時間加速', icon: 'eu', sound: 'reward', log: true });
   }
   state.stats.signals++;
   state.signal = null;
@@ -833,8 +834,11 @@ function scheduleIncident() {
 function startIncident() {
   const offer = traderOffer(state);
   // No research left to discount? Then a eureka is wasted
+  // Intermediates the player has some of: what a drifting container can top up
+  const parts = Object.keys(ITEMS).filter((i) => ITEMS[i].kind === 'intermediate' && (state.items[i] ?? 0) >= 1);
   const choices = eligibleIncidents(state).filter(
-    (d) => (d.id !== 'trader' || offer) && (d.id !== 'eureka' || TECH_LIST.some((t) => !state.techs.includes(t.id))),
+    (d) => (d.id !== 'trader' || offer) && (d.id !== 'eureka' || TECH_LIST.some((t) => !state.techs.includes(t.id)))
+      && (d.id !== 'salvage' || parts.length >= 3),
   );
   const total = choices.reduce((n, d) => n + d.weight, 0);
   let roll = Math.random() * total;
@@ -851,6 +855,12 @@ function startIncident() {
       got.push(d.name);
     }
     toast(`${got.slice(0, 4).join('、')}${got.length > 4 ? ' 等' : ''}各補進 25% 容量`, {
+      tone: 'good', title: def.name, icon: def.icon, sound: 'incident', log: true,
+    });
+  } else if (def.id === 'salvage') {
+    for (const item of parts) addItem(item, Math.ceil(capOf(state, item) * 0.1));
+    const names = parts.map((i) => ITEMS[i].name);
+    toast(`${names.slice(0, 4).join('、')}${names.length > 4 ? ` 等 ${names.length} 種` : ''}各補進 10% 容量`, {
       tone: 'good', title: def.name, icon: def.icon, sound: 'incident', log: true,
     });
   } else {

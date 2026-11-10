@@ -45,7 +45,11 @@ export function capOf(state: GameState, item: string): number {
 
 /** Ground and orbit are separate slot pools; orbit has none until the orbital station */
 export function slotsTotal(state: GameState, orbit = false): number {
-  if (orbit) return state.techs.reduce((s, id) => s + (TECHS[id]?.orbitSlotBonus ?? 0), 0);
+  if (orbit) {
+    const built = state.techs.reduce((s, id) => s + (TECHS[id]?.orbitSlotBonus ?? 0), 0);
+    // The legacy widens a station that exists; it doesn't put one in orbit
+    return built > 0 ? built + 4 * legacyLevel(state, 'orbit') : 0;
+  }
   return state.techs.reduce((s, id) => s + (TECHS[id]?.slotBonus ?? 0), BASE_SLOTS + 10 * legacyLevel(state, 'slots'));
 }
 

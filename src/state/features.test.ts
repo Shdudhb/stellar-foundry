@@ -1,12 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENT_LIST } from '../data/achievements';
 import { INCIDENTS, eligibleIncidents } from '../data/incidents';
 import { MILESTONES } from '../data/tech';
 import { tick } from '../sim/engine';
-import { capOf, categoryBoost, simSpeed, techCost } from '../sim/rules';
+import { capOf, categoryBoost, simSpeed, slotsTotal, techCost } from '../sim/rules';
 import { exportString, importString, newGame, parseSave } from './save';
 import {
-  acceptTrade, advance, build, buildMilestone, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, togglePause, traderOffer, warp, addLine, openPicker,
+  acceptTrade, advance, answerSignal, build, buildMilestone, checkAchievements, createLine, focusLine, gather, getState, getUi, importSave, openLookup, toggleVent, togglePause, traderOffer, signalData, warp, addLine, openPicker,
 } from './store';
 
 function load(patch: (s: ReturnType<typeof newGame>) => void) {
@@ -294,3 +294,48 @@ describe('coming back', () => {
     expect(said.text).toContain('500');
   });
 });
+
+describe('newer events and legacies', () => {
+  it('tops up the intermediates in stock when a container drifts by', () => {
+    load((s) => {
+      s.items = { gear: 10, iron_ingot: 5, copper_wire: 1, steel: 0.2 };
+      s.nextIncident = 1;
+      s.nextSignal = 1e9;
+    });
+    // The last of the events that can happen with no lines at all
+    const roll = vi.spyOn(Math, 'random').mockReturnValue(0.999);
+    advance(1.2);
+    roll.mockRestore();
+    const s = getState();
+    expect(s.incident?.id).toBe('salvage');
+    expect(s.items.gear).toBe(10 + Math.ceil(capOf(s, 'gear') * 0.1));
+    expect(s.items.copper_wire).toBe(1 + Math.ceil(capOf(s, 'copper_wire') * 0.1));
+    // Not one the player has only a trace of
+    expect(s.items.steel).toBe(0.2);
+  });
+
+  it('widens the orbit only once there is a station', () => {
+    const s = newGame({ points: 0, warps: 1, upgrades: { orbit: 2 } });
+    expect(slotsTotal(s, true)).toBe(0);
+    s.techs = ['orbital_station'];
+    const plain = slotsTotal({ ...s, legacy: { ...s.legacy, upgrades: {} } }, true);
+    expect(plain).toBeGreaterThan(0);
+    expect(slotsTotal(s, true)).toBe(plain + 8);
+  });
+
+  it('makes relics give more data and a longer boost', () => {
+    load((s) => {
+      s.techs = ['steam_power'];
+    });
+    const plain = signalData(getState()).data;
+    load((s) => {
+      s.techs = ['steam_power'];
+      s.legacy.upgrades = { relic: 4 };
+      s.signal = 100;
+    });
+    expect(signalData(getState()).data).toBeGreaterThan(plain * 1.8);
+    answerSignal('boost');
+    expect(getState().boostUntil).toBe(120 + 4 * 30);
+  });
+});
+
