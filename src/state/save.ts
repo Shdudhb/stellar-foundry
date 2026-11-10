@@ -1,3 +1,4 @@
+import { ITEMS } from '../data/items';
 import { GALAXIES } from '../data/galaxies';
 import { FIRST_INCIDENT, INCIDENTS } from '../data/incidents';
 import { KIT_LEVELS, FIRST_SIGNAL, LEGACY } from '../data/legacy';
@@ -158,6 +159,14 @@ function sanitize(s: GameState, base: GameState): void {
     s.nextRouteId = Math.max(Math.floor(num(s.nextRouteId, 1, 1)), ...routes.map((r) => r.id + 1));
   }
   s.nextLineId = Math.max(Math.floor(num(s.nextLineId, 1, 1)), ...[...seen].map((id) => id + 1));
+  if (s.ventAt !== undefined) {
+    const at: Record<string, number> = {};
+    for (const [k, v] of Object.entries(s.ventAt && typeof s.ventAt === 'object' ? s.ventAt : {})) {
+      if (ITEMS[k] && typeof v === 'number' && v > 0 && v < 1) at[k] = v;
+    }
+    if (Object.keys(at).length) s.ventAt = at;
+    else delete s.ventAt;
+  }
   if (s.paused !== undefined) s.paused = s.paused === true;
 }
 

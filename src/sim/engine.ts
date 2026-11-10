@@ -353,7 +353,9 @@ export function tick(state: GameState, dt: number): TickResult {
   for (const [item, d] of Object.entries(delta)) {
     const before = state.items[item] ?? 0;
     const unclamped = Math.max(0, before + d);
-    const after = Math.min(capOf(state, item), unclamped);
+    // A vented item with a level set is burned down to that level, not just kept from overflowing
+    const level = venting.has(item) ? state.ventAt?.[item] ?? 1 : 1;
+    const after = Math.min(capOf(state, item) * level, unclamped);
     state.items[item] = after;
     rates[item] = (after - before) / dt;
     if (unclamped - after > 1e-9) vented[item] = (unclamped - after) / dt;

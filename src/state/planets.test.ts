@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MACHINES } from '../data/machines';
-import { SHIP_COST, SHIP_FUEL, SHIP_RATE } from '../data/planets';
+import { SHIP_COST, SHIP_FUEL, SHIP_RATE, routeFuel } from '../data/planets';
 import { RECIPE_LIST, RECIPES } from '../data/recipes';
 import { MILESTONES, TECHS } from '../data/tech';
 import { allLines, atHome, enterPlanet, homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
@@ -157,6 +157,31 @@ describe('planets', () => {
     res = tickAll(s, 1);
     expect(s.items.comet_ice).toBeCloseTo(SHIP_RATE);
     expect(res.routes[1]).toMatchObject({ perSec: 0, reason: 'fuel' });
+  });
+
+  it('charges more fuel the farther the trip', () => {
+    expect(routeFuel('ice', 'home')).toBeCloseTo(SHIP_FUEL);
+    expect(routeFuel('home', 'lava')).toBeCloseTo(SHIP_FUEL * 2);
+    expect(routeFuel('ice', 'lava')).toBeCloseTo(SHIP_FUEL * 3);
+    const s = colony((g) => { g.techs.push('colony_expansion', 'lava_expedition'); g.items.rocket_fuel = 10; g.items.stone = 50; });
+    s.routes = [{ id: 1, item: 'stone', from: 'home', to: 'lava', ships: 1, enabled: true }];
+    tickAll(s, 1);
+    expect(s.items.rocket_fuel).toBeCloseTo(10 - SHIP_RATE * SHIP_FUEL * 2);
+  });
+
+  it('burns a vented item down to the level set for it', () => {
+    const s = newGame();
+    const cap = capOf(s, 'stone');
+    s.items.stone = cap * 0.9;
+    s.vent = ['stone'];
+    s.lines = [{ id: 1, machine: 'basic_drill', recipe: 'mine_stone', count: 1, enabled: true }];
+    tickAll(s, 1);
+    expect(s.items.stone).toBeGreaterThan(cap * 0.9);
+    s.ventAt = { stone: 0.5 };
+    const res = tickAll(s, 1);
+    expect(s.items.stone).toBeCloseTo(cap * 0.5);
+    expect(res.last.vented.stone).toBeGreaterThan(0);
+    expect(importString(exportString(s))!.ventAt).toEqual({ stone: 0.5 });
   });
 
   it('keeps a reserve at the source and stops when the destination has enough', () => {

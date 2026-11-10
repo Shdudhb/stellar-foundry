@@ -1,5 +1,5 @@
 // One step of the whole colony: every world's factory, then the cargo ships between them
-import { SHIP_FUEL, SHIP_FUEL_ITEM, SHIP_RATE } from '../data/planets';
+import { SHIP_FUEL_ITEM, SHIP_RATE, routeFuel } from '../data/planets';
 import { tick } from './engine';
 import { HOME, ensurePlanets, openPlanets, planetOf, storeOf, viewOf } from './planets';
 import { capOf } from './rules';
@@ -38,19 +38,20 @@ export function tickAll(state: GameState, dt: number): WorldResult {
     const stock = from.items[r.item] ?? 0;
     const have = Math.max(0, stock - (r.keep ?? 0) * cap);
     const room = Math.max(0, (r.upTo ?? 1) * cap - (to.items[r.item] ?? 0));
-    const fuelled = (home.items[SHIP_FUEL_ITEM] ?? 0) / SHIP_FUEL;
+    const per = routeFuel(r.from, r.to);
+    const fuelled = (home.items[SHIP_FUEL_ITEM] ?? 0) / per;
     const want = capacity * dt;
     const n = Math.max(0, Math.min(want, have, room, fuelled));
     if (n > 0) {
       from.items[r.item] = stock - n;
       to.items[r.item] = (to.items[r.item] ?? 0) + n;
-      home.items[SHIP_FUEL_ITEM] = Math.max(0, (home.items[SHIP_FUEL_ITEM] ?? 0) - n * SHIP_FUEL);
+      home.items[SHIP_FUEL_ITEM] = Math.max(0, (home.items[SHIP_FUEL_ITEM] ?? 0) - n * per);
       const out = byPlanet[r.from].rates;
       const into = byPlanet[r.to].rates;
       const burn = byPlanet[HOME].rates;
       out[r.item] = (out[r.item] ?? 0) - n / dt;
       into[r.item] = (into[r.item] ?? 0) + n / dt;
-      burn[SHIP_FUEL_ITEM] = (burn[SHIP_FUEL_ITEM] ?? 0) - (n * SHIP_FUEL) / dt;
+      burn[SHIP_FUEL_ITEM] = (burn[SHIP_FUEL_ITEM] ?? 0) - (n * per) / dt;
     }
     // The tightest of the things that held it back names the reason
     const least = Math.min(have, room, fuelled);
@@ -58,7 +59,7 @@ export function tickAll(state: GameState, dt: number): WorldResult {
       : least === fuelled ? 'fuel'
       : least === room ? ((r.upTo ?? 1) < 1 ? 'enough' : 'full')
       : (r.keep ?? 0) > 0 && stock > 1e-9 ? 'keep' : 'empty';
-    routes[r.id] = { perSec: n / dt, capacity, reason, fuel: (n * SHIP_FUEL) / dt };
+    routes[r.id] = { perSec: n / dt, capacity, reason, fuel: (n * per) / dt };
   }
 
   const here = byPlanet[planetOf(state)] ?? { lines: {}, power: {}, rates: {}, vented: {}, decayed: {} };

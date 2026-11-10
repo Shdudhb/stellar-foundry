@@ -35,7 +35,7 @@ import { OBJECTIVES, currentObjective } from '../src/data/objectives';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../src/data/recipes';
 import { MILESTONE_LIST, TECH_LIST, TIER_NAMES } from '../src/data/tech';
 import { fuelLines } from '../src/sim/engine';
-import { SHIP_COST, SHIP_FUEL, SHIP_FUEL_ITEM, SHIP_RATE } from '../src/data/planets';
+import { SHIP_COST, SHIP_FUEL_ITEM, SHIP_RATE, routeFuel } from '../src/data/planets';
 import { HOME, openPlanets, storeOf } from '../src/sim/planets';
 import { tickAll } from '../src/sim/world';
 import { EU_PER, primaryRecipe, price } from '../src/sim/balance';
@@ -274,7 +274,7 @@ function targets(): Record<string, number> {
   }
   add(buildWants, HORIZON / 3);
   // Ships burn rocket fuel at home for every item they carry
-  const shipping = (st.routes ?? []).reduce((n, r) => n + (r.enabled ? r.ships * SHIP_RATE * SHIP_FUEL : 0), 0);
+  const shipping = (st.routes ?? []).reduce((n, r) => n + (r.enabled ? r.ships * SHIP_RATE * routeFuel(r.from, r.to) : 0), 0);
   if (shipping > 0) want[SHIP_FUEL_ITEM] = (want[SHIP_FUEL_ITEM] ?? 0) + shipping * 1.25;
   add(saveFor, HORIZON);
   saveFor = {};
@@ -665,8 +665,12 @@ for (let sec = 0; sec < MAX_HOURS * 3600; sec++) {
     if (process.argv.includes('--debug-at=' + Math.floor(st.playTime / 60))) {
       console.log('targets', JSON.stringify(tg), '\ncrafts', JSON.stringify(crafts), '\nbuildWants', JSON.stringify(buildWants), '\nitems', JSON.stringify(st.items));
     }
-    ensureLines(crafts);
+    // Colonies first: a few machines there gate whole tiers (deuterium, ceramic), and home would spend the titanium
+    const forColonies = { ...buildWants };
     runColonies();
+    const fromColonies = { ...buildWants };
+    ensureLines(crafts);
+    for (const [i, n] of Object.entries(fromColonies)) if (n > (forColonies[i] ?? 0)) buildWants[i] = Math.max(buildWants[i] ?? 0, n);
     pauseIdle(crafts);
     shedLoad();
     upgradeWhenTight();

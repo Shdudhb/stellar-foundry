@@ -82,6 +82,8 @@ export interface GameState {
   others?: Record<string, PlanetStore>;
   routes?: Route[];
   nextRouteId?: number;
+  /** For vented items: burn down to this fraction of storage instead of only the overflow (0..1); unset = only when full */
+  ventAt?: Record<string, number>;
 }
 
 export interface Stats {

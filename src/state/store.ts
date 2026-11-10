@@ -5,7 +5,7 @@ import { ITEMS, SWARM_ITEM, canVent, isPower } from '../data/items';
 import { KIT_LEVELS, boostTime, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
 import { OBJECTIVES, unclaimedObjectives } from '../data/objectives';
 import { MACHINES } from '../data/machines';
-import { HOME, PLANETS, SHIP_COST, shippable } from '../data/planets';
+import { HOME, PLANETS, SHIP_COST, SHIP_FUEL_ITEM, shippable } from '../data/planets';
 import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS } from '../data/tech';
 import { mergeReports, simulateOffline, type OfflineReport } from '../sim/offline';
@@ -97,6 +97,7 @@ let last: TickResult = emptyTick();
 /** The latest step of every world, and of the cargo routes between them */
 let worlds: Record<string, TickResult> = {};
 let routeStatus: Record<number, RouteStatus> = {};
+let fuelWarned = false;
 /** Smoothed item rates, by world */
 const smooth: Record<string, Record<string, number>> = {};
 const ratesOf = (planet: string) => (smooth[planet] ??= {});
@@ -171,6 +172,10 @@ function step(dt: number) {
   last = world.last;
   worlds = world.byPlanet;
   routeStatus = world.routes;
+  // Say it once when the ships stop for want of fuel, and again only after they have flown in between
+  const dry = Object.values(routeStatus).some((r) => r.reason === 'fuel');
+  if (dry && !fuelWarned) toast('母星沒有火箭燃料，貨運航線全部停擺', { tone: 'bad', title: '航線停擺', icon: SHIP_FUEL_ITEM, log: true });
+  fuelWarned = dry;
   state.playTime += dt;
   // Research, relics and world events all happen at home, whichever world is in view
   atHome(state, () => {
@@ -694,6 +699,17 @@ export function openLookup(item: string | null) {
 export function toggleVent(item: string) {
   if (!canVent(item)) return;
   state.vent = state.vent.includes(item) ? state.vent.filter((i) => i !== item) : [...state.vent, item];
+  notify();
+}
+
+/** How much of a vented item to keep: a fraction of storage, or undefined to burn only the overflow */
+export function setVentLevel(item: string, level: number | undefined) {
+  if (!canVent(item)) return;
+  const at = { ...(state.ventAt ?? {}) };
+  if (level === undefined || !(level > 0 && level < 1)) delete at[item];
+  else at[item] = level;
+  if (Object.keys(at).length) state.ventAt = at;
+  else delete state.ventAt;
   notify();
 }
 

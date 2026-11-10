@@ -1,6 +1,6 @@
 // Cargo routes: ships that carry one item from one world's storage to another's
 import { itemName } from '../data/items';
-import { PLANETS, SHIP_COST, SHIP_FUEL, SHIP_FUEL_ITEM, SHIP_RATE, shippable } from '../data/planets';
+import { PLANETS, SHIP_COST, SHIP_FUEL, SHIP_FUEL_ITEM, SHIP_RATE, routeFuel, shippable } from '../data/planets';
 import { homeItems, openPlanets, planetOf, storeOf } from '../sim/planets';
 import { capOf } from '../sim/rules';
 import type { Route } from '../sim/types';
@@ -33,6 +33,7 @@ function RouteRules({ r }: { r: Route }) {
   };
   return (
     <div class="route-rules small">
+      <span class="muted" title="運費依距離計，從母星倉庫扣">運費 {Math.round(1 / routeFuel(r.from, r.to))} 個／1 燃料</span>
       <label>
         <span class="muted">{PLANETS[r.from].name}保留</span>
         <select value={String(r.keep ?? 0)} onChange={pick('keep')} aria-label="來源保留多少">
@@ -106,7 +107,7 @@ export function RoutesCard() {
       )}
       <p class="line-cost muted small">每艘船（每秒運 {SHIP_RATE} 個）：<Cost cost={SHIP_COST} /></p>
       <p class="line-cost muted small">
-        運費：每運 {Math.round(1 / SHIP_FUEL)} 個耗 1 <ItemLink id={SHIP_FUEL_ITEM} />，從母星倉庫扣（現有 {fmt(homeItems(s)[SHIP_FUEL_ITEM] ?? 0)}
+        運費：離母星每一段航程，每運 {Math.round(1 / SHIP_FUEL)} 個耗 1 <ItemLink id={SHIP_FUEL_ITEM} />，從母星倉庫扣（現有 {fmt(homeItems(s)[SHIP_FUEL_ITEM] ?? 0)}
         {burn > 0 ? `，航線每秒共燒 ${perSec(burn)}` : ''}）
       </p>
     </section>
