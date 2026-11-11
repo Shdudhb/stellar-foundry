@@ -163,7 +163,12 @@ function recipeFor(item: string): RecipeDef | undefined {
       return slots;
     };
     const perSlot = (r: RecipeDef) => 1 / slotsPer(r, 1 / r.outputs[item], 0);
-    const ranked = pool.filter(fuelOk).sort((a, b) => perSlot(b) - perSlot(a));
+    // A generator with no fuel chain (solar panels) only while it could carry the whole draw in two-fifths of
+    // the ground: under a bright star panels look best per slot, and then there is no room left for a factory
+    const draw = (last?.power[item]?.demand ?? 0) * 1.25;
+    const fits = (r: RecipeDef) => Object.keys(r.inputs).length > 0 || !!machineFor(r)?.orbital || !!r.planet || draw / perSlot(r) <= slotsTotal(s()) * 0.4;
+    const ok = pool.filter(fuelOk);
+    const ranked = (ok.some((r) => !fits(r)) && ok.some(fits) ? ok.filter(fits) : ok).sort((a, b) => perSlot(b) - perSlot(a));
     // A better generator that isn't standing yet and can't be paid for (the elevator needs what only orbit
     // makes, the reactor needs superconductors and a grid to light it): keep the working route and save up
     const standing = (r: RecipeDef) => s().lines.some((l) => l.recipe === r.id && l.count > 0);

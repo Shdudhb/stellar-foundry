@@ -264,8 +264,8 @@ const list: TechDef[] = [
   },
   {
     id: 'zoning_7', name: '區域規劃 VII', tier: 5, cost: { data_purple: 200 }, requires: ['ev_tech'],
-    description: '區域槽位再 +30。',
-    slotBonus: 30,
+    description: '區域槽位再 +40。',
+    slotBonus: 40,
   },
   {
     id: 'he3_collection', name: '氦-3 收集', tier: 5, cost: { data_purple: 200 }, requires: ['orbital_station'],
