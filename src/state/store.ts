@@ -1,5 +1,6 @@
 import { ACHIEVEMENT_LIST } from '../data/achievements';
 import { GALAXIES, STARS, rollSystems, type StarSystem } from '../data/galaxies';
+import { systemBonus } from '../sim/balance';
 import { INCIDENT_INTERVAL, eligibleIncidents } from '../data/incidents';
 import { ITEMS, SWARM_ITEM, canVent, isPower } from '../data/items';
 import { KIT_LEVELS, boostTime, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
@@ -840,7 +841,7 @@ export function warpChoices(): StarSystem[] {
 
 /** Legacy points for warping now: the gate and swarm, plus what this star is worth for being hard */
 export function warpEarnings(): number {
-  return warpPoints(homeItems(state)[SWARM_ITEM] ?? 0) + (STARS[state.system?.star ?? '']?.bonus ?? 0);
+  return warpPoints(homeItems(state)[SWARM_ITEM] ?? 0) + systemBonus(state.system);
 }
 
 /** Through the stargate to one of the systems in reach: a fresh run that keeps the legacy, plus points for this one */

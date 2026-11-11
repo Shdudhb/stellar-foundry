@@ -107,7 +107,7 @@ export interface StarDef {
   boost?: Record<string, number>;
   /** The same, in words */
   effect?: string;
-  /** Extra legacy points for building a stargate under it and warping on */
+  /** Extra legacy points for its dim light, on top of what the system's machine time earns (see systemBonus) */
   bonus: number;
   /** How often it turns up on the map */
   weight: number;
@@ -116,22 +116,22 @@ export interface StarDef {
 }
 
 export const STAR_LIST: StarDef[] = [
-  { id: 'red_dwarf', name: '紅矮星', cls: 'M', lum: 0.7, bonus: 1, weight: 5, color: '#e0664a', text: '又小又暗，到處都是。' },
+  { id: 'red_dwarf', name: '紅矮星', cls: 'M', lum: 0.7, bonus: 0, weight: 5, color: '#e0664a', text: '又小又暗，到處都是。' },
   { id: 'orange_dwarf', name: '橙矮星', cls: 'K', lum: 0.85, bonus: 0, weight: 4, color: '#f0a04b', text: '比母星的太陽暗一點。' },
   { id: 'yellow_dwarf', name: '黃矮星', cls: 'G', lum: 1, bonus: 0, weight: 4, color: '#f5d76e', text: '和出發時的太陽一樣。' },
   { id: 'white_star', name: '白主序星', cls: 'A', lum: 1.3, bonus: 0, weight: 3, color: '#e8f0ff', text: '明亮穩定，適合鋪太陽能。' },
   { id: 'red_giant', name: '紅巨星', cls: 'M 巨星', lum: 1.5, bonus: 0, weight: 1, color: '#ff7a59', text: '垂死的恆星，膨脹得很大。' },
   { id: 'blue_giant', name: '藍巨星', cls: 'O', lum: 2, bonus: 0, weight: 1, color: '#7fb4ff', text: '星域裡最亮的恆星，戴森群的首選。' },
   {
-    id: 'white_dwarf', name: '白矮星', cls: 'D', lum: 0.8, bonus: 1, weight: 1, color: '#cfd8e6',
+    id: 'white_dwarf', name: '白矮星', cls: 'D', lum: 0.8, bonus: 0, weight: 1, color: '#cfd8e6',
     text: '恆星的餘燼，周圍的氦與氘特別純。', boost: { fusion: 1.3 }, effect: '聚變反應 ×1.3',
   },
   {
-    id: 'neutron_star', name: '中子星', cls: 'N', lum: 0.6, bonus: 2, weight: 1, color: '#9fe8ff',
+    id: 'neutron_star', name: '中子星', cls: 'N', lum: 0.6, bonus: 1, weight: 1, color: '#9fe8ff',
     text: '幾乎不發光，但中子物質隨手可得。', boost: { neutron: 1.5 }, effect: '中子壓縮 ×1.5',
   },
   {
-    id: 'black_hole', name: '黑洞', cls: 'X', lum: 0.4, bonus: 3, weight: 1, color: '#8f7ae6',
+    id: 'black_hole', name: '黑洞', cls: 'X', lum: 0.4, bonus: 2, weight: 1, color: '#8f7ae6',
     text: '只有吸積盤的微光。扭曲的時空讓對撞機和穩定器事半功倍。', boost: { collider: 1.5, stabilizer: 1.5 }, effect: '粒子對撞機、時空穩定器 ×1.5',
   },
 ];

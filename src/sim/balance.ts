@@ -1,5 +1,6 @@
 // Rough economics for balancing: prices every item through one main recipe.
 // Used by scripts/balance.ts (the report) and balance.test.ts (the pacing invariants).
+import { GALAXIES, STARS, systemBoost, type StarSystem } from '../data/galaxies';
 import { DEFAULT_CAP, ITEMS, isPower } from '../data/items';
 import { MACHINE_LIST } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
@@ -124,3 +125,45 @@ export function costsOverCap(): string[] {
   for (const m of MACHINE_LIST) check(`machine ${m.name}`, Math.max(1, m.tier), m.cost);
   return over;
 }
+
+// ---------- star systems ----------
+
+let shares: Record<string, number> | null = null;
+
+/** Machine-seconds the whole game (every research and milestone, on base machines) spends in each recipe category */
+export function categoryShares(): Record<string, number> {
+  if (shares) return shares;
+  const out: Record<string, number> = {};
+  const walking = new Set<string>();
+  const spread = (item: string, n: number) => {
+    const r = primaryRecipe(item);
+    // Loops (salt ⇄ sodium) are walked once
+    if (!r || isPower(item) || walking.has(item)) return;
+    walking.add(item);
+    const crafts = n / r.outputs[item];
+    out[r.category] = (out[r.category] ?? 0) + crafts * r.time;
+    for (const [i, k] of Object.entries(r.inputs)) spread(i, crafts * k);
+    walking.delete(item);
+  };
+  for (const t of TECH_LIST) for (const [i, n] of Object.entries(t.cost)) spread(i, n);
+  for (const m of MILESTONE_LIST) for (const [i, n] of Object.entries({ ...m.cost, ...(m.holds ?? {}) })) spread(i, n);
+  return (shares = out);
+}
+
+/** Machine time the same game takes in this system next to the first one: the same goods at 1/boost the speed
+ *  need 1/boost more machine-seconds. Power is not in it. */
+export function systemStretch(sys: StarSystem | null | undefined): number {
+  if (!sys) return 1;
+  const share = categoryShares();
+  const total = Object.values(share).reduce((a, b) => a + b, 0);
+  const trait = sys.trait ? GALAXIES[sys.trait]?.boost : undefined;
+  return Object.entries(share).reduce((sum, [c, n]) => sum + n / ((trait?.[c] ?? 1) * systemBoost(sys, c)), 0) / total;
+}
+
+/** Extra legacy points for building a stargate here and warping on: one for every 5% of extra machine time,
+ *  plus what the star is worth for its dim light (less helium-3, a weaker swarm), which machine time doesn't show */
+export function systemBonus(sys: StarSystem | null | undefined): number {
+  if (!sys) return 0;
+  return (STARS[sys.star]?.bonus ?? 0) + Math.max(0, Math.round((systemStretch(sys) - 1) * 20));
+}
+

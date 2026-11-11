@@ -4,6 +4,7 @@ import { RECIPE_LIST } from '../data/recipes';
 import { SWARM_ITEM } from '../data/items';
 import { LEGACY_LIST, legacyCost } from '../data/legacy';
 import { homeItems, openPlanets } from '../sim/planets';
+import { systemBonus, systemStretch } from '../sim/balance';
 import { simSpeed } from '../sim/rules';
 import { buyLegacy, getState, warp, warpChoices, warpEarnings } from '../state/store';
 import { PageHeader, fmtNum } from './common';
@@ -17,6 +18,8 @@ const HAS_CATEGORY = new Set<string>(RECIPE_LIST.map((r) => r.category));
 function SystemCard({ sys, children, now }: { sys: StarSystem; children?: preact.ComponentChildren; now?: boolean }) {
   const star = STARS[sys.star];
   const trait = sys.trait ? GALAXIES[sys.trait] : null;
+  const stretch = systemStretch(sys);
+  const bonus = systemBonus(sys);
   // On the map every world is listed; in the system you are in, the ones not reached yet stay unnamed
   const known = now ? new Set(openPlanets(getState())) : null;
   return (
@@ -33,6 +36,9 @@ function SystemCard({ sys, children, now }: { sys: StarSystem; children?: preact
         <li title={`影響：太陽能、太陽風、聚光陣列，以及每片戴森板的電力（${LIGHT_CATEGORIES.filter((c) => HAS_CATEGORY.has(c)).length} 類機器）`}>
           <span>☀ 光度</span><strong class={tone(star.lum)}>{times(star.lum)}</strong>
         </li>
+        <li title="同樣的東西在這裡要花的機器工時，和出發的恆星系相比（不含發電）。越低越輕鬆">
+          <span>⏱ 整體工時</span><strong class={tone(1 / stretch)}>{times(stretch)}</strong>
+        </li>
         {Object.entries(VEINS).map(([p, v]) => (
           <li key={p}>
             <span><ItemIcon id={PLANETS[p].icon} size={16} /> {known && !known.has(p) ? '未探索的星球' : `${PLANETS[p].name}${v.what}`}</span>
@@ -44,7 +50,7 @@ function SystemCard({ sys, children, now }: { sys: StarSystem; children?: preact
       {trait && (
         <p class="small system-trait"><ItemIcon id={trait.icon} size={16} /> <strong>{trait.name}</strong>：{trait.text}</p>
       )}
-      {star.bonus > 0 && <p class="small tone-text-ok">在這裡建成星門再躍遷，多拿 {star.bonus} 遺產點。</p>}
+      {bonus > 0 && <p class="small tone-text-ok">越難的恆星系越值錢：在這裡建成星門再躍遷，多拿 {bonus} 遺產點。</p>}
       {children}
     </article>
   );
@@ -147,7 +153,7 @@ export function LegacyPanel() {
           <>
             <p>
               穿過星門，到新的恆星系從墜毀營地重新開始，帶走 <strong>{earn}</strong> 遺產點。
-              <span class="muted small"> 星門 10 點，戴森群超過 600 片後每 50 片再 +1（下一點在 {nextBonus} 片）{s.system && STARS[s.system.star]?.bonus ? `；這顆${STARS[s.system.star].name}再 +${STARS[s.system.star].bonus}` : ''}。</span>
+              <span class="muted small"> 星門 10 點，戴森群超過 600 片後每 50 片再 +1（下一點在 {nextBonus} 片）{systemBonus(s.system) > 0 ? `；這個恆星系再 +${systemBonus(s.system)}` : ''}。</span>
             </p>
             <p class="small muted">星門搆得到這三個恆星系。挑一個：</p>
             <StarMap here={s.system ?? null} choices={choices} />
