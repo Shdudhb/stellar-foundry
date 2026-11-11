@@ -1,7 +1,7 @@
 import { DECAYING_ITEMS, ITEMS, POWER_ORDER, SWARM_EU, SWARM_ITEM, isPower } from '../data/items';
 import { MACHINES, MAINTENANCE_ITEM } from '../data/machines';
 import { RECIPES } from '../data/recipes';
-import { capOf, categoryBoost, overclock } from './rules';
+import { capOf, categoryBoost, overclock, starLum } from './rules';
 import type { GameState, Line, LineStatus, PowerStatus, Reason, TickResult } from './types';
 
 /** A fully worn machine runs at this fraction of its speed */
@@ -194,6 +194,18 @@ export function tick(state: GameState, dt: number): TickResult {
         a.reason = { kind: 'output', item };
       }
     }
+    // The line's own reserve: it leaves that much of every input in storage
+    if (a.line.reserve !== undefined && a.line.reserve > 0) {
+      for (const [item, n] of Object.entries(r.inputs)) {
+        if (isPower(item)) continue;
+        const spare = Math.max(0, (state.items[item] ?? 0) - a.line.reserve * capOf(state, item));
+        const ratio = Math.min(1, spare / (a.potential * n));
+        if (ratio < a.f) {
+          a.f = ratio;
+          a.reason = { kind: 'reserve', item };
+        }
+      }
+    }
     // The line's own stock limit: make only what brings the main output back up to it
     const main = limitedItem(a.line);
     if (main) {
@@ -216,7 +228,7 @@ export function tick(state: GameState, dt: number): TickResult {
   const load: Record<string, number> = {};
   for (const p of POWER_ORDER) demand[p] = firstDemand[p] = freeSupply[p] = fuelCapacity[p] = 0;
   // The Dyson swarm is free EU, like solar that takes no slots
-  freeSupply.eu += (state.items[SWARM_ITEM] ?? 0) * SWARM_EU;
+  freeSupply.eu += (state.items[SWARM_ITEM] ?? 0) * SWARM_EU * starLum(state);
   for (const a of active) {
     if (!a.powerItem) continue;
     demand[a.powerItem] += a.powerDraw * a.f;
@@ -341,7 +353,9 @@ export function tick(state: GameState, dt: number): TickResult {
   for (const [item, d] of Object.entries(delta)) {
     const before = state.items[item] ?? 0;
     const unclamped = Math.max(0, before + d);
-    const after = Math.min(capOf(state, item), unclamped);
+    // A vented item with a level set is burned down to that level, not just kept from overflowing
+    const level = venting.has(item) ? state.ventAt?.[item] ?? 1 : 1;
+    const after = Math.min(capOf(state, item) * level, unclamped);
     state.items[item] = after;
     rates[item] = (after - before) / dt;
     if (unclamped - after > 1e-9) vented[item] = (unclamped - after) / dt;

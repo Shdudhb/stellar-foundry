@@ -1,11 +1,12 @@
 import { ACHIEVEMENT_LIST } from '../data/achievements';
-import { GALAXIES, rollGalaxy } from '../data/galaxies';
+import { GALAXIES, STARS, rollSystems, type StarSystem } from '../data/galaxies';
+import { systemBonus } from '../sim/balance';
 import { INCIDENT_INTERVAL, eligibleIncidents } from '../data/incidents';
 import { ITEMS, SWARM_ITEM, canVent, isPower } from '../data/items';
 import { KIT_LEVELS, boostTime, LEGACY, SIGNAL_INTERVAL, SIGNAL_LIFETIME, legacyCost, warpPoints } from '../data/legacy';
 import { OBJECTIVES, unclaimedObjectives } from '../data/objectives';
 import { MACHINES } from '../data/machines';
-import { HOME, PLANETS, SHIP_COST, shippable } from '../data/planets';
+import { HOME, PLANETS, SHIP_COST, SHIP_FUEL_ITEM, shippable } from '../data/planets';
 import { RECIPES } from '../data/recipes';
 import { MILESTONES, TECH_LIST, TECHS } from '../data/tech';
 import { mergeReports, simulateOffline, type OfflineReport } from '../sim/offline';
@@ -83,6 +84,7 @@ export interface UiState {
   recipeLine: number | null;
   /** The new-route window is open */
   routePicker: boolean;
+  overview: boolean;
   /** The game was opened in another tab after this one: this tab has stopped, so the two don't overwrite each other */
   superseded: boolean;
   toasts: Toast[];
@@ -97,6 +99,7 @@ let last: TickResult = emptyTick();
 /** The latest step of every world, and of the cargo routes between them */
 let worlds: Record<string, TickResult> = {};
 let routeStatus: Record<number, RouteStatus> = {};
+let fuelWarned = false;
 /** Smoothed item rates, by world */
 const smooth: Record<string, Record<string, number>> = {};
 const ratesOf = (planet: string) => (smooth[planet] ??= {});
@@ -106,7 +109,7 @@ const clearRates = () => {
   routeStatus = {};
 };
 const ui: UiState = {
-  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null, routePicker: false, superseded: false,
+  lookupItem: null, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false, intro: false, focusLine: null, picker: false, pickerQuery: '', goto: null, recipeLine: null, routePicker: false, overview: false, superseded: false,
   toasts: [], log: [],
 };
 const listeners = new Set<() => void>();
@@ -119,6 +122,8 @@ export const getState = () => state;
 export const getLast = () => last;
 /** Smoothed net change per second of each item, on the world in view unless another is named */
 export const getRates = (planet = planetOf(state)) => ratesOf(planet);
+/** The last tick of one world, for looking in on it from another */
+export const getWorld = (planet: string): TickResult | undefined => worlds[planet];
 export const getRouteStatus = (id: number): RouteStatus | undefined => routeStatus[id];
 export const getUi = () => ui;
 export const getHistory = () => history;
@@ -171,6 +176,10 @@ function step(dt: number) {
   last = world.last;
   worlds = world.byPlanet;
   routeStatus = world.routes;
+  // Say it once when the ships stop for want of fuel, and again only after they have flown in between
+  const dry = Object.values(routeStatus).some((r) => r.reason === 'fuel');
+  if (dry && !fuelWarned) toast('母星沒有火箭燃料，貨運航線全部停擺', { tone: 'bad', title: '航線停擺', icon: SHIP_FUEL_ITEM, log: true });
+  fuelWarned = dry;
   state.playTime += dt;
   // Research, relics and world events all happen at home, whichever world is in view
   atHome(state, () => {
@@ -252,7 +261,7 @@ function catchUp(seconds: number) {
 
 /** Windows and shortcuts that point into a run that is no longer there */
 function resetUi() {
-  Object.assign(ui, { lookupItem: null, picker: false, pickerQuery: '', focusLine: null, goto: null, recipeLine: null, routePicker: false, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
+  Object.assign(ui, { lookupItem: null, picker: false, pickerQuery: '', focusLine: null, goto: null, recipeLine: null, routePicker: false, overview: false, offlineReport: null, milestoneModal: null, signalOpen: false, tradeOpen: false });
   acc = 0;
   historyAcc = 0;
 }
@@ -450,6 +459,11 @@ export function focusLine(id: number | null) {
   notify();
 }
 
+export function openOverview(open: boolean) {
+  ui.overview = open && openPlanets(state).length > 1;
+  notify();
+}
+
 export function openRoutePicker(open: boolean) {
   ui.routePicker = open;
   notify();
@@ -607,6 +621,16 @@ export function setLineLimit(lineId: number, limit: number | undefined) {
   notify();
 }
 
+/** How much of each input the line leaves in storage, as a fraction of its cap */
+export function setLineReserve(lineId: number, reserve: number | undefined) {
+  const line = state.lines.find((l) => l.id === lineId);
+  if (!line) return;
+  if (reserve === undefined || !(reserve > 0 && reserve < 1)) delete line.reserve;
+  else line.reserve = reserve;
+  emit('click');
+  notify();
+}
+
 export function research(techId: string) {
   const t = TECHS[techId];
   if (!t || !techAvailable(state, techId)) return;
@@ -684,6 +708,17 @@ export function openLookup(item: string | null) {
 export function toggleVent(item: string) {
   if (!canVent(item)) return;
   state.vent = state.vent.includes(item) ? state.vent.filter((i) => i !== item) : [...state.vent, item];
+  notify();
+}
+
+/** How much of a vented item to keep: a fraction of storage, or undefined to burn only the overflow */
+export function setVentLevel(item: string, level: number | undefined) {
+  if (!canVent(item)) return;
+  const at = { ...(state.ventAt ?? {}) };
+  if (level === undefined || !(level > 0 && level < 1)) delete at[item];
+  else at[item] = level;
+  if (Object.keys(at).length) state.ventAt = at;
+  else delete state.ventAt;
   notify();
 }
 
@@ -797,22 +832,36 @@ export function buyLegacy(id: string) {
   checkAchievements();
 }
 
-/** Through the stargate: a fresh run that keeps the legacy, plus points for this one */
-export function warp() {
+/** Where the stargate can go; rolled once and kept with the save */
+export function warpChoices(): StarSystem[] {
+  if (!state.milestones.includes('stargate')) return [];
+  if (!state.warpChoices?.length) state.warpChoices = rollSystems(state.galaxy);
+  return state.warpChoices;
+}
+
+/** Legacy points for warping now: the gate and swarm, plus what this star is worth for being hard */
+export function warpEarnings(): number {
+  return warpPoints(homeItems(state)[SWARM_ITEM] ?? 0) + systemBonus(state.system);
+}
+
+/** Through the stargate to one of the systems in reach: a fresh run that keeps the legacy, plus points for this one */
+export function warp(choice = 0) {
   if (!state.milestones.includes('stargate')) return;
-  const earned = warpPoints(homeItems(state)[SWARM_ITEM] ?? 0);
+  const system = warpChoices()[choice];
+  if (!system) return;
+  const earned = warpEarnings();
   const legacy = { ...state.legacy, points: state.legacy.points + earned, warps: state.legacy.warps + 1 };
   const maintenance = state.maintenance;
-  const galaxy = rollGalaxy(state.galaxy);
   state = newGame(legacy, state);
   state.maintenance = maintenance;
-  state.galaxy = galaxy;
+  state.system = system;
+  state.galaxy = system.trait;
   history.length = 0;
   last = emptyTick();
   clearRates();
   resetUi();
   persist();
-  toast(`抵達第 ${legacy.warps + 1} 個星系「${GALAXIES[galaxy].name}」，獲得 ${earned} 遺產點`, { tone: 'good', title: '躍遷完成', icon: 'dyson_swarm', sound: 'warp', log: true });
+  toast(`抵達第 ${legacy.warps + 1} 個星系「${system.name}」（${STARS[system.star].name}），獲得 ${earned} 遺產點`, { tone: 'good', title: '躍遷完成', icon: 'dyson_swarm', sound: 'warp', log: true });
   checkAchievements();
 }
 
@@ -848,9 +897,10 @@ export function importSave(text: string): boolean {
 /** Start this run over; the legacy from earlier warps is kept */
 export function resetGame() {
   clearLocal();
-  const galaxy = state.galaxy;
+  const { galaxy, system } = state;
   state = newGame(state.legacy, state);
   state.galaxy = galaxy;
+  state.system = system;
   last = emptyTick();
   history.length = 0;
   clearRates();
@@ -1021,6 +1071,20 @@ export function toggleRoute(routeId: number) {
   const r = routeOf(routeId);
   if (!r) return;
   r.enabled = !r.enabled;
+  emit('click');
+  notify();
+}
+
+/** A route's conditions: what the source keeps, and how full the destination gets (fractions of storage) */
+export function setRouteRule(routeId: number, rule: { keep?: number | null; upTo?: number | null }) {
+  const r = routeOf(routeId);
+  if (!r) return;
+  for (const k of ['keep', 'upTo'] as const) {
+    const v = rule[k];
+    if (v === undefined) continue;
+    if (v === null || !(v > 0 && v < 1)) delete r[k];
+    else r[k] = v;
+  }
   emit('click');
   notify();
 }

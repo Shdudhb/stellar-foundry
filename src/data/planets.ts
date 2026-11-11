@@ -18,24 +18,36 @@ export interface PlanetDef {
   slots: number;
   /** What the top bar shows there; the home world picks by tier instead */
   keyItems: string[];
+  /** How far out it is, in hops from the home world; a trip burns fuel for every hop */
+  distance: number;
 }
 
 export const HOME = 'home';
 
 export const PLANET_LIST: PlanetDef[] = [
   {
-    id: HOME, name: '母星', icon: 'stone', slots: 0, keyItems: [],
+    id: HOME, name: '母星', icon: 'stone', slots: 0, keyItems: [], distance: 0,
     text: '迫降的那顆岩石行星。研究、巨構和所有建造材料都從這裡的倉庫出。',
   },
   {
-    id: 'ice', name: '冰衛星', icon: 'comet_ice', unlockMilestone: 'colony_ship', slots: 12,
+    id: 'ice', name: '冰衛星', icon: 'comet_ice', unlockMilestone: 'colony_ship', slots: 12, distance: 1,
     keyItems: ['comet_ice', 'deuterium', 'oxygen', 'maintenance_kit'],
     text: '殖民船抵達的冰封衛星。冰層底下全是彗星冰，地熱是唯一的電力來源。它有自己的倉庫和電網，東西要靠貨運船來回。',
   },
   {
-    id: 'lava', name: '熔岩星', icon: 'magma', unlockTech: 'lava_expedition', slots: 16,
-    keyItems: ['magma', 'iron_ingot', 'copper_ingot', 'tungsten'],
-    text: '地殼還沒冷卻的行星。岩漿抽上來就能直接鑄成鐵、銅和鎢，省掉母星整條冶煉線；岩漿也拿來發電。',
+    id: 'lava', name: '熔岩星', icon: 'magma', unlockTech: 'lava_expedition', slots: 16, distance: 2,
+    keyItems: ['magma', 'heat_ceramic', 'tungsten', 'iridium'],
+    text: '地殼還沒冷卻的行星。只有這裡燒得出耐熱陶瓷，中子素壓縮機、戴森群和星門都少不了它；岩漿還能直接鑄成鐵、銅、鎢和銥，也拿來發電。',
+  },
+  {
+    id: 'gas', name: '氣態巨星', icon: 'metallic_hydrogen', unlockTech: 'gas_giant_station', slots: 12, distance: 3,
+    keyItems: ['metallic_hydrogen', 'helium_3'],
+    text: '風暴永不停歇的氣態巨行星。大氣深處壓得出金屬氫，粒子對撞機和星門都要用；這裡的氦-3 也比母星軌道好採，電力全靠風暴渦輪。',
+  },
+  {
+    id: 'crystal', name: '晶簇星', icon: 'resonant_crystal', unlockTech: 'crystal_survey', slots: 12, distance: 4,
+    keyItems: ['crystal_shard', 'resonant_crystal', 'wafer'],
+    text: '整顆星球長滿晶簇的近日行星。只有這裡養得出共振晶體，時空穩定器和星門都少不了；晶屑還能直接切成矽晶圓，電力靠聚光陣列。',
   },
 ];
 
@@ -50,3 +62,8 @@ export const shippable = (item: string): boolean => {
 };
 
 export const SHIP_RATE = 2;
+/** Flying costs fuel: rocket fuel from the home storage per item carried (one unit per 20 items) */
+export const SHIP_FUEL_ITEM = 'rocket_fuel';
+export const SHIP_FUEL = 0.05;
+/** Fuel per item on a route: every hop out from home and back in costs the base rate (ice 1, lava 2, ice ⇄ lava 3) */
+export const routeFuel = (from: string, to: string): number => SHIP_FUEL * Math.max(1, (PLANETS[from]?.distance ?? 0) + (PLANETS[to]?.distance ?? 0));

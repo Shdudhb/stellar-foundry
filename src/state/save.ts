@@ -1,4 +1,5 @@
-import { GALAXIES } from '../data/galaxies';
+import { ITEMS } from '../data/items';
+import { GALAXIES, STARS, VEINS, type StarSystem } from '../data/galaxies';
 import { FIRST_INCIDENT, INCIDENTS } from '../data/incidents';
 import { KIT_LEVELS, FIRST_SIGNAL, LEGACY } from '../data/legacy';
 import { OBJECTIVES } from '../data/objectives';
@@ -76,6 +77,18 @@ function sanitize(s: GameState, base: GameState): void {
   s.savedAt = num(s.savedAt, base.savedAt);
   s.signal = isNum(s.signal) ? s.signal : null;
   s.galaxy = typeof s.galaxy === 'string' && GALAXIES[s.galaxy] ? s.galaxy : null;
+  const system = (x: unknown): StarSystem | null => {
+    const y = x as StarSystem | null;
+    if (!y || typeof y !== 'object' || typeof y.name !== 'string' || !STARS[y.star]) return null;
+    const rich: Record<string, number> = {};
+    for (const p of Object.keys(VEINS)) rich[p] = Math.min(3, Math.max(0.25, num((y.rich ?? {})[p], 1)));
+    return { name: y.name.slice(0, 40), star: y.star, trait: typeof y.trait === 'string' && GALAXIES[y.trait] ? y.trait : null, rich };
+  };
+  s.system = system(s.system);
+  if (s.system) s.galaxy = s.system.trait;
+  else delete s.system;
+  s.warpChoices = Array.isArray(s.warpChoices) ? s.warpChoices.map(system).filter((x): x is StarSystem => !!x && !!x.trait) : [];
+  if (s.warpChoices.length === 0) delete s.warpChoices;
   const inc = s.incident;
   s.incident = inc && typeof inc === 'object' && INCIDENTS[inc.id] && isNum(inc.until) ? inc : null;
   const offer = s.incident?.offer;
@@ -147,12 +160,25 @@ function sanitize(s: GameState, base: GameState): void {
       if (!r || typeof r !== 'object' || !Number.isInteger(r.id) || ids.has(r.id)) continue;
       if (typeof r.item !== 'string' || !PLANETS[r.from] || !PLANETS[r.to] || r.from === r.to) continue;
       ids.add(r.id);
-      routes.push({ id: r.id, item: r.item, from: r.from, to: r.to, ships: Math.floor(num(r.ships, 0)), enabled: r.enabled !== false });
+      const frac = (v: unknown) => (typeof v === 'number' && v > 0 && v < 1 ? v : undefined);
+      routes.push({
+        id: r.id, item: r.item, from: r.from, to: r.to, ships: Math.floor(num(r.ships, 0)), enabled: r.enabled !== false,
+        ...(frac(r.keep) !== undefined ? { keep: frac(r.keep) } : {}),
+        ...(frac(r.upTo) !== undefined ? { upTo: frac(r.upTo) } : {}),
+      });
     }
     s.routes = routes;
     s.nextRouteId = Math.max(Math.floor(num(s.nextRouteId, 1, 1)), ...routes.map((r) => r.id + 1));
   }
   s.nextLineId = Math.max(Math.floor(num(s.nextLineId, 1, 1)), ...[...seen].map((id) => id + 1));
+  if (s.ventAt !== undefined) {
+    const at: Record<string, number> = {};
+    for (const [k, v] of Object.entries(s.ventAt && typeof s.ventAt === 'object' ? s.ventAt : {})) {
+      if (ITEMS[k] && typeof v === 'number' && v > 0 && v < 1) at[k] = v;
+    }
+    if (Object.keys(at).length) s.ventAt = at;
+    else delete s.ventAt;
+  }
   if (s.paused !== undefined) s.paused = s.paused === true;
 }
 
@@ -186,6 +212,7 @@ function migrate(raw: any): GameState {
   for (const o of Object.values(s.others ?? {})) o.lines = keep(o.lines);
   for (const l of [s.lines, ...Object.values(s.others ?? {}).map((o) => o.lines)].flat()) {
     if (l.limit !== undefined && !(l.limit > 0 && l.limit < 1)) delete l.limit;
+    if (l.reserve !== undefined && !(l.reserve > 0 && l.reserve < 1)) delete l.reserve;
   }
   if (s.queue !== undefined) s.queue = Array.isArray(s.queue) ? s.queue.filter((q) => typeof q === 'string' && TECHS[q]) : [];
   s.version = SAVE_VERSION;

@@ -16,6 +16,8 @@ export const LEGACY_LIST: LegacyDef[] = [
   { id: 'kit', name: '開局補給', description: '每次開局帶著物資，等級越高帶越多、越後期。升級時這一輪也立刻拿到新的一份。', max: 5, base: 2 },
   { id: 'offline', name: '離線延長', description: '離線補算上限 +6 小時。', max: 4, base: 3 },
   { id: 'relic', name: '遺物共鳴', description: '解析遺物得到的數據 +25%，啟動遺物的時間加速多 30 秒。', max: 4, base: 3 },
+  { id: 'colony', name: '殖民傳承', description: '每顆殖民星球的槽位 +4。', max: 5, base: 4 },
+  { id: 'freight', name: '航運傳承', description: '每艘貨運船的載量 +25%。', max: 4, base: 3 },
   { id: 'orbit', name: '軌道傳承', description: '軌道槽位 +4（研究出軌道站之後生效）。', max: 5, base: 4 },
 ];
 

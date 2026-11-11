@@ -1,3 +1,4 @@
+import type { StarSystem } from '../data/galaxies';
 export interface Line {
   id: number;
   machine: string;
@@ -10,6 +11,8 @@ export interface Line {
   heat?: number;
   /** Stop making the main output once its stock reaches this fraction of storage (0..1); unset = no limit */
   limit?: number;
+  /** Leave this fraction of storage of each input untouched, for other lines and for ships (0..1); unset = use it all */
+  reserve?: number;
 }
 
 /** What a world other than the one in view holds while the player is elsewhere */
@@ -27,6 +30,10 @@ export interface Route {
   to: string;
   ships: number;
   enabled: boolean;
+  /** Only carry what the source holds above this fraction of its storage (0..1); unset = take everything */
+  keep?: number;
+  /** Stop once the destination holds this fraction of its storage (0..1); unset = fill it up */
+  upTo?: number;
 }
 
 export interface GameState {
@@ -56,6 +63,10 @@ export interface GameState {
   stats: Stats;
   /** Trait of the current galaxy (none in the first) */
   galaxy: string | null;
+  /** The star system this run is in (none in the first): its star and how rich its worlds are */
+  system?: StarSystem | null;
+  /** Systems the stargate can reach, rolled once it stands so reloading can't reroll them */
+  warpChoices?: StarSystem[];
   /** The world event happening now, if any */
   incident: Incident | null;
   /** playTime when the next world event starts */
@@ -76,6 +87,8 @@ export interface GameState {
   others?: Record<string, PlanetStore>;
   routes?: Route[];
   nextRouteId?: number;
+  /** For vented items: burn down to this fraction of storage instead of only the overflow (0..1); unset = only when full */
+  ventAt?: Record<string, number>;
 }
 
 export interface Stats {
@@ -109,6 +122,8 @@ export type Reason =
   | { kind: 'load' }
   /** Held back by the line's own stock limit on its main output */
   | { kind: 'limit'; item: string }
+  /** Held back by the line's own reserve on one of its inputs */
+  | { kind: 'reserve'; item: string }
   | { kind: 'wear' }
   | { kind: 'igniting' };
 
@@ -153,5 +168,7 @@ export interface RouteStatus {
   /** Items per second the ships could carry */
   capacity: number;
   /** Why it carries less than it could */
-  reason: 'ok' | 'paused' | 'idle' | 'empty' | 'full';
+  reason: 'ok' | 'paused' | 'idle' | 'empty' | 'full' | 'keep' | 'enough' | 'fuel';
+  /** Rocket fuel burned per second, out of the home storage */
+  fuel: number;
 }

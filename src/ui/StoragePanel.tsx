@@ -1,6 +1,6 @@
 import { ITEM_ORDER, ITEMS, canVent, type ItemKind } from '../data/items';
 import { capOf, itemDiscovered } from '../sim/rules';
-import { getLast, getRates, getState, openLookup, toggleVent, trash } from '../state/store';
+import { getLast, getRates, getState, openLookup, setVentLevel, toggleVent, trash } from '../state/store';
 import { Bar, PageHeader, fmt, fmtRate } from './common';
 import { ItemIcon } from './pixel';
 
@@ -65,6 +65,28 @@ export function StoreControls({ id }: { id: string }) {
           <input type="checkbox" checked={venting} onChange={() => toggleVent(id)} />
           排放
         </label>
+      )}
+      {canVent(id) && venting && (
+        <select
+          class="vent-level"
+          aria-label="排放到剩多少"
+          title="超過這個量的都銷毀；選「滿了才排」只銷毀放不下的部分"
+          value={String(s.ventAt?.[id] ?? 0)}
+          onChange={(e) => {
+            const el = e.target as HTMLSelectElement;
+            const level = Number(el.value) || undefined;
+            // Choosing a level burns what is over it right away: say how much before it goes
+            const lost = level ? n - level * cap : 0;
+            if (lost >= 1 && !confirm(`現在有 ${fmt(n)}，設成只留 ${Math.round(level! * 100)}% 會立刻銷毀 ${fmt(lost)} 個${def.name}。確定嗎？`)) {
+              el.value = String(s.ventAt?.[id] ?? 0);
+              return;
+            }
+            setVentLevel(id, level);
+          }}
+        >
+          <option value="0">滿了才排</option>
+          {[0.75, 0.5, 0.25, 0.1].map((f) => <option key={f} value={String(f)}>只留 {Math.round(f * 100)}%（{fmt(f * cap)}）</option>)}
+        </select>
       )}
       {n > 0 && (
         <button class="small-btn danger" onClick={() => (byproduct || confirm(`丟掉全部 ${def.name}？`)) && trash(id)}>

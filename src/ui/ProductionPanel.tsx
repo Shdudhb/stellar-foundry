@@ -1,6 +1,6 @@
 import { Component } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ITEM_ORDER, ITEMS, canVent, itemName } from '../data/items';
+import { ITEM_ORDER, ITEMS, canVent, isPower, itemName } from '../data/items';
 import { MACHINE_LIST, MACHINES, MAINTENANCE_ITEM, type MachineDef } from '../data/machines';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { WORN_SPEED, fuelLines, limitableItem } from '../sim/engine';
@@ -14,7 +14,7 @@ import { RoutesCard } from './Shipping';
 import type { Line, LineStatus } from '../sim/types';
 import {
   build, buildUpTo, createLine, demolish, focusLine, gather, getLast, getState, getUi, openLookup, openPicker, openRecipeSwitch, removeLine,
-  setLineLimit, setRecipe, toggleLine, toggleVent, upgradeLine,
+  setLineLimit, setLineReserve, setRecipe, toggleLine, toggleVent, upgradeLine,
 } from '../state/store';
 import {
   Bar, Chevron, Cost, HoldButton, ItemLink, Modal, fmt, fmtNum, fmtRate, isStuck, reasonText, reasonTone, useHold,
@@ -84,13 +84,13 @@ function ManualCard() {
 
 /** What a recipe group is for, in the player's terms; every recipe category belongs to one */
 const GROUPS: { id: string; label: string; categories: string[] }[] = [
-  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind', 'ice_mining', 'magma'] },
+  { id: 'raw', label: '原料', categories: ['mining', 'pumping', 'asteroid', 'solar_wind', 'ice_mining', 'magma', 'atmo', 'crystal_mining'] },
   { id: 'metal', label: '冶煉', categories: ['smelting', 'casting', 'blasting', 'arc', 'vacuum', 'freezing', 'cooling', 'coking'] },
   { id: 'parts', label: '零件', categories: ['crafting', 'compressing', 'assembling'] },
   { id: 'chem', label: '化工', categories: ['crushing', 'electrolysis', 'mixing', 'distilling', 'chemistry'] },
-  { id: 'power', label: '電力', categories: ['burning', 'turbine', 'solar', 'combustion', 'fusion', 'launch', 'elevator', 'geothermal'] },
+  { id: 'power', label: '電力', categories: ['burning', 'turbine', 'solar', 'combustion', 'fusion', 'launch', 'elevator', 'geothermal', 'wind', 'stellar'] },
   { id: 'science', label: '研究', categories: ['research'] },
-  { id: 'space', label: '太空', categories: ['microgravity', 'neutron', 'swarm', 'collider', 'stabilizer'] },
+  { id: 'space', label: '太空', categories: ['microgravity', 'neutron', 'swarm', 'collider', 'stabilizer', 'crystal_growth'] },
 ];
 const GROUP_KEY = 'sf-new-group';
 
@@ -392,6 +392,28 @@ function LimitRow({ line, item }: { line: Line; item: string }) {
   );
 }
 
+/** The other half of the stock limit: how much of its inputs the line leaves for others */
+function ReserveRow({ line }: { line: Line }) {
+  return (
+    <div class="limit-row">
+      <span class="small">原料保留</span>
+      <div class="limit-chips">
+        <button class={`filter-chip ${line.reserve === undefined ? 'active' : ''}`} onClick={() => setLineReserve(line.id, undefined)}>不留</button>
+        {LIMITS.map((f) => (
+          <button key={f} class={`filter-chip ${line.reserve === f ? 'active' : ''}`} onClick={() => setLineReserve(line.id, f)}>
+            {Math.round(f * 100)}%
+          </button>
+        ))}
+      </div>
+      <span class="muted small">
+        {line.reserve === undefined
+          ? '不保留：原料有多少用多少。設了保留，庫存低於這個量就停手，留給別條線或貨運船'
+          : `每種原料的庫存低於容量的 ${Math.round(line.reserve * 100)}% 就停手`}
+      </span>
+    </div>
+  );
+}
+
 /** Removing a line with machines in it takes a second tap within a few seconds */
 function RemoveButton({ line }: { line: Line }) {
   const [armed, setArmed] = useState(false);
@@ -531,11 +553,12 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
   const reason = status?.reason ?? { kind: 'idle' as const };
   const tone = reasonTone(reason);
   // An empty line shows what one machine would do; a slowed line also shows what full speed would be
-  const perMachine = (oc.speed * (m.speed ?? 1) * categoryBoost(s, r.category)) / r.time;
+  const boost = categoryBoost(s, r.category);
+  const perMachine = (oc.speed * (m.speed ?? 1) * boost) / r.time;
   const empty = line.count === 0;
   const perSec = empty ? perMachine : status?.craftsPerSec ?? 0;
   const fullSpeed = status?.maxCraftsPerSec ?? 0;
-  const showFull = !empty && line.enabled && eff < 0.999 && fullSpeed > 0 && !['load', 'limit', 'igniting', 'idle', 'paused'].includes(reason.kind);
+  const showFull = !empty && line.enabled && eff < 0.999 && fullSpeed > 0 && !['load', 'limit', 'reserve', 'igniting', 'idle', 'paused'].includes(reason.kind);
   const ventable = reason.kind === 'output' && canVent(reason.item) && !s.vent.includes(reason.item);
   const reasonItem = 'item' in reason ? reason.item : undefined;
   const reasonLabel = reasonText(reason, status, ventable);
@@ -548,6 +571,7 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
   const draw = !drawItem ? 0 : empty ? m.power!.amount * oc.power : recipeNet * perSec - (status?.power[drawItem] ?? 0);
   const limitItem = limitableItem(line);
   const [limitOpen, setLimitOpen] = useState(false);
+  const hasInputs = Object.keys(r.inputs).some((i) => !isPower(i));
 
   return (
     <article id={`line-${line.id}`} data-line={line.id} class={`card line tone-border-${tone} ${line.enabled ? '' : 'paused'} ${eff > 0.01 ? 'running' : ''} ${fresh ? 'fresh' : ''}`}>
@@ -564,6 +588,11 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
             <span class="badge oc" title="機器階層高於配方：速度與耗能增加">{m.perfectOC ? '完美超頻' : '超頻'} ×{oc.speed}</span>
           )}
           {(m.speed ?? 1) > 1 && <span class="badge oc" title="大型設施">大型 ×{m.speed}</span>}
+          {Math.abs(boost - 1) > 0.001 && (
+            <span class={`badge ${boost > 1 ? 'oc' : 'slow'}`} title="這個恆星系（恆星、星球貧富、星域特性）或正在發生的世界事件，讓這類機器變快或變慢">
+              {boost > 1 ? '加成' : '減益'} ×{fmtNum(Math.round(boost * 100) / 100)}
+            </span>
+          )}
           {m.upkeep && s.maintenance && <span class="badge" title="每台每分鐘全速運轉消耗的維護套件">維護 {m.upkeep}/分</span>}
           {m.orbital && <span class="badge orbit" title="佔軌道槽位，靠軌道運力運轉">軌道</span>}
           {fuel && m.power && (
@@ -638,20 +667,24 @@ function LineCard({ line, status, fresh, fuel, onCollapse }: {
         <HoldButton class="primary" act={() => build(line.id) > 0} title="建造一台，按住連續建造" label="建造一台">＋</HoldButton>
         <button onClick={() => build(line.id, 5)} title="建造五台">＋5</button>
         <button onClick={() => toggleLine(line.id)}>{line.enabled ? '暫停' : '繼續'}</button>
-        {limitItem && (
+        {(limitItem || hasInputs) && (
           <button
-            class={`limit-btn ${line.limit !== undefined ? 'set' : ''}`}
+            class={`limit-btn ${line.limit !== undefined || line.reserve !== undefined ? 'set' : ''}`}
             aria-expanded={limitOpen}
-            title="存到一定數量就停"
+            title="條件：產物存到多少就停、原料保留多少不用"
             onClick={() => setLimitOpen(!limitOpen)}
           >
-            {line.limit !== undefined ? `上限${Math.round(line.limit * 100)}%` : '上限'}
+            {[
+              line.limit !== undefined ? `上限${Math.round(line.limit * 100)}%` : '',
+              line.reserve !== undefined ? `保留${Math.round(line.reserve * 100)}%` : '',
+            ].filter(Boolean).join('·') || '條件'}
           </button>
         )}
         <span class="spacer" />
         <RemoveButton line={line} />
       </footer>
       {limitItem && limitOpen && <LimitRow line={line} item={limitItem} />}
+      {limitOpen && hasInputs && <ReserveRow line={line} />}
       <p class="line-cost muted small">每台{planetOf(s) === HOME ? '' : '（母星庫存）'}：<Cost cost={m.cost} /></p>
       {upgrade && <UpgradeRow line={line} to={upgrade} />}
     </article>
@@ -696,7 +729,7 @@ function LineRow({ line, status, onOpen }: { line: Line; status?: LineStatus; on
   const tone = reasonTone(reason);
   const main = Object.keys(r.outputs)[0];
   const rate = (r.outputs[main] ?? 0) * (status?.craftsPerSec ?? 0);
-  const fine = reason.kind === 'ok' || ((reason.kind === 'load' || reason.kind === 'limit') && eff > 0);
+  const fine = reason.kind === 'ok' || ((reason.kind === 'load' || reason.kind === 'limit' || reason.kind === 'reserve') && eff > 0);
   return (
     <div id={`line-${line.id}`} data-line={line.id} class={`lrow tone-border-${tone} ${line.enabled ? '' : 'paused'}`}>
       <button class="lrow-main" onClick={onOpen} title="展開這條生產線">

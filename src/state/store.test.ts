@@ -54,7 +54,7 @@ describe('swarm milestones', () => {
   function loadGate(swarm: number) {
     const s = newGame();
     s.techs = ['stargate', 'dyson'];
-    s.items = { stable_exotic: 100, neutronium: 160, superconductor: 500, dyson_panel: 300, rocket_part: 80, dyson_swarm: swarm };
+    s.items = { stable_exotic: 100, neutronium: 160, superconductor: 500, dyson_panel: 300, rocket_part: 80, heat_ceramic: 450, metallic_hydrogen: 200, resonant_crystal: 150, dyson_swarm: swarm };
     importSave(exportString(s));
   }
 

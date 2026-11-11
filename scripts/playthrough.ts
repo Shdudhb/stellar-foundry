@@ -8,14 +8,26 @@
 // short, and vents a byproduct once it fills up. It ignores relic signals and world events, so its
 // times are a no-bonus baseline.
 //
+// Colonies: what only another world makes (comet ice) it builds there, geothermal power first, and ships
+// home; once the lava world is open it moves iron, copper and tungsten ingots to the foundries there and
+// hands the home smelters' slots back when the deliveries are standing.
+//
 // Options (after `--`):
+//   --no-lava     ignore the lava world, to compare
+//   --lava-iridium  also cast iridium there (off by default: the bot stalls itself at T6 with it)
 //   --explore     100 extra ground slots, to look past slot pressure at the later chains
 //   --from=5      start at that tier with everything before it done and stores half full (implies --explore)
 //   --item=<id>   at the end, list every line making or using that item and why it is slow
+//   --galaxy=<id> play under that galaxy's trait, as after a warp
+//   --star=<id>   play around that kind of star; --rich=0.7 sets every world's richness
+//   --style=0..3  how it treats lines it stopped using (see STYLE); try the others when one stalls
 //   --verbose     log each decision; --shed  pause lines by hand in brownouts, as before the game did it
 //
 // Limits: it is a heuristic, not an optimal player. It misplans slots, power and basic supplies in later
 // tiers, so a stall it reports may be its own; inspect with --item before blaming the game.
+// Its own mistakes so far, each fixed in the bot rather than the game: switching to a generator it could not
+// pay for or light (elevator, fusion) and leaving the grid at zero; planning more of an intermediate it
+// already had thousands of; scrapping its only plastic line and then wanting the plant that costs plastic.
 // Found with it: float drift blocking builds at "10/10"; co-products (aluminium dust, sodium, salt) locking
 // whole chains when only byproducts could vent; brownouts collapsing generation by starving the fuel chain;
 // T2 running out of slots (slow coke ovens, basic drills with no upgrade to electric ones); oil power that
@@ -25,20 +37,29 @@ import { MACHINES, MACHINE_LIST, MAINTENANCE_ITEM, type MachineDef } from '../sr
 import { OBJECTIVES, currentObjective } from '../src/data/objectives';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../src/data/recipes';
 import { MILESTONE_LIST, TECH_LIST, TIER_NAMES } from '../src/data/tech';
-import { fuelLines, tick } from '../src/sim/engine';
+import { fuelLines } from '../src/sim/engine';
+import { SHIP_COST, SHIP_FUEL_ITEM } from '../src/data/planets';
+import { HOME, openPlanets, storeOf } from '../src/sim/planets';
+import { tickAll } from '../src/sim/world';
 import { EU_PER, primaryRecipe, price } from '../src/sim/balance';
 import {
   canAfford, canRun, capOf, categoryBoost, currentTier, isMachineUnlocked, isRecipeUnlocked, milestoneUnlocked, overclock, simSpeed,
-  slotsTotal, slotsUsed, techAvailable, techCost, upgradeCost, upgradeTarget,
+  recipePlanet, shipFuel, shipRate, slotsTotal, slotsUsed, techAvailable, techCost, upgradeCost, upgradeTarget,
 } from '../src/sim/rules';
 import type { Line, TickResult } from '../src/sim/types';
 import {
-  addLine, build, buildMilestone, demolish, checkAchievements, claimObjectives, gather, getState, importSave, removeLine, research, toggleLine, toggleVent,
+  addLine, addRoute, build, buildMilestone, buildShip, switchPlanet, demolish, checkAchievements, claimObjectives, gather, getState, importSave, removeLine, research, toggleLine, toggleVent,
   upgradeLine,
 } from '../src/state/store';
 import { exportString, newGame } from '../src/state/save';
 
 const VERBOSE = process.argv.includes('--verbose');
+/** `--style=0..3`: how the bot treats lines it stopped using. The bot is deterministic and brittle: a small change in
+ *  speeds sends it down a different path, and each style stalls somewhere the others don't. A setting counts as
+ *  playable when any style finishes it.
+ *  0 scraps them; 1 also swaps an empty line it can't pay for onto a cheaper machine; 2 also keeps one machine on
+ *  the only source of anything; 3 keeps one only on what comes out of the ground */
+const STYLE = Number((process.argv.find((a) => a.startsWith('--style=')) ?? '--style=0').slice(8));
 const MAX_HOURS = 60;
 /** Seconds of play between decisions */
 const DECIDE_EVERY = 20;
@@ -69,6 +90,11 @@ if (FROM > 0) {
   }
   start.claimed = OBJECTIVES.filter((o) => o.done(start)).map((o) => o.text);
 }
+const GALAXY = (process.argv.find((a) => a.startsWith('--galaxy=')) ?? '').slice(9);
+if (GALAXY) start.galaxy = GALAXY;
+const STAR = (process.argv.find((a) => a.startsWith('--star=')) ?? '').slice(7);
+const RICH = Number((process.argv.find((a) => a.startsWith('--rich=')) ?? '--rich=1').slice(7));
+if (STAR) start.system = { name: '測試', star: STAR, trait: GALAXY || null, rich: { home: RICH, ice: RICH, lava: RICH, gas: RICH, crystal: RICH } };
 importSave(exportString(start));
 const s = getState;
 const fmtT = (sec: number) => `${Math.floor(sec / 3600)}h${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}m`;
@@ -76,7 +102,17 @@ const log = (msg: string) => console.log(`[${fmtT(s().playTime)}] ${msg}`);
 
 // ---------- what to make things with ----------
 
-const recipeReady = (r: RecipeDef) => isRecipeUnlocked(s(), r.id) && MACHINE_LIST.some((m) => canRun(m, r) && isMachineUnlocked(s(), m.id));
+const unlocked = (r: RecipeDef) => isRecipeUnlocked(s(), r.id) && MACHINE_LIST.some((m) => canRun(m, r) && isMachineUnlocked(s(), m.id));
+/** Ready on the home world, where the bot plans; what only a colony can make goes through `awayRecipe` */
+const recipeReady = (r: RecipeDef) => unlocked(r) && (recipePlanet(r) ?? HOME) === HOME;
+/** The colony recipe for something the home world cannot make at all (comet ice) */
+const awayRecipe = (item: string) =>
+  RECIPE_LIST.find((r) => r.outputs[item] && unlocked(r) && recipePlanet(r) !== undefined && recipePlanet(r) !== HOME && openPlanets(s()).includes(recipePlanet(r)!));
+/** Crafts per second the plan wants from each colony, by recipe */
+let awayCrafts: Record<string, Record<string, number>> = {};
+
+/** What a better generator costs, while the bot keeps the old ones running and saves for it */
+let saveFor: Record<string, number> = {};
 
 /** Rough cost of one unit through a recipe: machine-seconds plus a little for EU */
 function score(r: RecipeDef, item: string): number {
@@ -86,7 +122,26 @@ function score(r: RecipeDef, item: string): number {
 }
 
 /** The recipe the bot uses for an item: the mature route when it's unlocked, else the cheapest ready one */
+const USE_LAVA = !process.argv.includes('--no-lava');
+/** Iridium from magma only tops up what orbit mines. The bot plans it badly (it thrashes the home lines it
+ *  thinks it can drop), so it leaves it alone unless asked with `--lava-iridium` */
+const NO_EXTRA = !process.argv.includes('--lava-iridium');
+const LAVA_EXTRA = new Set(['iridium']);
+const lavaRecipe = (item: string) =>
+  USE_LAVA && !isPower(item) && openPlanets(s()).includes('lava') && !(NO_EXTRA && LAVA_EXTRA.has(item))
+    ? RECIPE_LIST.find((r) => r.outputs[item] && recipePlanet(r) === 'lava' && Object.keys(r.inputs).length > 0 && unlocked(r))
+    : undefined;
+const lavaStanding = (r: RecipeDef) => {
+  const o = storeOf(s(), 'lava');
+  const route = (s().routes ?? []).some((x) => x.from === 'lava' && x.ships > 0 && r.outputs[x.item]);
+  return !!o && route && o.lines.some((l) => l.recipe === r.id && l.count > 0) && o.lines.some((l) => l.count > 0 && RECIPES[l.recipe].outputs.eu);
+};
+/** `--no-lava`: play as if the lava world weren't there, to compare */
 function recipeFor(item: string): RecipeDef | undefined {
+  // Ingots the lava world pours straight from magma: once it is open, the bot moves them there
+  // ...but only once the foundry there is standing and delivering; until then home keeps making them
+  const lr = lavaRecipe(item);
+  if (lr && lavaStanding(lr) && !LAVA_EXTRA.has(item)) return undefined;
   const ready = RECIPE_LIST.filter((r) => r.outputs[item] && recipeReady(r));
   // A route whose power network has no generators yet can't bootstrap itself (the blast furnace needs EU,
   // the turbine that makes EU needs steel): keep the old route until the network exists
@@ -108,7 +163,28 @@ function recipeFor(item: string): RecipeDef | undefined {
       return slots;
     };
     const perSlot = (r: RecipeDef) => 1 / slotsPer(r, 1 / r.outputs[item], 0);
-    return pool.filter(fuelOk).sort((a, b) => perSlot(b) - perSlot(a))[0] ?? pool[0];
+    // A generator with no fuel chain (solar panels) only while it could carry the whole draw in two-fifths of
+    // the ground: under a bright star panels look best per slot, and then there is no room left for a factory
+    const draw = (last?.power[item]?.demand ?? 0) * 1.25;
+    const fits = (r: RecipeDef) => Object.keys(r.inputs).length > 0 || !!machineFor(r)?.orbital || !!r.planet || draw / perSlot(r) <= slotsTotal(s()) * 0.4;
+    const ok = pool.filter(fuelOk);
+    const ranked = (ok.some((r) => !fits(r)) && ok.some(fits) ? ok.filter(fits) : ok).sort((a, b) => perSlot(b) - perSlot(a));
+    // A better generator that isn't standing yet and can't be paid for (the elevator needs what only orbit
+    // makes, the reactor needs superconductors and a grid to light it): keep the working route and save up
+    const standing = (r: RecipeDef) => s().lines.some((l) => l.recipe === r.id && l.count > 0);
+    const startable = (r: RecipeDef) => {
+      const m = machineFor(r);
+      if (!m || !canAfford(s(), m.cost)) return false;
+      return !m.ignition || (last?.power.eu?.capacity ?? 0) - (last?.power.eu?.demand ?? 0) >= m.ignition.power;
+    };
+    const best = ranked[0];
+    if (best && !standing(best) && !startable(best)) {
+      const m = machineFor(best);
+      if (m) for (const [i, n] of Object.entries(m.cost)) saveFor[i] = Math.max(saveFor[i] ?? 0, n);
+      const works = ranked.find((r) => standing(r) || startable(r));
+      if (works) return works;
+    }
+    return best ?? pool[0];
   }
   const primary = primaryRecipe(item);
   if (primary && pool.includes(primary)) return primary;
@@ -152,9 +228,22 @@ function plan(targets: Record<string, number>): Record<string, number> {
   const stack = new Set<string>();
   const need = (item: string, rate: number, depth: number) => {
     if (rate <= 1e-6 || depth > 30 || stack.has(item)) return;
+    // An intermediate already stocked for the whole horizon: use the pile instead of making more of it
+    // (the bot once sat on 2,000 neutronium while the iridium it ate was what every build waited for)
+    if (depth > 0 && !isPower(item) && (s().items[item] ?? 0) > rate * HORIZON * 1.5) return;
+    // A lava route still being set up: ask the colony for it too, while home carries on
+    const seed = lavaRecipe(item);
+    if (seed && (!lavaStanding(seed) || LAVA_EXTRA.has(item))) {
+      const on = (awayCrafts.lava ??= {});
+      on[seed.id] = (on[seed.id] ?? 0) + rate / seed.outputs[item];
+    }
     const r = recipeFor(item);
     if (!r) {
-      missingWhy.set(item, 'no ready recipe');
+      const far = awayRecipe(item);
+      if (far) {
+        const on = (awayCrafts[recipePlanet(far)!] ??= {});
+        on[far.id] = (on[far.id] ?? 0) + rate / far.outputs[item];
+      } else missingWhy.set(item, 'no ready recipe');
       return;
     }
     stack.add(item);
@@ -203,6 +292,11 @@ function targets(): Record<string, number> {
     if (m.holds) add(m.holds, HORIZON * 3);
   }
   add(buildWants, HORIZON / 3);
+  // Ships burn rocket fuel at home for every item they carry
+  const shipping = (st.routes ?? []).reduce((n, r) => n + (r.enabled ? r.ships * shipRate(st) * shipFuel(st, r.from, r.to) : 0), 0);
+  if (shipping > 0) want[SHIP_FUEL_ITEM] = (want[SHIP_FUEL_ITEM] ?? 0) + shipping * 1.25;
+  add(saveFor, HORIZON);
+  saveFor = {};
   // Power is planned from what the grid actually draws, like a player reading the top bar: keep 25% spare
   // The whole draw, not the gap: the plan turns it into generators *and* their fuel in proportion, so a
   // fuel shortage builds fuel rather than more idle generators
@@ -227,8 +321,21 @@ function ensureLines(crafts: Record<string, number>) {
     // A better machine than the line's, with no in-place upgrade (basic drill → electric drill): start a new line on it
     const better = machineFor(r);
     if (line && better && better.tier > MACHINES[line.machine].tier && !upgradeTarget(st, line)) line = undefined;
+    // An empty line on a machine that can't be paid for, while a lesser one can (the big plant, after the old
+    // reactor was scrapped as unused): swap the plan for the one that can be built now
+    if (STYLE >= 1 && line && line.count === 0 && !canAfford(st, MACHINES[line.machine].cost)) {
+      const now = MACHINE_LIST.filter((x) => canRun(x, r) && isMachineUnlocked(st, x.id) && canAfford(st, x.cost)).sort((a, b) => b.tier - a.tier)[0];
+      if (now && now.id !== line.machine) {
+        if (VERBOSE) log(`give up on ${MACHINES[line.machine].name} · ${r.name}, use ${now.name}`);
+        removeLine(line.id);
+        line = undefined;
+      }
+    }
     if (!line) {
-      const m = better;
+      // Nothing standing for this recipe and the best machine out of reach (the big plant costs the plastic
+      // it would make): start on the best one that can be paid for, as a player would
+      const cheaper = MACHINE_LIST.filter((x) => canRun(x, r) && isMachineUnlocked(st, x.id) && canAfford(st, x.cost)).sort((a, b) => b.tier - a.tier)[0];
+      const m = better && !canAfford(st, better.cost) && cheaper ? cheaper : better;
       if (!m) continue;
       const id = addLine(m.id, rid);
       if (id === null) continue;
@@ -249,6 +356,84 @@ function ensureLines(crafts: Record<string, number>) {
       for (const [i, n] of Object.entries(m.cost)) buildWants[i] = Math.max(buildWants[i] ?? 0, n);
     }
     if (VERBOSE && line.count > before) log(`build ${m.name} · ${r.name} ${before}→${line.count}`);
+  }
+}
+
+/** Colonies: geothermal power first, then the lines the plan asked for, then ships to bring the goods home */
+const colonyLog: string[] = [];
+/** The smallest share of what the plan asked a colony for that its slots could hold */
+const colonyShort: Record<string, number> = {};
+function runColonies() {
+  for (const [planet, crafts] of Object.entries(awayCrafts)) {
+    switchPlanet(planet);
+    const st = s();
+    const best = (r: RecipeDef) => MACHINE_LIST.filter((m) => canRun(m, r) && isMachineUnlocked(st, m.id)).sort((a, b) => b.tier - a.tier)[0];
+    const lineFor = (r: RecipeDef) => {
+      const have = st.lines.find((l) => l.recipe === r.id);
+      if (have) return have;
+      const id = addLine(best(r).id, r.id);
+      return st.lines.find((l) => l.id === id)!;
+    };
+    const grow = (r: RecipeDef, want: number) => {
+      const line = lineFor(r);
+      const m = MACHINES[line.machine];
+      const before = line.count;
+      if (want > before) build(line.id, want - before);
+      if (line.count > before) colonyLog.push(`${fmtT(st.playTime)} ${planet} ${m.name}·${r.name} ${before}→${line.count}`);
+      if (line.count < want && !canAfford({ ...st, items: storeOf(st, HOME)!.items }, m.cost)) {
+        for (const [i, n] of Object.entries(m.cost)) buildWants[i] = Math.max(buildWants[i] ?? 0, n);
+      }
+      return line;
+    };
+    // What the asked-for recipes need that is made on the spot (magma for the foundries)
+    const gen = RECIPE_LIST.find((r) => r.outputs.eu && recipePlanet(r) === planet && unlocked(r));
+    const isExtra = (rid: string) => Object.keys(RECIPES[rid].outputs).some((o) => LAVA_EXTRA.has(o));
+    const sized = (base: number, extra: number) => {
+      const all: Record<string, number> = {};
+      const expand = (rid: string, c: number, depth: number) => {
+        if (c <= 0) return;
+        all[rid] = (all[rid] ?? 0) + c;
+        if (depth > 6) return;
+        for (const [i, n] of Object.entries(RECIPES[rid].inputs)) {
+          const src = RECIPE_LIST.find((r) => r.outputs[i] && unlocked(r) && recipePlanet(r) === planet);
+          if (src) expand(src.id, (c * n) / src.outputs[i], depth + 1);
+        }
+      };
+      for (const [rid, c] of Object.entries(crafts)) expand(rid, c * (isExtra(rid) ? extra : base), 0);
+      const ws = Object.entries(all).map(([rid, c]) => {
+        const r = RECIPES[rid];
+        const m = best(r);
+        return { r, m, count: Math.max(1, Math.ceil((c * 1.2) / perMachine(m, r))), c };
+      });
+      const draw = ws.reduce((n, w) => n + (w.m.power ? w.count * w.m.power.amount * overclock(w.m, w.r).power : 0), 0);
+      const gens = gen && draw > 0 ? Math.ceil((draw * 1.25) / gen.outputs.eu) : 0;
+      return { ws, gens, slots: gens + ws.reduce((n, w) => n + w.count * w.m.slots, 0) };
+    };
+    // The colony's slots are what limits it: what only tops up home (iridium) gives way first, then the rest shrinks
+    let base = 1;
+    let extra = 1;
+    let fit = sized(base, extra);
+    while (fit.slots > slotsTotal(st) && extra > 0) fit = sized(base, (extra = extra < 0.05 ? 0 : extra * 0.8));
+    while (fit.slots > slotsTotal(st) && base > 0.02) fit = sized((base *= 0.85), extra);
+    if (base < 1) colonyShort[planet] = Math.min(colonyShort[planet] ?? 1, base);
+    const wants = fit.ws.filter((w) => crafts[w.r.id] !== undefined);
+    // Power first, and nothing that draws it until a generator stands; then pumps before what they feed
+    const lit = !gen || fit.gens === 0 || grow(gen, fit.gens).count > 0;
+    if (lit) for (const w of [...fit.ws].sort((a, b) => Object.keys(a.r.inputs).length - Object.keys(b.r.inputs).length)) grow(w.r, w.count);
+    switchPlanet(HOME);
+    for (const w of wants) {
+      for (const [item, n] of Object.entries(w.r.outputs)) {
+        if (isPower(item)) continue;
+        const id = addRoute(item, planet, HOME);
+        if (id === null) continue;
+        const route = s().routes!.find((x) => x.id === id)!;
+        const ships = Math.max(1, Math.ceil((w.c * n * 1.2) / shipRate(s())));
+        const before = route.ships;
+        if (ships > before) buildShip(id, ships - before);
+        if (route.ships > before) colonyLog.push(`${fmtT(s().playTime)} 航線 ${ITEMS[item].name} ${planet}→home 船 ${before}→${route.ships}`);
+        if (route.ships < ships) for (const [i, c] of Object.entries(SHIP_COST)) buildWants[i] = Math.max(buildWants[i] ?? 0, c);
+      }
+    }
   }
 }
 
@@ -303,6 +488,8 @@ function shedLoad() {
   for (const l of st.lines) if (l.enabled && MACHINES[l.machine].power && !chain.has(l.recipe)) toggleLine(l.id);
 }
 
+const idleSince = new Map<number, number>();
+
 /** When slots are tight, upgrade the line that saves the most slots per material, and scrap
  *  low-tier lines that a better line for the same recipe has replaced */
 function upgradeWhenTight() {
@@ -327,6 +514,35 @@ function upgradeWhenTight() {
       if (idlest) {
         if (VERBOSE) log(`trim generator ${MACHINES[idlest.machine].name} · ${RECIPES[idlest.recipe].name} ${idlest.count}→${idlest.count - 1}`);
         demolish(idlest.id, 1);
+      }
+    }
+    // Lines the plan stopped using half an hour ago (smelters replaced by a colony): give the slots back
+    for (const l of [...st.lines]) {
+      if (l.enabled || l.count === 0) idleSince.delete(l.id);
+      else if (!idleSince.has(l.id)) idleSince.set(l.id, st.playTime);
+      else if (
+        st.playTime - idleSince.get(l.id)! > 1800 &&
+        // Never the old line while its replacement still stands empty (the plant that needs plastic to build
+        // can't replace the reactor that makes the ethylene for it)
+        !st.lines.some((o) => o !== l && o.recipe === l.recipe && o.count === 0)
+      ) {
+        // The only source of something keeps one machine: a full store pauses a line for a long while, and once
+        // the ore is spent the drill that mined it can't be bought back without the metal
+        // Only for what comes out of the ground: anything made from something can be rebuilt on a cheaper machine
+        const root = Object.keys(RECIPES[l.recipe].inputs).every(isPower);
+        const sole = STYLE >= 2 && (STYLE === 2 || root) && !Object.keys(RECIPES[l.recipe].outputs).filter((o) => !isPower(o)).every((o) =>
+          st.lines.some((x) => x !== l && x.count > 0 && o in RECIPES[x.recipe].outputs) ||
+          (st.routes ?? []).some((x) => x.item === o && x.to === HOME && x.ships > 0));
+        idleSince.delete(l.id);
+        if (sole) {
+          if (l.count > 1) {
+            if (VERBOSE) log(`trim unused ${MACHINES[l.machine].name}×${l.count}→1 · ${RECIPES[l.recipe].name}`);
+            demolish(l.id, l.count - 1);
+          }
+          continue;
+        }
+        if (VERBOSE) log(`scrap unused ${MACHINES[l.machine].name}×${l.count} · ${RECIPES[l.recipe].name}`);
+        removeLine(l.id);
       }
     }
     const keep = linesByRecipe();
@@ -375,7 +591,12 @@ function ventBlockers(crafts: Record<string, number>) {
   const st = s();
   for (const l of st.lines) {
     const r = last?.lines[l.id]?.reason;
-    if (!l.enabled || !crafts[l.recipe] || r?.kind !== 'output' || st.vent.includes(r.item)) continue;
+    // Planned or not: an enabled line stopped by a full co-product is making something the factory uses
+    if (!l.enabled || l.count === 0 || r?.kind !== 'output' || st.vent.includes(r.item)) continue;
+    // An unplanned line counts only when another of its outputs has run dry (towers jammed on light oil
+    // while ethylene starves for refinery gas)
+    const dry = Object.keys(RECIPES[l.recipe].outputs).some((o) => o !== r.item && !isPower(o) && (st.items[o] ?? 0) < capOf(st, o) * 0.02);
+    if (!crafts[l.recipe] && !dry) continue;
     // Only a co-product in the way: the recipe makes something else too. Venting only burns the overflow of a
     // full store, so it's safe even when something else uses the item (the salt ⇄ sodium loop needs exactly this)
     if (Object.keys(RECIPES[l.recipe].outputs).filter((o) => !isPower(o)).length < 2) continue;
@@ -470,7 +691,7 @@ for (let sec = 0; sec < MAX_HOURS * 3600; sec++) {
         buildMilestone(m.id);
         marks.push({ what: `巨構 ${m.name}`, t: st.playTime });
         log(`★ 建成巨構「${m.name}」→ ${TIER_NAMES[currentTier(st)]}`);
-        tierStart[currentTier(st)] = st.playTime;
+        tierStart[currentTier(st)] ??= st.playTime;
         lastProgress = st.playTime;
       }
     }
@@ -481,12 +702,18 @@ for (let sec = 0; sec < MAX_HOURS * 3600; sec++) {
     if (st.milestones.includes('stargate')) break;
     if (researched) lastProgress = st.playTime;
     missingWhy.clear();
+    awayCrafts = {};
     const tg = targets();
     const crafts = plan(tg);
     if (process.argv.includes('--debug-at=' + Math.floor(st.playTime / 60))) {
       console.log('targets', JSON.stringify(tg), '\ncrafts', JSON.stringify(crafts), '\nbuildWants', JSON.stringify(buildWants), '\nitems', JSON.stringify(st.items));
     }
+    // Colonies first: a few machines there gate whole tiers (deuterium, ceramic), and home would spend the titanium
+    const forColonies = { ...buildWants };
+    runColonies();
+    const fromColonies = { ...buildWants };
     ensureLines(crafts);
+    for (const [i, n] of Object.entries(fromColonies)) if (n > (forColonies[i] ?? 0)) buildWants[i] = Math.max(buildWants[i] ?? 0, n);
     pauseIdle(crafts);
     shedLoad();
     upgradeWhenTight();
@@ -505,7 +732,7 @@ for (let sec = 0; sec < MAX_HOURS * 3600; sec++) {
     }
   }
   if (FROM === 0 && st.playTime < 3 * 3600 && handGather()) tappedSecs++;
-  last = tick(st, simSpeed(st));
+  last = tickAll(st, simSpeed(st)).last;
   st.playTime += 1;
   for (const [p, ps] of Object.entries(last.power)) if (ps.demand > 0 && ps.satisfaction < 0.9) powerShort[p] = (powerShort[p] ?? 0) + 1;
 }
@@ -524,6 +751,13 @@ for (const [i, t] of tiers.entries()) {
 console.log(`\n目標進度：${Math.max(0, currentObjective(st))}/${OBJECTIVES.length}${currentObjective(st) >= 0 ? `，停在「${OBJECTIVES[currentObjective(st)].text}」` : ''}`);
 console.log(`研究 ${st.techs.length}/${TECH_LIST.length}，生產線 ${st.lines.length} 條、機器 ${st.lines.reduce((n, l) => n + l.count, 0)} 台，槽位 ${slotsUsed(st)}/${slotsTotal(st)}`);
 console.log(`手動採集 ${st.stats.gathered} 次（約 ${Math.round(tappedSecs / 60)} 分鐘在點）`);
+for (const p of openPlanets(st).filter((x) => x !== HOME)) {
+  const o = storeOf(st, p)!;
+  console.log(`殖民地 ${p}：${o.lines.map((l) => `${MACHINES[l.machine].name}·${RECIPES[l.recipe].name}×${l.count}`).join('、') || '沒有生產線'}`);
+}
+if (Object.keys(colonyShort).length) console.log(`殖民地槽位不夠，只蓋得下計畫的：${Object.entries(colonyShort).map(([p, f]) => `${p} ${Math.round(f * 100)}%`).join('、')}`);
+console.log(`航線：${(st.routes ?? []).map((r) => `${ITEMS[r.item].name} ${r.from}→${r.to} ×${r.ships}`).join('、') || '無'}`);
+if (VERBOSE) for (const l of colonyLog) console.log('  ' + l);
 console.log(`打開排放：${vented.join('、') || '無'}`);
 console.log(`電力跌破 60%：${brownouts.length} 次${brownouts.length ? `（${brownouts.slice(0, 6).join('、')}${brownouts.length > 6 ? ' …' : ''}）` : ''}`);
 console.log(`電力不足的時間：${Object.entries(powerShort).map(([p, n]) => `${ITEMS[p].name} ${fmtT(n)}`).join('、') || '無'}`);

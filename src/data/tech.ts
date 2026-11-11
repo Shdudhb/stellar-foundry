@@ -264,8 +264,8 @@ const list: TechDef[] = [
   },
   {
     id: 'zoning_7', name: '區域規劃 VII', tier: 5, cost: { data_purple: 200 }, requires: ['ev_tech'],
-    description: '區域槽位再 +30。',
-    slotBonus: 30,
+    description: '區域槽位再 +40。',
+    slotBonus: 40,
   },
   {
     id: 'he3_collection', name: '氦-3 收集', tier: 5, cost: { data_purple: 200 }, requires: ['orbital_station'],
@@ -341,13 +341,13 @@ const list: TechDef[] = [
   {
     id: 'colony_expansion', name: '殖民地擴建', tier: 6, cost: { data_yellow: 400 }, requires: ['deuterium_extraction'],
     description: '每個殖民地槽位 +8。',
-    planetSlots: { ice: 8, lava: 8 },
+    planetSlots: { ice: 8, lava: 8, gas: 8, crystal: 8 },
   },
   {
     id: 'lava_expedition', name: '熔岩星探勘', tier: 6, cost: { data_yellow: 500 }, requires: ['colony_expansion'],
-    description: '開放第二個殖民地「熔岩星」：岩漿泵抽岩漿，熔鑄廠直接鑄成鐵錠、銅錠和鎢錠，地熱井在那裡每秒發 240 電力。',
+    description: '開放第二個殖民地「熔岩星」：岩漿泵抽岩漿，熔鑄廠燒結只有那裡做得出的耐熱陶瓷（中子素壓縮機、戴森群和星門都要用），也能把岩漿直接鑄成鐵、銅、鎢和銥錠，地熱井在那裡每秒發 240 電力。',
     unlockMachines: ['magma_pump', 'foundry'],
-    unlockRecipes: ['pump_magma', 'magma_power', 'cast_iron', 'cast_copper', 'cast_tungsten'],
+    unlockRecipes: ['pump_magma', 'magma_power', 'cast_iron', 'cast_copper', 'cast_ceramic', 'cast_tungsten', 'cast_iridium'],
   },
   {
     id: 'fusion', name: '聚變', tier: 6, cost: { data_yellow: 750 }, requires: ['superconductors', 'deuterium_extraction'],
@@ -366,8 +366,8 @@ const list: TechDef[] = [
     orbitSlotBonus: 12,
   },
   {
-    id: 'neutron_compression', name: '中子素', tier: 6, cost: { data_yellow: 900 }, requires: ['fusion'],
-    description: '中子素壓縮機：4 銥 + 1 超導線 → 中子素，每台吃 512 電力/秒。',
+    id: 'neutron_compression', name: '中子素', tier: 6, cost: { data_yellow: 900 }, requires: ['fusion', 'lava_expedition'],
+    description: '中子素壓縮機：4 銥 + 1 超導線 → 中子素，每台吃 512 電力/秒。機體要用熔岩星的耐熱陶瓷。',
     unlockMachines: ['neutronium_compressor'],
     unlockRecipes: ['compress_neutronium'],
   },
@@ -385,13 +385,25 @@ const list: TechDef[] = [
     unlockRecipes: ['deploy_swarm'],
   },
   {
-    id: 'particle_physics', name: '粒子對撞', tier: 7, cost: { data_yellow: 800 }, requires: ['swarm_deployment'],
+    id: 'gas_giant_station', name: '氣態巨星站', tier: 7, cost: { data_yellow: 500 }, requires: ['swarm_deployment'],
+    description: '開放第三個殖民地「氣態巨星」：風暴渦輪發電，大氣採集站壓製只有那裡有的金屬氫（粒子對撞機和星門都要用），也能採氦-3。',
+    unlockMachines: ['storm_turbine', 'atmo_harvester'],
+    unlockRecipes: ['storm_power', 'compress_hydrogen', 'harvest_he3'],
+  },
+  {
+    id: 'particle_physics', name: '粒子對撞', tier: 7, cost: { data_yellow: 800 }, requires: ['swarm_deployment', 'gas_giant_station'],
     description: '粒子對撞機把中子素撞成奇異物質。奇異物質每秒衰變 2%，不能囤。',
     unlockMachines: ['particle_collider'],
     unlockRecipes: ['collide_neutronium'],
   },
   {
-    id: 'spacetime', name: '時空穩定', tier: 7, cost: { data_yellow: 800 }, requires: ['particle_physics'],
+    id: 'crystal_survey', name: '晶簇星測繪', tier: 7, cost: { data_yellow: 500 }, requires: ['particle_physics'],
+    description: '開放第四個殖民地「晶簇星」：聚光陣列發電，晶簇切割機採晶屑，共振爐培養只有那裡有的共振晶體（時空穩定器和星門都要用），也能把晶屑切成矽晶圓。',
+    unlockMachines: ['light_array', 'crystal_cutter', 'resonance_kiln'],
+    unlockRecipes: ['array_power', 'cut_crystal', 'grow_resonant', 'shard_wafer'],
+  },
+  {
+    id: 'spacetime', name: '時空穩定', tier: 7, cost: { data_yellow: 800 }, requires: ['particle_physics', 'crystal_survey'],
     description: '時空穩定器：奇異物質 + 超導線 → 穩定奇異物質，不再衰變。',
     unlockMachines: ['spacetime_stabilizer'],
     unlockRecipes: ['stabilize_exotic'],
@@ -414,7 +426,7 @@ const list: TechDef[] = [
   {
     id: 'colony_expansion_2', name: '殖民地擴建 II', tier: 7, cost: { data_white: 200 }, requires: ['white_science', 'colony_expansion'],
     description: '每個殖民地槽位再 +12。',
-    planetSlots: { ice: 12, lava: 12 },
+    planetSlots: { ice: 12, lava: 12, gas: 12, crystal: 12 },
   },
   {
     id: 'storage_8', name: '倉儲擴充 VIII', tier: 7, cost: { data_white: 200 }, requires: ['white_science', 'storage_7'],
@@ -513,7 +525,7 @@ export const MILESTONE_LIST: MilestoneDef[] = [
     name: '戴森群第一段',
     tier: 6,
     description: '建成後送 200 片戴森群，每片每秒提供 20 電力。',
-    cost: { dyson_panel: 200, neutronium: 60, superconductor: 200, rocket_part: 80 },
+    cost: { dyson_panel: 200, neutronium: 60, superconductor: 200, rocket_part: 80, heat_ceramic: 150 },
     grantsItems: { dyson_swarm: 200 },
     victory: {
       title: '戴森群展開',
@@ -525,7 +537,7 @@ export const MILESTONE_LIST: MilestoneDef[] = [
     name: '星門',
     tier: 7,
     description: '建成即通關，之後可以在「星系」分頁躍遷到新星系。',
-    cost: { stable_exotic: 100, neutronium: 100, superconductor: 300, dyson_panel: 100 },
+    cost: { stable_exotic: 100, neutronium: 100, superconductor: 300, dyson_panel: 100, heat_ceramic: 300, metallic_hydrogen: 200, resonant_crystal: 150 },
     holds: { dyson_swarm: 600 },
     victory: {
       title: '星門開啟',

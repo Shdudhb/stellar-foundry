@@ -226,14 +226,15 @@ describe('save v5', () => {
 
 describe('galaxy traits', () => {
   it('rolls a new trait on every warp and applies its speeds', async () => {
-    const { GALAXIES } = await import('../data/galaxies');
+    const { GALAXIES, systemBoost } = await import('../data/galaxies');
     load((s) => {
       s.milestones = ['stargate'];
     });
     warp();
     const first = getState().galaxy!;
     expect(GALAXIES[first]).toBeDefined();
-    for (const [cat, k] of Object.entries(GALAXIES[first].boost)) expect(categoryBoost(getState(), cat)).toBeCloseTo(k);
+    for (const [cat, k] of Object.entries(GALAXIES[first].boost)) expect(categoryBoost(getState(), cat)).toBeCloseTo(k * systemBoost(getState().system, cat));
+    expect(getState().system?.trait).toBe(first);
     getState().milestones.push('stargate');
     warp();
     expect(getState().galaxy).not.toBe(first);

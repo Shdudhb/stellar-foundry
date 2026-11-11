@@ -1,8 +1,8 @@
-import { GALAXIES } from '../data/galaxies';
+import { GALAXIES, STARS, systemBoost } from '../data/galaxies';
 import { INCIDENTS } from '../data/incidents';
 import { DEFAULT_CAP, ITEMS } from '../data/items';
 import { MACHINES, type MachineDef } from '../data/machines';
-import { HOME, PLANETS } from '../data/planets';
+import { HOME, PLANETS, SHIP_RATE, routeFuel } from '../data/planets';
 import { RECIPE_LIST, RECIPES, type RecipeDef } from '../data/recipes';
 import { MILESTONE_LIST, TECHS, TECH_LOCKED_MACHINES, TECH_LOCKED_RECIPES } from '../data/tech';
 import type { GameState, Line } from './types';
@@ -32,7 +32,22 @@ export function activeIncident(state: GameState) {
 /** Speed multiplier the current world event and galaxy trait give lines of this recipe category */
 export function categoryBoost(state: GameState, category: string): number {
   const galaxy = state.galaxy ? GALAXIES[state.galaxy]?.boost[category] ?? 1 : 1;
-  return (activeIncident(state)?.boost?.[category] ?? 1) * galaxy;
+  return (activeIncident(state)?.boost?.[category] ?? 1) * galaxy * systemBoost(state.system, category);
+}
+
+/** How bright this system's star is next to the first one: what a Dyson panel gives is multiplied by it */
+export function starLum(state: GameState): number {
+  return STARS[state.system?.star ?? '']?.lum ?? 1;
+}
+
+/** Items one cargo ship carries per second in this galaxy */
+export function shipRate(state: GameState): number {
+  return SHIP_RATE * (1 + 0.25 * legacyLevel(state, 'freight')) * ((state.galaxy && GALAXIES[state.galaxy]?.shipMult) || 1);
+}
+
+/** Rocket fuel a route between these worlds burns for each item it moves, in this galaxy */
+export function shipFuel(state: GameState, from: string, to: string): number {
+  return routeFuel(from, to) * ((state.galaxy && GALAXIES[state.galaxy]?.fuelMult) || 1);
 }
 
 /** Longest absence that is caught up on return */
@@ -50,7 +65,7 @@ export function slotsTotal(state: GameState, orbit = false): number {
   if (planet !== HOME) {
     // Other worlds have ground only, and grow by their own research
     if (orbit) return 0;
-    return state.techs.reduce((s, id) => s + (TECHS[id]?.planetSlots?.[planet] ?? 0), PLANETS[planet]?.slots ?? 0);
+    return state.techs.reduce((s, id) => s + (TECHS[id]?.planetSlots?.[planet] ?? 0), (PLANETS[planet]?.slots ?? 0) + 4 * legacyLevel(state, 'colony'));
   }
   if (orbit) {
     const built = state.techs.reduce((s, id) => s + (TECHS[id]?.orbitSlotBonus ?? 0), 0);
